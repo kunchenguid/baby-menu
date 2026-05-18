@@ -16,6 +16,11 @@ Common files are:
 - Additional local helper files used only by this extension.
 - Optional notes that make the extension understandable and shareable.
 
+Packaged Baby Menu compiles extension modules before loading them.
+Keep imports package-safe: widgets may import `react`, `react/jsx-runtime`, `react/jsx-dev-runtime`, and local helper files only.
+Server actions may import Node built-ins such as `node:fs` plus local helper files only.
+Do not add arbitrary npm package imports to extension code unless the host compiler is updated to support them.
+
 ## Recipes
 
 Recipe-backed widget specs live in `recipes/*.html` inside this extension workspace.
