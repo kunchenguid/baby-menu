@@ -8,6 +8,8 @@ const trayInstance = {
 
 const electronApp = {
   dock: { hide: vi.fn() },
+  getLoginItemSettings: vi.fn(() => ({ openAtLogin: false })),
+  setLoginItemSettings: vi.fn(),
   isPackaged: false,
   on: vi.fn(),
   whenReady: vi.fn(async () => undefined),
@@ -31,11 +33,16 @@ const BrowserWindow = vi.fn(function BrowserWindowMock() {
 const getDisplayNearestPoint = vi.fn(() => ({
   workArea: { x: 0, y: 0, width: 1440, height: 900 },
 }));
+const protocol = {
+  registerSchemesAsPrivileged: vi.fn(),
+  handle: vi.fn(),
+};
 const registerIpcHandlers = vi.fn();
 
 vi.mock("electron", () => ({
   app: electronApp,
   BrowserWindow,
+  protocol,
   screen: { getDisplayNearestPoint },
 }));
 
@@ -47,7 +54,12 @@ vi.mock("../src/main/tray", () => ({
   createBabyMenuTray,
 }));
 
+vi.mock("../src/main/shell-path", () => ({
+  expandProcessPathForGuiLaunch: vi.fn(() => "/usr/bin:/bin"),
+}));
+
 vi.mock("../src/shared/paths", () => ({
+  EXTENSIONS_DIR_ENV: "BABY_MENU_EXTENSIONS_DIR",
   getRepoRoot: vi.fn(() => "/repo"),
 }));
 

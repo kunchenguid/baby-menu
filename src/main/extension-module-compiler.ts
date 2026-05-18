@@ -1,0 +1,305 @@
+import { builtinModules } from "node:module";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import ts from "typescript";
+
+export type ExtensionModuleKind = "widget" | "server";
+
+export type CompileExtensionModuleOptions = {
+  kind: ExtensionModuleKind;
+  extensionId: string;
+  extensionDir: string;
+  entryFile: string;
+  cacheRoot: string;
+};
+
+export type CompiledExtensionModule = {
+  hash: string;
+  outputDir: string;
+  outputPath: string;
+  moduleUrl: string;
+};
+
+type SourceModule = {
+  filePath: string;
+  source: string;
+};
+
+type ResolvedLocalImport = {
+  path: string;
+};
+
+const LOCAL_EXTENSIONS = [".tsx", ".ts", ".jsx", ".js", ".mjs"];
+const STATIC_IMPORT_PATTERN = /(\b(?:import|export)\b[\s\S]*?\bfrom\s*["'])([^"']+)(["'])/g;
+const SIDE_EFFECT_IMPORT_PATTERN = /(\bimport\s*["'])([^"']+)(["'])/g;
+const HASH_LENGTH = 16;
+
+export async function compileExtensionModule(options: CompileExtensionModuleOptions): Promise<CompiledExtensionModule> {
+  const extensionDir = resolve(options.extensionDir);
+  const entryFile = resolve(options.entryFile);
+  assertInsideExtension(extensionDir, entryFile, options.extensionId);
+
+  const graph = await collectModuleGraph({
+    kind: options.kind,
+    extensionId: options.extensionId,
+    extensionDir,
+    entryFile,
+  });
+  const hash = contentHash(graph, extensionDir, options.kind);
+  const outputDir = join(options.cacheRoot, options.extensionId, hash);
+
+  await Promise.all(
+    graph.map(async (module) => {
+      const outputPath = compiledOutputPath(outputDir, extensionDir, module.filePath);
+      const output = await transpileAndRewriteModule({
+        kind: options.kind,
+        extensionId: options.extensionId,
+        extensionDir,
+        filePath: module.filePath,
+        source: module.source,
+      });
+      await mkdir(dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, output);
+    }),
+  );
+
+  const outputPath = compiledOutputPath(outputDir, extensionDir, entryFile);
+  return {
+    hash,
+    outputDir,
+    outputPath,
+    moduleUrl: pathToFileURL(outputPath).href,
+  };
+}
+
+export async function rewriteExtensionModuleImports(options: {
+  kind: ExtensionModuleKind;
+  extensionId: string;
+  extensionDir: string;
+  filePath: string;
+  source: string;
+  validateExternalImports?: boolean;
+}): Promise<string> {
+  const extensionDir = resolve(options.extensionDir);
+  const filePath = resolve(options.filePath);
+  const replacements = await Promise.all(
+    importSpecifierMatches(options.source).map(async (match) => {
+      const rewritten = await rewriteImportSpecifier({
+        kind: options.kind,
+        extensionId: options.extensionId,
+        extensionDir,
+        filePath,
+        specifier: match.specifier,
+        validateExternalImports: options.validateExternalImports ?? true,
+      });
+      if (rewritten === match.specifier) return null;
+      return { start: match.start, end: match.end, value: rewritten };
+    }),
+  );
+
+  return applyReplacements(options.source, replacements.filter((replacement) => replacement !== null));
+}
+
+async function collectModuleGraph(options: {
+  kind: ExtensionModuleKind;
+  extensionId: string;
+  extensionDir: string;
+  entryFile: string;
+}): Promise<SourceModule[]> {
+  const modules = new Map<string, SourceModule>();
+
+  async function visit(filePath: string) {
+    const normalizedPath = resolve(filePath);
+    if (modules.has(normalizedPath)) return;
+    assertInsideExtension(options.extensionDir, normalizedPath, options.extensionId);
+
+    const source = await readFile(normalizedPath, "utf8");
+    modules.set(normalizedPath, { filePath: normalizedPath, source });
+
+    const dependencies = await Promise.all(
+      importSpecifierMatches(source).map(async (match) => {
+        if (!isLocalSpecifier(match.specifier)) {
+          assertSupportedExternalImport(options.kind, match.specifier, options.extensionId, options.extensionDir, normalizedPath);
+          return null;
+        }
+        return resolveLocalImport(normalizedPath, match.specifier, options.extensionDir, options.extensionId);
+      }),
+    );
+    await Promise.all(dependencies.filter((dependency): dependency is ResolvedLocalImport => Boolean(dependency)).map((dependency) => visit(dependency.path)));
+  }
+
+  await visit(options.entryFile);
+  return [...modules.values()].sort((left, right) => left.filePath.localeCompare(right.filePath));
+}
+
+async function transpileAndRewriteModule(options: {
+  kind: ExtensionModuleKind;
+  extensionId: string;
+  extensionDir: string;
+  filePath: string;
+  source: string;
+}) {
+  const transpiled = ts.transpileModule(options.source, {
+    fileName: options.filePath,
+    compilerOptions: {
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.ESNext,
+      jsx: ts.JsxEmit.ReactJSX,
+      esModuleInterop: true,
+      importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
+      sourceMap: false,
+    },
+  }).outputText;
+
+  return rewriteExtensionModuleImports({ ...options, source: transpiled, validateExternalImports: true });
+}
+
+async function rewriteImportSpecifier(options: {
+  kind: ExtensionModuleKind;
+  extensionId: string;
+  extensionDir: string;
+  filePath: string;
+  specifier: string;
+  validateExternalImports: boolean;
+}): Promise<string> {
+  if (!isLocalSpecifier(options.specifier)) {
+    if (options.kind === "widget") return rewriteWidgetExternalImport(options);
+    if (options.validateExternalImports) {
+      assertSupportedExternalImport(options.kind, options.specifier, options.extensionId, options.extensionDir, options.filePath);
+    }
+    return options.specifier;
+  }
+
+  const resolved = await resolveLocalImport(options.filePath, options.specifier, options.extensionDir, options.extensionId);
+  return relativeModuleSpecifier(options.filePath, resolved.path, options.extensionDir);
+}
+
+function rewriteWidgetExternalImport(options: {
+  extensionId: string;
+  extensionDir: string;
+  filePath: string;
+  specifier: string;
+  validateExternalImports: boolean;
+}): string {
+  if (options.specifier === "react") return "baby-menu-host://react/index.mjs";
+  if (options.specifier === "react/jsx-runtime" || options.specifier === "react/jsx-dev-runtime") {
+    return "baby-menu-host://react-jsx-runtime/index.mjs";
+  }
+  if (options.validateExternalImports) {
+    assertSupportedExternalImport("widget", options.specifier, options.extensionId, options.extensionDir, options.filePath);
+  }
+  return options.specifier;
+}
+
+function assertSupportedExternalImport(
+  kind: ExtensionModuleKind,
+  specifier: string,
+  extensionId: string,
+  extensionDir: string,
+  filePath: string,
+) {
+  if (kind === "widget" && (specifier === "react" || specifier === "react/jsx-runtime" || specifier === "react/jsx-dev-runtime")) {
+    return;
+  }
+  if (kind === "server" && (specifier.startsWith("node:") || builtinModules.includes(specifier))) return;
+
+  throw new Error(
+    `Unsupported ${kind} import "${specifier}" in ${formatExtensionPath(extensionId, extensionDir, filePath)}`,
+  );
+}
+
+async function resolveLocalImport(
+  filePath: string,
+  specifier: string,
+  extensionDir: string,
+  extensionId: string,
+): Promise<ResolvedLocalImport> {
+  const basePath = resolve(dirname(filePath), specifier);
+  assertInsideExtension(extensionDir, basePath, extensionId, "Local import escapes extension workspace");
+
+  const candidates = extname(specifier)
+    ? [basePath]
+    : [...LOCAL_EXTENSIONS.map((extension) => `${basePath}${extension}`), ...LOCAL_EXTENSIONS.map((extension) => join(basePath, `index${extension}`))];
+
+  for (const candidate of candidates) {
+    try {
+      const source = await readFile(candidate, "utf8");
+      void source;
+      return { path: resolve(candidate) };
+    } catch {
+      // Try the next import candidate.
+    }
+  }
+
+  throw new Error(`Cannot resolve local import "${specifier}" in ${formatExtensionPath(extensionId, extensionDir, filePath)}`);
+}
+
+function compiledOutputPath(outputDir: string, extensionDir: string, filePath: string): string {
+  return join(outputDir, replaceExtension(relative(extensionDir, filePath), ".mjs"));
+}
+
+function relativeModuleSpecifier(fromFile: string, toFile: string, extensionDir: string): string {
+  const fromOutput = replaceExtension(relative(extensionDir, fromFile), ".mjs");
+  const toOutput = replaceExtension(relative(extensionDir, toFile), ".mjs");
+  let specifier = relative(dirname(fromOutput), toOutput).split("\\").join("/");
+  if (!specifier.startsWith(".")) specifier = `./${specifier}`;
+  return specifier;
+}
+
+function replaceExtension(filePath: string, extension: string): string {
+  return filePath.slice(0, filePath.length - extname(filePath).length) + extension;
+}
+
+function contentHash(modules: SourceModule[], extensionDir: string, kind: ExtensionModuleKind): string {
+  const hash = createHash("sha256");
+  hash.update(`${kind}\0`);
+  for (const module of modules) {
+    hash.update(relative(extensionDir, module.filePath));
+    hash.update("\0");
+    hash.update(module.source);
+    hash.update("\0");
+  }
+  return hash.digest("hex").slice(0, HASH_LENGTH);
+}
+
+function importSpecifierMatches(source: string): Array<{ specifier: string; start: number; end: number }> {
+  const matches = [
+    ...matchesForPattern(source, STATIC_IMPORT_PATTERN),
+    ...matchesForPattern(source, SIDE_EFFECT_IMPORT_PATTERN),
+  ];
+  return matches.sort((left, right) => left.start - right.start);
+}
+
+function matchesForPattern(source: string, pattern: RegExp): Array<{ specifier: string; start: number; end: number }> {
+  return [...source.matchAll(pattern)].map((match) => {
+    const specifier = match[2];
+    const start = (match.index ?? 0) + match[1].length;
+    return { specifier, start, end: start + specifier.length };
+  });
+}
+
+function applyReplacements(source: string, replacements: Array<{ start: number; end: number; value: string }>): string {
+  return replacements
+    .sort((left, right) => right.start - left.start)
+    .reduce((current, replacement) => {
+      return `${current.slice(0, replacement.start)}${replacement.value}${current.slice(replacement.end)}`;
+    }, source);
+}
+
+function assertInsideExtension(extensionDir: string, filePath: string, extensionId: string, message = "Extension path escapes workspace") {
+  const relativePath = relative(extensionDir, filePath);
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    throw new Error(`${message}: ${formatExtensionPath(extensionId, extensionDir, filePath)}`);
+  }
+}
+
+function isLocalSpecifier(specifier: string): boolean {
+  return specifier.startsWith("./") || specifier.startsWith("../");
+}
+
+function formatExtensionPath(extensionId: string, extensionDir: string, filePath: string): string {
+  const relativePath = relative(extensionDir, filePath).split("\\").join("/");
+  return `${extensionId}/${relativePath}`;
+}

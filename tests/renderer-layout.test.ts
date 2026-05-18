@@ -31,4 +31,11 @@ describe("renderer layout styles", () => {
     expect(css).toMatch(/\.app-shell\s*\{[^}]*max-height:\s*min\(720px,\s*100vh\)/s);
     expect(css).not.toMatch(/\.app-shell\s*\{[^}]*height:\s*100vh/s);
   });
+
+  it("includes compact settings styles for the open-at-login toggle", async () => {
+    const css = await readFile(stylesPath, "utf8");
+
+    expect(css).toMatch(/\.settings-toggle\s*\{/);
+    expect(css).toMatch(/\.settings-toggle\.enabled\s*\{/);
+  });
 });

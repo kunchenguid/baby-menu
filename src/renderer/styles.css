@@ -62,6 +62,24 @@ button {
   color: var(--signal-live);
 }
 
+.settings-toggle {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  padding: 3px 8px;
+  text-transform: uppercase;
+}
+
+.settings-toggle.enabled {
+  border-color: rgba(106, 227, 182, 0.35);
+  color: var(--signal-live);
+}
+
 .pop-body {
   flex: 1;
   min-height: 0;

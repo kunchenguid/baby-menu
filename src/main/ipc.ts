@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import { pathToFileURL } from "node:url";
-import type { AgentChatResult, GitActionResult, RecipeMetadata } from "../shared/contracts";
+import type { AgentChatResult, BabyMenuSettings, GitActionResult, RecipeMetadata } from "../shared/contracts";
 import { getExtensionsDir, getRecipesDir } from "../shared/paths";
 import { BabyMenuAgentRuntime, type BabyMenuAgentRuntimeSendOptions } from "./agent-runtime";
 import { loadRecipes } from "./recipe-loader";
@@ -15,15 +15,29 @@ type PopoverController = {
   setContentHeight: (height: number) => void | Promise<void>;
 };
 
+type SettingsController = {
+  get: () => Promise<BabyMenuSettings> | BabyMenuSettings;
+  setOpenAtLogin: (openAtLogin: boolean) => Promise<BabyMenuSettings> | BabyMenuSettings;
+};
+
+type IpcRuntimeOptions = {
+  recipesDir?: string;
+};
+
 export function registerIpcHandlers(
   rootDir: string,
   agentRuntime: AgentRuntimeFacade = new BabyMenuAgentRuntime(rootDir),
   serverActions: ServerActionRegistry = createServerActionRegistry({ rootDir, actionRoots: [getExtensionsDir(rootDir)] }),
   widgetModules: WidgetModuleRegistry = createWidgetModuleRegistry(rootDir),
   popover: PopoverController = { setContentHeight: () => undefined },
+  settings: SettingsController = {
+    get: () => ({ openAtLogin: false }),
+    setOpenAtLogin: (openAtLogin) => ({ openAtLogin }),
+  },
+  runtimeOptions: IpcRuntimeOptions = {},
 ) {
   ipcMain.handle("baby-menu:recipes:list", async (): Promise<RecipeMetadata[]> => {
-    return loadRecipes(pathToFileURL(`${getRecipesDir(rootDir)}/`));
+    return loadRecipes(pathToFileURL(`${runtimeOptions.recipesDir ?? getRecipesDir(rootDir)}/`));
   });
 
   ipcMain.handle("baby-menu:agent:send", async (event, prompt: string): Promise<AgentChatResult> => {
@@ -55,5 +69,13 @@ export function registerIpcHandlers(
   ipcMain.handle("baby-menu:popover:set-content-height", async (_event, height: number) => {
     await popover.setContentHeight(height);
     return { ok: true };
+  });
+
+  ipcMain.handle("baby-menu:settings:get", async () => {
+    return settings.get();
+  });
+
+  ipcMain.handle("baby-menu:settings:set-open-at-login", async (_event, openAtLogin: boolean) => {
+    return settings.setOpenAtLogin(openAtLogin);
   });
 }

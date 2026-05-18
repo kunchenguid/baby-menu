@@ -28,6 +28,10 @@ const api: BabyMenuApi = {
   popover: {
     setContentHeight: (height: number) => ipcRenderer.invoke("baby-menu:popover:set-content-height", height),
   },
+  settings: {
+    get: () => ipcRenderer.invoke("baby-menu:settings:get"),
+    setOpenAtLogin: (openAtLogin: boolean) => ipcRenderer.invoke("baby-menu:settings:set-open-at-login", openAtLogin),
+  },
 };
 
 contextBridge.exposeInMainWorld("babyMenu", api);

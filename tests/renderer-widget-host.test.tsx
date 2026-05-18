@@ -24,6 +24,10 @@ function installBabyMenuApi(widgets: BabyMenuApi["widgets"]) {
     popover: {
       setContentHeight: vi.fn(async () => ({ ok: true })),
     },
+    settings: {
+      get: vi.fn(async () => ({ openAtLogin: false })),
+      setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin })),
+    },
   };
 }
 

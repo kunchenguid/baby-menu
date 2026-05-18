@@ -152,4 +152,23 @@ describe("capabilities IPC", () => {
 
     await expect(handlers.get("baby-menu:popover:set-content-height")?.({}, 333)).resolves.toEqual({ ok: true });
   });
+
+  it("registers settings channels for open-at-login", async () => {
+    const { registerIpcHandlers } = await import("../src/main/ipc");
+    const agentRuntime = {
+      send: vi.fn(),
+      save: vi.fn(),
+      rollback: vi.fn(),
+    };
+    const settings = {
+      get: vi.fn(async () => ({ openAtLogin: false })),
+      setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin })),
+    };
+
+    registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, settings);
+
+    await expect(handlers.get("baby-menu:settings:get")?.({})).resolves.toEqual({ openAtLogin: false });
+    await expect(handlers.get("baby-menu:settings:set-open-at-login")?.({}, true)).resolves.toEqual({ openAtLogin: true });
+    expect(settings.setOpenAtLogin).toHaveBeenCalledWith(true);
+  });
 });

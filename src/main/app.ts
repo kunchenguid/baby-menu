@@ -2,6 +2,9 @@ import { app, BrowserWindow, screen, type Rectangle } from "electron";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getRepoRoot } from "../shared/paths";
+import { BabyMenuAgentRuntime } from "./agent-runtime";
+import { resolveBabyMenuRuntimePaths } from "./app-paths";
+import { seedExtensionWorkspace } from "./extension-seeder";
 import { registerIpcHandlers } from "./ipc";
 import {
   DEFAULT_POPOVER_SIZE,
@@ -11,7 +14,14 @@ import {
   responsivePopoverSize,
   type Size,
 } from "./popover";
+import { createPreferencesService } from "./preferences";
+import { createServerActionRegistry } from "./server-action-registry";
+import { expandProcessPathForGuiLaunch } from "./shell-path";
 import { createBabyMenuTray, type BabyMenuTray } from "./tray";
+import { createWidgetModuleRegistry } from "./widget-module-registry";
+import { registerBabyMenuProtocolHandlers, registerBabyMenuProtocolSchemes } from "./widget-protocol";
+
+registerBabyMenuProtocolSchemes();
 
 let popoverWindow: BrowserWindow | null = null;
 let activeTray: BabyMenuTray | null = null;
@@ -69,13 +79,49 @@ function setPopoverContentHeight(height: number) {
 }
 
 export async function startBabyMenuApp(): Promise<void> {
+  expandProcessPathForGuiLaunch();
   await app.whenReady();
+  const sourceRoot = getRepoRoot();
+  const paths = resolveBabyMenuRuntimePaths(sourceRoot);
+  await seedExtensionWorkspace({ extensionsDir: paths.extensionsDir, templateDir: paths.bundledExtensionTemplateDir });
+  registerBabyMenuProtocolHandlers({ widgetCacheDir: paths.widgetCacheDir });
 
   if (process.platform === "darwin") {
     app.dock?.hide();
   }
 
-  registerIpcHandlers(getRepoRoot(), undefined, undefined, undefined, { setContentHeight: setPopoverContentHeight });
+  const preferences = createPreferencesService({ userDataDir: paths.appDataRoot, app });
+  await preferences.apply();
+
+  const agentRuntime = new BabyMenuAgentRuntime(paths.appDataRoot, {
+    paths: {
+      extensionsDir: paths.extensionsDir,
+      agentStateDir: paths.agentStateDir,
+      snapshotDir: paths.devExtensionSnapshotDir,
+      isPackaged: paths.isPackaged,
+    },
+  });
+  const serverActions = createServerActionRegistry({
+    rootDir: paths.appDataRoot,
+    actionRoots: [paths.extensionsDir],
+    cacheDir: paths.serverActionCacheDir,
+  });
+  const widgetModules = createWidgetModuleRegistry({
+    rootDir: paths.appDataRoot,
+    extensionsDir: paths.extensionsDir,
+    mode: paths.isPackaged ? "compiled" : "vite",
+    widgetCacheDir: paths.widgetCacheDir,
+  });
+
+  registerIpcHandlers(
+    paths.appDataRoot,
+    agentRuntime,
+    serverActions,
+    widgetModules,
+    { setContentHeight: setPopoverContentHeight },
+    preferences,
+    { recipesDir: paths.recipesDir },
+  );
   activeTray = createBabyMenuTray((bounds) => {
     void togglePopover(bounds);
   });

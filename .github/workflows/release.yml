@@ -1,0 +1,106 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package macOS app
+        run: pnpm exec electron-builder --mac dir --universal
+
+      - name: Ad-hoc sign app
+        run: codesign --force --deep --sign - "release/mac-universal/Baby Menu.app"
+
+      - name: Create DMG
+        run: |
+          VERSION_NUMBER="${GITHUB_REF_NAME#v}"
+          DMG_NAME="Baby-Menu-${VERSION_NUMBER}-universal.dmg"
+          hdiutil create -volname "Baby Menu" \
+            -srcfolder "release/mac-universal/Baby Menu.app" \
+            -ov -format UDZO "release/${DMG_NAME}"
+          echo "VERSION_NUMBER=${VERSION_NUMBER}" >> "$GITHUB_ENV"
+          echo "DMG_NAME=${DMG_NAME}" >> "$GITHUB_ENV"
+          echo "DMG_PATH=release/${DMG_NAME}" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$DMG_PATH" --title "$GITHUB_REF_NAME" --generate-notes --latest
+
+      - name: Compute SHA256
+        run: |
+          SHA256=$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')
+          echo "SHA256=${SHA256}" >> "$GITHUB_ENV"
+
+      - name: Update Homebrew Cask
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/kunchenguid/homebrew-tap.git" "$RUNNER_TEMP/homebrew-tap"
+          mkdir -p "$RUNNER_TEMP/homebrew-tap/Casks"
+          cat > "$RUNNER_TEMP/homebrew-tap/Casks/baby-menu.rb" << CASK_EOF
+          cask "baby-menu" do
+            version "${VERSION_NUMBER}"
+            sha256 "${SHA256}"
+
+            url "https://github.com/kunchenguid/baby-menu/releases/download/v#{version}/Baby-Menu-#{version}-universal.dmg"
+            name "Baby Menu"
+            desc "Menu-bar app that writes its own widgets"
+            homepage "https://github.com/kunchenguid/baby-menu"
+
+            depends_on macos: ">= :ventura"
+
+            app "Baby Menu.app"
+            uninstall quit: "com.kunchenguid.baby-menu"
+
+            postflight do
+              system_command "/usr/bin/xattr",
+                             args: ["-cr", "#{appdir}/Baby Menu.app"],
+                             must_succeed: false
+            end
+
+            zap trash: [
+              "~/.baby-menu",
+              "~/Library/Preferences/com.kunchenguid.baby-menu.plist",
+            ]
+          end
+          CASK_EOF
+          cd "$RUNNER_TEMP/homebrew-tap"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/baby-menu.rb
+          git commit -m "baby-menu ${VERSION_NUMBER}"
+          git push

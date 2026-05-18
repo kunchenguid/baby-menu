@@ -1,6 +1,8 @@
 {
   "name": "baby-menu",
   "version": "0.1.0",
+  "description": "Menu-bar app that writes its own widgets",
+  "author": "Kun Chen",
   "private": true,
   "type": "module",
   "main": "out/main/index.js",
@@ -10,30 +12,34 @@
   },
   "scripts": {
     "postinstall": "install-electron",
+    "start": "electron-vite dev",
     "dev": "node scripts/dev.mjs",
     "dev:reset": "node scripts/dev.mjs --reset",
     "build": "electron-vite build",
+    "package:mac": "pnpm build && electron-builder --mac dir --universal && node scripts/adhoc-sign-mac-app.mjs \"release/mac-universal/Baby Menu.app\"",
+    "dist:mac": "pnpm package:mac && node scripts/create-dmg.mjs",
     "test": "vitest run tests",
     "test:e2e": "vitest run tests/e2e-*.test.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "6.0.2",
     "acpx": "0.7.0",
-    "electron-vite": "5.0.0",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "typescript": "6.0.3"
   },
   "devDependencies": {
     "@testing-library/react": "16.3.2",
     "@types/node": "25.8.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
     "acp-mock": "1.1.0",
     "electron": "42.1.0",
+    "electron-builder": "26.8.1",
+    "electron-vite": "5.0.0",
     "jsdom": "29.1.1",
-    "typescript": "6.0.3",
     "vite": "8.0.13",
     "vitest": "4.1.6"
   }

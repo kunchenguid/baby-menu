@@ -22,6 +22,14 @@ export type BabyMenuAgentRuntimeOptions = {
   agentName?: string;
   registryOverrides?: Record<string, string>;
   requestTimeoutMs?: number;
+  paths?: BabyMenuAgentRuntimePaths;
+};
+
+export type BabyMenuAgentRuntimePaths = {
+  extensionsDir: string;
+  agentStateDir: string;
+  snapshotDir: string;
+  isPackaged?: boolean;
 };
 
 export type BabyMenuAgentRuntimeSendOptions = {
@@ -31,6 +39,7 @@ export type BabyMenuAgentRuntimeSendOptions = {
 type ResolveDefaultAgentNameOptions = {
   env?: Partial<Pick<NodeJS.ProcessEnv, "BABY_MENU_AGENT" | "PATH">>;
   commandExists?: (command: string) => boolean;
+  allowFallbackWhenMissing?: boolean;
 };
 
 const PREFERRED_AGENTS = [
@@ -65,12 +74,14 @@ function commandExists(command: string): boolean {
   return spawnSync(lookupCommand, lookupArgs, { stdio: "ignore" }).status === 0;
 }
 
-export function resolveDefaultAgentName(options: ResolveDefaultAgentNameOptions = {}): string {
+export function resolveDefaultAgentName(options: ResolveDefaultAgentNameOptions = {}): string | null {
   const configuredAgent = options.env?.BABY_MENU_AGENT ?? process.env.BABY_MENU_AGENT;
   if (configuredAgent?.trim()) return configuredAgent.trim();
 
   const hasCommand = options.commandExists ?? commandExists;
-  return PREFERRED_AGENTS.find((agent) => hasCommand(agent.command))?.name ?? PREFERRED_AGENTS[0].name;
+  const detected = PREFERRED_AGENTS.find((agent) => hasCommand(agent.command))?.name;
+  if (detected) return detected;
+  return options.allowFallbackWhenMissing === false ? null : PREFERRED_AGENTS[0].name;
 }
 
 export function resolveAgentTimeoutMs(env: Partial<Pick<NodeJS.ProcessEnv, "BABY_MENU_AGENT_TIMEOUT_MS">> = process.env) {
@@ -81,8 +92,23 @@ export function resolveAgentTimeoutMs(env: Partial<Pick<NodeJS.ProcessEnv, "BABY
 export function getAgentRuntimeCwd(
   rootDir: string,
   env: Partial<Pick<NodeJS.ProcessEnv, "BABY_MENU_EXTENSIONS_DIR">> = process.env,
+  paths?: Pick<BabyMenuAgentRuntimePaths, "extensionsDir">,
 ): string {
+  if (paths) return paths.extensionsDir;
   return getExtensionsDir(rootDir, env);
+}
+
+export function selectAgentChangeSessionKind({
+  isPackaged,
+  rootDir,
+  extensionsDir,
+}: {
+  isPackaged?: boolean;
+  rootDir: string;
+  extensionsDir: string;
+}): "git" | "snapshot" {
+  if (isPackaged) return "snapshot";
+  return resolve(extensionsDir) === resolve(join(rootDir, "extensions")) ? "git" : "snapshot";
 }
 
 export function withAgentTimeout<T>(
@@ -233,6 +259,7 @@ export class BabyMenuAgentRuntime {
   private readonly agentName: string;
   private readonly registryOverrides: Record<string, string> | undefined;
   private readonly requestTimeoutMs: number;
+  private readonly paths: BabyMenuAgentRuntimePaths | undefined;
 
   constructor(
     private readonly rootDir: string,
@@ -241,9 +268,10 @@ export class BabyMenuAgentRuntime {
     this.agentName =
       typeof options === "string"
         ? options
-        : options.agentName ?? resolveDefaultAgentName();
+        : options.agentName ?? resolveDefaultAgentName() ?? PREFERRED_AGENTS[0].name;
     this.registryOverrides = typeof options === "string" ? undefined : options.registryOverrides;
     this.requestTimeoutMs = typeof options === "string" ? resolveAgentTimeoutMs() : options.requestTimeoutMs ?? resolveAgentTimeoutMs();
+    this.paths = typeof options === "string" ? undefined : options.paths;
   }
 
   get session(): AgentChangeSession | null {
@@ -348,14 +376,14 @@ export class BabyMenuAgentRuntime {
   }
 
   private async ensureAgentRuntimeCwd(): Promise<string> {
-    const agentCwd = getAgentRuntimeCwd(this.rootDir);
+    const agentCwd = getAgentRuntimeCwd(this.rootDir, process.env, this.paths);
     await mkdir(agentCwd, { recursive: true });
     return agentCwd;
   }
 
   private async beginChangeSession(agentCwd: string): Promise<AgentChangeSession> {
-    if (isDevExtensionWorkspace(this.rootDir, agentCwd)) {
-      return DevExtensionChangeSession.begin(agentCwd, getDevExtensionSnapshotDir(this.rootDir));
+    if (selectAgentChangeSessionKind({ isPackaged: this.paths?.isPackaged, rootDir: this.rootDir, extensionsDir: agentCwd }) === "snapshot") {
+      return DevExtensionChangeSession.begin(agentCwd, this.paths?.snapshotDir ?? getDevExtensionSnapshotDir(this.rootDir));
     }
 
     return GitChangeSession.begin(this.rootDir);
@@ -364,7 +392,7 @@ export class BabyMenuAgentRuntime {
   private async ensureRuntime(agentCwd: string): Promise<AcpxRuntime> {
     if (this.runtime) return this.runtime;
 
-    const stateDir = getAgentStateDir(this.rootDir);
+    const stateDir = this.paths?.agentStateDir ?? getAgentStateDir(this.rootDir);
     await mkdir(stateDir, { recursive: true });
     this.runtime = createAcpRuntime({
       cwd: agentCwd,

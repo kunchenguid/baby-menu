@@ -31,4 +31,29 @@ describe("widget module registry", () => {
     expect(modules[0]?.moduleUrl).toContain("cpu-temp/widget.tsx");
     expect(modules[0]?.moduleUrl).toContain("babyMenuWidgetVersion=");
   });
+
+  it("returns custom protocol module URLs for compiled production widgets", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-widget-registry-"));
+    tempDirs.push(rootDir);
+    const extensionsDir = join(rootDir, ".baby-menu", "extensions");
+    await mkdir(join(extensionsDir, "cpu-temp"), { recursive: true });
+    await writeFile(
+      join(extensionsDir, "cpu-temp", "widget.tsx"),
+      `export const cpuTempWidget = { id: "cpu-temp", title: "CPU", render: () => null };\n`,
+    );
+
+    const modules = await discoverWidgetModules({
+      rootDir,
+      extensionsDir,
+      mode: "compiled",
+      widgetCacheDir: join(rootDir, "cache", "widgets"),
+    });
+
+    expect(modules).toHaveLength(1);
+    expect(modules[0]).toMatchObject({
+      id: "cpu-temp.widget",
+      extensionId: "cpu-temp",
+    });
+    expect(modules[0]?.moduleUrl).toMatch(/^baby-menu-widget:\/\/cpu-temp\/[a-f0-9]{16}\/widget\.mjs$/);
+  });
 });

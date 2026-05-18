@@ -1,0 +1,30 @@
+appId: com.kunchenguid.baby-menu
+productName: Baby Menu
+copyright: Copyright © 2026 Kun Chen
+
+directories:
+  output: release
+
+files:
+  - out/**
+  - package.json
+
+extraResources:
+  - from: extensions
+    to: extensions-template
+    filter:
+      - AGENTS.md
+      - recipes/**
+      - hello-world/**
+
+asar: true
+
+mac:
+  category: public.app-category.developer-tools
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/{@esbuild/**,esbuild/**}
+
+dmg:
+  artifactName: Baby-Menu-${version}-universal.dmg

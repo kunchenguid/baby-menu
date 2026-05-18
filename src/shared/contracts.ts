@@ -37,6 +37,10 @@ export type AgentRuntimeStatus = {
   eventType: "text_delta";
 };
 
+export type BabyMenuSettings = {
+  openAtLogin: boolean;
+};
+
 export type BabyMenuCapabilityDescriptor = {
   id: string;
   extensionId: string;
@@ -82,10 +86,18 @@ export type BabyMenuApi = {
   popover: {
     setContentHeight: (height: number) => Promise<{ ok: boolean }>;
   };
+  settings: {
+    get: () => Promise<BabyMenuSettings>;
+    setOpenAtLogin: (openAtLogin: boolean) => Promise<BabyMenuSettings>;
+  };
 };
 
 declare global {
   interface Window {
     babyMenu?: BabyMenuApi;
+    __BABY_MENU_WIDGET_HOST__?: {
+      React: unknown;
+      jsxRuntime: unknown;
+    };
   }
 }

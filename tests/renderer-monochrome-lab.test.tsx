@@ -36,6 +36,10 @@ function installBabyMenuApi(overrides: Partial<BabyMenuApi> = {}) {
     popover: {
       setContentHeight: vi.fn(async () => ({ ok: true })),
     },
+    settings: {
+      get: vi.fn(async () => ({ openAtLogin: false })),
+      setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin })),
+    },
   };
 
   const api: BabyMenuApi = {
@@ -43,6 +47,7 @@ function installBabyMenuApi(overrides: Partial<BabyMenuApi> = {}) {
     ...overrides,
     widgets: overrides.widgets ?? baseApi.widgets,
     popover: overrides.popover ?? baseApi.popover,
+    settings: overrides.settings ?? baseApi.settings,
   };
 
   window.babyMenu = api;

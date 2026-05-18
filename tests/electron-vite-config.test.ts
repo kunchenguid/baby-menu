@@ -1,4 +1,4 @@
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
@@ -36,5 +36,15 @@ describe("electron-vite config", () => {
     const { default: config } = await import("../electron.vite.config");
 
     expect(config.renderer?.server?.fs?.allow).toContain(rootDir);
+  });
+
+  it("writes the production renderer bundle inside the repo-level out directory", async () => {
+    vi.stubGlobal("__dirname", rootDir);
+
+    const { default: config } = await import("../electron.vite.config");
+
+    expect(resolve(rootDir, "src/renderer", config.renderer?.build?.outDir ?? "")).toBe(
+      resolve(rootDir, "out/renderer"),
+    );
   });
 });

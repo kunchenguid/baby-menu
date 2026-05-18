@@ -5,6 +5,7 @@ Embedded agents launched from baby-menu should work from the active extension wo
 
 ## Commands
 
+- `pnpm start` - runs `electron-vite dev` directly with no extension workspace override. `BabyMenuAgentRuntime` falls back to the tracked `extensions/` directory, so the embedded agent edits real git-tracked files gated by `GitChangeSession`. Use this when iterating on or shipping changes to tracked extensions.
 - `pnpm dev` - runs `scripts/dev.mjs`, prepares a gitignored `extensions-dev/` workspace by copying `extensions/AGENTS.md` and `extensions/recipes/`, and runs `electron-vite dev` from the current checkout. The app itself sees current uncommitted changes, while the embedded agent is launched inside `extensions-dev/`.
 - `pnpm dev:reset` - removes `extensions-dev/`, recreates it with the latest `extensions/AGENTS.md` and `extensions/recipes/`, and starts dev mode.
 - `pnpm build` - build main, preload, and renderer bundles into `out/`.

@@ -32,6 +32,12 @@ describe("preload capabilities bridge", () => {
 
     await api.popover.setContentHeight(333);
     expect(invoke).toHaveBeenCalledWith("baby-menu:popover:set-content-height", 333);
+
+    await api.settings.get();
+    expect(invoke).toHaveBeenCalledWith("baby-menu:settings:get");
+
+    await api.settings.setOpenAtLogin(true);
+    expect(invoke).toHaveBeenCalledWith("baby-menu:settings:set-open-at-login", true);
   });
 
   it("exposes agent status events from the main process", async () => {

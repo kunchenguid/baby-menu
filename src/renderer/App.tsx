@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AgentChat } from "./agent/AgentChat";
 import { MenuSurface } from "./menu/MenuSurface";
 
@@ -11,12 +11,44 @@ export function App() {
         <span className="mark">
           baby<span className="sep">_</span>menu
         </span>
+        <OpenAtLoginToggle />
       </header>
       <div className="pop-body">
         <MenuSurface />
       </div>
       <AgentChat />
     </main>
+  );
+}
+
+function OpenAtLoginToggle() {
+  const [openAtLogin, setOpenAtLogin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.babyMenu?.settings?.get().then((settings) => {
+      if (!cancelled) setOpenAtLogin(settings.openAtLogin);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function toggle() {
+    if (openAtLogin === null || !window.babyMenu?.settings) return;
+    const next = await window.babyMenu.settings.setOpenAtLogin(!openAtLogin);
+    setOpenAtLogin(next.openAtLogin);
+  }
+
+  return (
+    <button
+      type="button"
+      className={`settings-toggle${openAtLogin ? " enabled" : ""}`}
+      aria-pressed={openAtLogin ? "true" : "false"}
+      onClick={() => void toggle()}
+    >
+      login {openAtLogin ? "on" : "off"}
+    </button>
   );
 }
 

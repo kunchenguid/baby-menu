@@ -85,6 +85,17 @@ describe("server action registry", () => {
     await expect(registry.invoke("codex-quota", "getQuota")).resolves.toEqual({ remaining: 72 });
   });
 
+  it("rejects unsupported external imports from generated server actions", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "external", "server.ts");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(actionPath, `import slugify from "slugify"; export const actions = { slugify };`);
+    const registry = createServerActionRegistry({ rootDir });
+
+    await expect(registry.list()).rejects.toThrow('Unsupported server import "slugify" in external/server.ts');
+  });
+
   it("rewrites extensionless local imports so Node ESM can load server actions", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
     tempDirs.push(rootDir);
@@ -100,7 +111,7 @@ describe("server action registry", () => {
       sourcePath,
     );
 
-    expect(rewritten).toContain(`from "./codex-quota.ts"`);
+    expect(rewritten).toContain(`from "./codex-quota.mjs"`);
     expect(rewritten).toContain(`from "react"`);
   });
 
