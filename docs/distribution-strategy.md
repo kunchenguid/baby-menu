@@ -94,7 +94,7 @@ Runtime layout:
     server-actions/<hash>/*.mjs
     acp-sessions/
     snapshots/
-  logs/
+  .cache/baby-menu/agent-turns/
 ```
 
 Source development layout remains mostly unchanged:
@@ -615,10 +615,16 @@ jobs:
           echo "DMG_NAME=${DMG_NAME}" >> "$GITHUB_ENV"
           echo "DMG_PATH=release/${DMG_NAME}" >> "$GITHUB_ENV"
 
-      - name: Upload DMG
+      - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" "$DMG_PATH" --clobber
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$DMG_PATH" --clobber
+            gh release edit "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --latest
+          else
+            gh release create "$GITHUB_REF_NAME" "$DMG_PATH" --title "$GITHUB_REF_NAME" --generate-notes --latest
+          fi
 
       - name: Compute SHA256
         run: |
@@ -662,8 +668,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Casks/baby-menu.rb
-          git commit -m "baby-menu ${VERSION_NUMBER}"
-          git push
+          if ! git diff --cached --quiet; then
+            git commit -m "baby-menu ${VERSION_NUMBER}"
+            git push
+          fi
 ```
 
 The workflow skeleton is intentionally explicit.

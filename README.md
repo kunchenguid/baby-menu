@@ -35,6 +35,9 @@ $ pnpm dev                  # tray icon appears in your menu bar
 
 **Homebrew Cask**
 
+Requires macOS 13 Ventura or newer.
+Baby Menu also needs a supported, already-authenticated agent CLI such as `claude`, `codex`, or `npx` on `PATH`; set `BABY_MENU_AGENT=<name>` before launch to choose one explicitly.
+
 ```sh
 brew install --cask kunchenguid/tap/baby-menu
 ```
