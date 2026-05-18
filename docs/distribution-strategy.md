@@ -163,9 +163,10 @@ export function resolveBabyMenuRuntimePaths(): BabyMenuRuntimePaths {
 The exact shape can change, but the important design is that packaged mutable state lives under `~/.baby-menu`.
 Do not write generated extensions, caches, snapshots, or agent sessions into the `.app` bundle.
 
-## First Launch Seeding
+## Extension Template Seeding
 
-On packaged first launch, copy bundled extension templates into `~/.baby-menu/extensions` if the extension workspace does not exist.
+On packaged launch, copy bundled extension templates into `~/.baby-menu/extensions`.
+This runs on first launch and after upgrades so newly bundled recipes or extensions are added to existing workspaces.
 
 Seed these files:
 
@@ -173,8 +174,8 @@ Seed these files:
 - `extensions/recipes/*.html`
 - `extensions/hello-world/widget.tsx`
 
-Do not overwrite existing user extensions during app upgrades.
-If recipes need to be updated on app upgrade, use a versioned seed strategy or copy only missing recipe files initially.
+Do not overwrite existing user extensions or recipes during app upgrades.
+Only missing template files are copied into the workspace.
 For the first implementation, preserving existing user data is more important than automatic recipe replacement.
 
 ## Change Sessions In Packaged Mode
