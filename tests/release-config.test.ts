@@ -30,6 +30,7 @@ describe("distribution config", () => {
     expect(workflow).toContain("gh release");
     expect(workflow).toContain("HOMEBREW_TAP_TOKEN");
     expect(workflow).toContain("Casks/baby-menu.rb");
+    expect(workflow).toContain("git diff --cached --quiet");
     expect(workflow).toContain("xattr");
     expect(workflow).toContain('"~/.baby-menu"');
   });

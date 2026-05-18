@@ -102,5 +102,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Casks/baby-menu.rb
-          git commit -m "baby-menu ${VERSION_NUMBER}"
-          git push
+          if ! git diff --cached --quiet; then
+            git commit -m "baby-menu ${VERSION_NUMBER}"
+            git push
+          fi
