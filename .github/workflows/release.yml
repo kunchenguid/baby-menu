@@ -58,7 +58,13 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "$DMG_PATH" --title "$GITHUB_REF_NAME" --generate-notes --latest
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$DMG_PATH" --clobber
+            gh release edit "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --latest
+          else
+            gh release create "$GITHUB_REF_NAME" "$DMG_PATH" --title "$GITHUB_REF_NAME" --generate-notes --latest
+          fi
 
       - name: Compute SHA256
         run: |
