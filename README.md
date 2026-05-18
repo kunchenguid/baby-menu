@@ -11,10 +11,10 @@
 
 Every menu-bar app ships a fixed set of widgets. Want your CPU temp next to your Claude usage next to your next calendar event? You either wait for someone to build it, glue together three different apps, or learn Electron.
 
-baby-menu flips that. The tray popover hosts a coding agent that edits this same repo at runtime. You ask for a widget in plain English, the agent writes the extension, and you click Save to keep it or Rollback to wipe it. Git is the undo button.
+baby-menu flips that. The tray popover hosts a coding agent that edits the active extension workspace at runtime. You ask for a widget in plain English, the agent writes the extension, and you click Save to keep it or Rollback to wipe it.
 
 - **Ask, don't configure** - "add a battery widget that shows charge and power source" - the agent ships the widget.
-- **Git-backed safety** - every turn runs inside a change session; Save commits, Rollback `git reset --hard`s back to where you started.
+- **Safe change sessions** - every turn runs inside a change session; source mode uses git, while packaged mode snapshots `~/.baby-menu/extensions`.
 - **Recipes over prompts** - non-trivial widgets live as self-contained HTML specs in `extensions/recipes/` so the agent implements them the same way every time.
 
 ## Quick Start
@@ -33,7 +33,20 @@ $ pnpm dev                  # tray icon appears in your menu bar
 
 ## Install
 
-baby-menu is a source-run project today, not a packaged release.
+**Homebrew Cask**
+
+```sh
+brew install --cask kunchenguid/tap/baby-menu
+```
+
+Update with:
+
+```sh
+brew update
+brew upgrade --cask baby-menu
+```
+
+The packaged app stores mutable extensions, caches, agent sessions, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets.
 
 **From source**
 
@@ -56,17 +69,17 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
               │  send()
               ▼
    ┌─────────────────────┐       ┌──────────────────────┐
-   │  BabyMenuAgentRuntime├──────►│   GitChangeSession   │
-   │   wraps acpx/runtime │       │   (or Dev session    │
-   └──────────┬──────────┘       │    for extensions-dev)│
+   │  BabyMenuAgentRuntime├──────►│    Change Session    │
+   │   wraps acpx/runtime │       │   git or snapshot    │
+   └──────────┬──────────┘       │   by runtime mode    │
               │                   └──────────┬───────────┘
               │ edits files                  │ Save / Rollback
               ▼                              ▼
    ┌─────────────────────┐       ┌──────────────────────┐
-   │  extensions/<id>/   │       │   git reset --hard   │
-   │  widget.tsx         │◄──────┤   git clean -fd      │
-   │  server.ts          │       │   (only if HEAD      │
-   └──────────┬──────────┘       │    hasn't moved)     │
+   │ active extensions/  │       │   save snapshot or   │
+   │  widget.tsx         │◄──────┤   rollback files     │
+   │  server.ts          │       │   safely             │
+   └──────────┬──────────┘       │                      │
               │ hot-reload       └──────────────────────┘
               ▼
    ┌─────────────────────┐
@@ -78,7 +91,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 - **Three processes, one bridge** - the renderer never touches git, the agent, or the filesystem. Everything goes through `window.babyMenu` exposed in `src/preload/index.ts`.
 - **Recipes are specs, not prompts** - HTML files under `extensions/recipes/` describe a widget's capability, data sources, fallback behavior, and acceptance criteria. The agent reads the matching recipe before implementing.
 - **Extension server actions** - privileged work (shell, network, credentials) lives in `<extension-id>/server.ts` and is invoked from widgets via `window.babyMenu.capabilities.invoke(extensionId, action, input)`. No per-widget IPC channels.
-- **Dev mode is sandboxed** - `pnpm dev` copies `extensions/` into a gitignored `extensions-dev/` workspace, so the agent can iterate freely without dirtying the tracked tree.
+- **Runtime-specific extension roots** - `pnpm start` edits tracked `extensions/` with `GitChangeSession`; `pnpm dev` edits gitignored `extensions-dev/`; packaged builds seed and edit `~/.baby-menu/extensions` with snapshot Save/Rollback.
 
 ## Layout
 
@@ -91,6 +104,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | `extensions/<id>/`                | Tracked extensions (`widget.tsx`, `server.ts`)               |
 | `extensions/recipes/*.html`       | Self-contained widget specs the agent reads                  |
 | `extensions-dev/`                 | Gitignored dev workspace prepared by `scripts/dev.mjs`       |
+| `~/.baby-menu/extensions/`        | Packaged app extension workspace                             |
+| `~/.baby-menu/cache/`             | Packaged widget, server-action, snapshot, and agent caches    |
 | `tests/`                          | Vitest tests (e2e specs are `tests/e2e-*.test.ts`)           |
 
 ## Environment Flags
@@ -108,6 +123,8 @@ pnpm start        # run Electron + renderer dev server against the real extensio
 pnpm dev          # same, but agent edits the gitignored extensions-dev/ sandbox
 pnpm dev:reset    # wipe extensions-dev/ and start fresh
 pnpm build        # build main + preload + renderer into out/
+pnpm package:mac  # build and create an ad-hoc-signed .app in release/mac-universal/
+pnpm dist:mac     # build the .app and create a universal DMG in release/
 pnpm test         # run all Vitest tests
 pnpm test:e2e     # only e2e tests (spawn real acpx/runtime against acp-mock)
 pnpm typecheck    # tsc --noEmit

@@ -9,6 +9,8 @@ Embedded agents launched from baby-menu should work from the active extension wo
 - `pnpm dev` - runs `scripts/dev.mjs`, prepares a gitignored `extensions-dev/` workspace by copying `extensions/AGENTS.md` and `extensions/recipes/`, and runs `electron-vite dev` from the current checkout. The app itself sees current uncommitted changes, while the embedded agent is launched inside `extensions-dev/`.
 - `pnpm dev:reset` - removes `extensions-dev/`, recreates it with the latest `extensions/AGENTS.md` and `extensions/recipes/`, and starts dev mode.
 - `pnpm build` - build main, preload, and renderer bundles into `out/`.
+- `pnpm package:mac` - builds the app, packages `release/mac-universal/Baby Menu.app`, and ad-hoc signs it for local testing.
+- `pnpm dist:mac` - runs `package:mac` and creates `release/Baby-Menu-<version>-universal.dmg`.
 - `pnpm test` - run all Vitest tests.
 - `pnpm test:e2e` - run only `tests/e2e-*.test.ts` (these spawn the real `acpx/runtime` against the `acp-mock` CLI in `node_modules/acp-mock/dist/cli.js`).
 - `pnpm typecheck` / `pnpm lint` - both run `tsc --noEmit` against `tsconfig.json`.
@@ -24,7 +26,8 @@ Use `pnpm` (declared `packageManager: pnpm@11.1.1`). Renderer dev server is pinn
 
 ## Architecture
 
-This is a macOS tray-bar Electron app whose distinguishing idea is that an embedded agent (running via `acpx/runtime`) edits this same repo at runtime; git is used as the accept/rollback mechanism.
+This is a macOS tray-bar Electron app whose distinguishing idea is that an embedded agent (running via `acpx/runtime`) edits the active extension workspace at runtime.
+Source mode uses git as the accept/rollback mechanism for tracked extensions; packaged mode edits `~/.baby-menu/extensions` and uses filesystem snapshots.
 
 Three processes, kept deliberately separate:
 
@@ -40,14 +43,20 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 
 `src/main/` module index:
 
-- `app.ts` - Electron lifecycle, popover window creation, wires tray + IPC. `package.json#main` points here via `out/main/index.js`.
+- `app.ts` - Electron lifecycle, popover window creation, packaged path setup, extension seeding, preferences, protocols, tray, and IPC. `package.json#main` points here via `out/main/index.js`.
+- `app-paths.ts` - resolves source paths versus packaged `~/.baby-menu` paths.
 - `tray.ts` - macOS tray icon and click handling (`createBabyMenuTray`).
 - `popover.ts` - popover `BrowserWindow` options (`createPopoverOptions`), bounds math (`calculatePopoverBounds`), and renderer URL/file loading (`loadPopoverRenderer`).
 - `ipc.ts` - registers all `ipcMain` handlers exposed via the preload bridge; the single place new generic IPC routes are added.
 - `agent-runtime.ts` - `BabyMenuAgentRuntime` wrapping `acpx/runtime`; gates every `send()` through a change session.
 - `agent-turn-log.ts` - structured per-turn transcript log used by the renderer and tests.
 - `git-change-session.ts` - the production Save/Rollback safety boundary (see below).
-- `dev-extension-change-session.ts` - the dev-mode Save/Rollback boundary for gitignored extension workspaces.
+- `dev-extension-change-session.ts` - the snapshot Save/Rollback boundary for gitignored dev and packaged extension workspaces.
+- `extension-seeder.ts` - seeds bundled extension templates into the packaged extension workspace.
+- `extension-module-compiler.ts` - compiles extension widget and server modules for production loading.
+- `widget-protocol.ts` - registers custom protocols for compiled widget modules and the renderer host shim.
+- `preferences.ts` - stores app preferences under the active app data root and applies login-item settings.
+- `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs.
 - `recipe-loader.ts` - discovers and parses `recipes/*.html` from the active extension workspace.
 - `server-action-registry.ts` - dynamically loads extension server actions from the active extension workspace and exposes them through the generic capability bridge.
 
@@ -61,22 +70,26 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 
 `createPopoverOptions` enforces `frame:false`, `contextIsolation:true`, `nodeIntegration:false`, `skipTaskbar:true`, `alwaysOnTop:true`. Do not relax these without a reason.
 
-### Agent runtime + git change sessions
+### Agent runtime + change sessions
 
 `BabyMenuAgentRuntime` (`src/main/agent-runtime.ts`) wraps `acpx/runtime`. Every `send()` call:
 
-1. Resolves the active extension workspace with `BABY_MENU_EXTENSIONS_DIR` or defaults to `extensions/`.
-2. Uses `DevExtensionChangeSession` for dev extension workspaces such as `extensions-dev/`, snapshotting that directory so Save keeps the generated files and Rollback restores the pre-turn contents.
-3. Uses `GitChangeSession.begin(rootDir)` for the tracked `extensions/` workspace. If the working tree is dirty, it short-circuits and returns a refusal message instead of running the agent - this is intentional; do not bypass it for tracked edits.
-4. Lazily constructs the ACP runtime with `createFileSessionStore({ stateDir: .cache/baby-menu/acp-sessions })` and `permissionMode: "approve-all"`.
+1. Resolves the active extension workspace from runtime paths. Source mode honors `BABY_MENU_EXTENSIONS_DIR` or defaults to `extensions/`; packaged mode uses `~/.baby-menu/extensions` after seeding bundled templates.
+2. Uses `DevExtensionChangeSession` for snapshot workspaces such as `extensions-dev/` and packaged `~/.baby-menu/extensions`, so Save keeps generated files and Rollback restores the pre-turn contents.
+3. Uses `GitChangeSession.begin(rootDir)` only for the tracked source `extensions/` workspace. If the working tree is dirty, it short-circuits and returns a refusal message instead of running the agent - this is intentional; do not bypass it for tracked edits.
+4. Lazily constructs the ACP runtime with `createFileSessionStore({ stateDir })` under `.cache/baby-menu/acp-sessions` in source mode or `~/.baby-menu/cache/acp-sessions` in packaged mode, with `permissionMode: "approve-all"`.
 5. Uses a fixed `sessionKey: "baby-menu-agent-chat"` so the agent has a single persistent conversation.
 
 `GitChangeSession` (`src/main/git-change-session.ts`) is the safety boundary for Save/Rollback. Both operations refuse unless: the session started clean, the session is not already completed, and `HEAD` has not moved since the session began. `rollback()` runs `git reset --hard <recorded HEAD>` + `git clean -fd` - those destructive commands are only acceptable because of the preceding guards. Preserve this invariant.
+
+Packaged runtime state lives under `~/.baby-menu` and is not git-backed.
+Do not write generated extension files, compiled modules, preferences, logs, snapshots, or ACP session state into the `.app` bundle.
 
 ### Recipes and extensions
 
 - Recipes are HTML files in `recipes/` inside the active extension workspace. `recipe-loader.ts` discovers `*.html`, sorts them, and extracts the title from `<title>` or first `<h1>`. They are intentionally HTML so the embedded agent can read them from its cwd and use embedded interactive demos.
 - Extensions live in the active extension workspace under `<extension-id>/` and may include `widget.tsx`, `server.ts`, and local helper files.
+- Packaged widgets and server actions are compiled into `~/.baby-menu/cache` and loaded through custom protocols or cached modules; dev mode keeps Vite `/@fs` loading.
 - Widgets conform to `BabyMenuWidget` / `RefreshableBabyMenuWidget`. The `WidgetHost` owns refresh timing via `useWidgetRefresh` - widgets should not start their own polling.
 - New widgets and capabilities should be built as self-contained extensions behind the stable `window.babyMenu` bridge.
 - Extension server actions are discovered dynamically from the active extension workspace, so new or changed actions can be picked up without changing preload.

@@ -1,7 +1,7 @@
 # Baby Menu Distribution Strategy
 
-This document is a self-contained implementation proposal for distributing Baby Menu as a real macOS app without Developer ID signing or notarization.
-The target audience is a developer implementing packaging, runtime path changes, production extension loading, release automation, and Homebrew Cask distribution.
+This document records the distribution design for Baby Menu as a real macOS app without Developer ID signing or notarization.
+The implemented app now includes packaging, runtime path changes, production extension loading, release automation, and Homebrew Cask distribution wiring.
 
 ## Goals
 
@@ -44,31 +44,27 @@ brew upgrade --cask baby-menu
 If the tap has not already been added, the fully qualified cask token should tap it implicitly.
 Users should not need to run a separate `brew tap` command.
 
-## Current Repo Constraints
+## Current Implementation State
 
-The current repo is source-run oriented.
-`package.json` has `start`, `dev`, and `build`, but no app packager, release workflow, cask, signing, notarization, or login-item support.
+The repo now has source, packaged, and release paths.
+`package.json` includes `package:mac` for a local ad-hoc-signed `.app` and `dist:mac` for a universal DMG.
+`.github/workflows/release.yml` builds on `v*` tags, uploads the DMG to GitHub Releases, and updates `kunchenguid/homebrew-tap` when `HOMEBREW_TAP_TOKEN` is configured.
 
-The current production renderer path mostly exists.
-`src/main/popover.ts` loads `ELECTRON_RENDERER_URL` in dev and falls back to `loadFile()` in packaged mode.
+The production renderer path is wired for packaged mode.
+`src/main/popover.ts` loads `ELECTRON_RENDERER_URL` in dev and falls back to `loadFile()` for `out/renderer/index.html` in production.
+`pnpm build` creates `out/main`, `out/preload`, and `out/renderer` in the repo.
 
-The current build output needs to be fixed before packaging.
-`pnpm build` currently creates `out/main` and `out/preload` under the repo, but the renderer output is written outside the repo at `../../out/renderer`.
-The packaged app expects `out/renderer/index.html` next to `out/main` and `out/preload`.
+Packaged runtime state is package-safe.
+`src/main/app-paths.ts` resolves packaged mutable state under `~/.baby-menu`, seeds bundled extension templates into `~/.baby-menu/extensions`, and keeps source-mode paths unchanged.
 
-The current runtime root is not package-safe.
-`src/shared/paths.ts` uses `process.cwd()` as the repo root, which is not reliable when a macOS app is launched from Finder, Spotlight, Homebrew, or a login item.
+Production extension loading no longer depends on the Vite dev server.
+Widgets and server actions compile into `~/.baby-menu/cache` in packaged mode, while dev mode keeps Vite `/@fs` widget imports.
 
-The current widget loading path is dev-only.
-`src/main/widget-module-registry.ts` returns Vite `/@fs/...widget.tsx` module URLs, and `src/renderer/menu/WidgetHost.tsx` imports those URLs directly.
-This works in Vite dev mode, but it will not work from a production `file://` renderer.
+Save and Rollback support both source and packaged runtimes.
+Tracked source `extensions/` uses `GitChangeSession`; `extensions-dev/` and packaged `~/.baby-menu/extensions` use snapshot sessions.
 
-The current server-action path is not enough for packaged production.
-`src/main/server-action-registry.ts` dynamically imports extension `server.ts` files after copying them to cache.
-Packaged production should not rely on raw TypeScript imports being supported by Electron's embedded Node runtime.
-
-The current Save and Rollback path assumes either a tracked git repo or a dev extension workspace.
-A packaged app should not mutate files inside the `.app` bundle and should not require a user-data directory to be a git repo.
+Remaining operational setup is outside this repo.
+The external `kunchenguid/homebrew-tap` repository must exist, and the release workflow needs a `HOMEBREW_TAP_TOKEN` secret with permission to push cask updates.
 
 ## Recommended Architecture
 
@@ -757,7 +753,9 @@ Required uninstall tests:
 
 ## Implementation Phases
 
-### Phase 1: Package The Existing App
+These phases have been implemented in this repo unless noted otherwise.
+
+### Phase 1: Package The Existing App - implemented
 
 Deliverables:
 
@@ -774,7 +772,7 @@ Acceptance criteria:
 - A local packaged app opens without a Vite dev server.
 - The tray icon appears.
 
-### Phase 2: Move Packaged State To Home Dot Directory
+### Phase 2: Move Packaged State To Home Dot Directory - implemented
 
 Deliverables:
 
@@ -791,7 +789,7 @@ Acceptance criteria:
 - Source `pnpm start` still uses `GitChangeSession` for tracked `extensions`.
 - Source `pnpm dev` still uses snapshot sessions for `extensions-dev`.
 
-### Phase 3: Add Production Extension Compilation
+### Phase 3: Add Production Extension Compilation - implemented
 
 Deliverables:
 
@@ -808,7 +806,7 @@ Acceptance criteria:
 - Widget hooks use the host React copy and do not load a second React runtime.
 - Unsupported external imports fail with a clear developer-facing error.
 
-### Phase 4: Add Homebrew Cask Release Flow
+### Phase 4: Add Homebrew Cask Release Flow - implemented with external setup
 
 Deliverables:
 
@@ -817,6 +815,11 @@ Deliverables:
 - Add a tag-triggered release workflow in this repo.
 - Upload a DMG to GitHub Releases.
 - Update the cask automatically with version, URL, and SHA256.
+
+Remaining manual setup:
+
+- Ensure the external `kunchenguid/homebrew-tap` repository exists with the cask path.
+- Configure the `HOMEBREW_TAP_TOKEN` repository secret before publishing tagged releases.
 
 Acceptance criteria:
 
