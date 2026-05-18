@@ -43,6 +43,29 @@ describe("extension module compiler", () => {
     );
   });
 
+  it("ignores type-only imports when collecting widget dependencies", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-compiler-"));
+    tempDirs.push(rootDir);
+    const extensionDir = join(rootDir, "extensions", "starter");
+    const entryFile = join(extensionDir, "widget.tsx");
+    await mkdir(extensionDir, { recursive: true });
+    await writeFile(
+      entryFile,
+      `import type { RefreshableBabyMenuWidget } from "../../src/shared/contracts";
+      export const widget: RefreshableBabyMenuWidget = { id: "starter", title: "Starter", render: () => "ok", refresh: async () => undefined };`,
+    );
+
+    const compiled = await compileExtensionModule({
+      kind: "widget",
+      extensionId: "starter",
+      extensionDir,
+      entryFile,
+      cacheRoot: join(rootDir, "cache", "widgets"),
+    });
+
+    await expect(readFile(compiled.outputPath, "utf8")).resolves.not.toContain("../../src/shared/contracts");
+  });
+
   it("compiles TypeScript server actions with local imports into importable ESM", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-compiler-"));
     tempDirs.push(rootDir);

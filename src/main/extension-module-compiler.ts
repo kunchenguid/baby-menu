@@ -119,7 +119,7 @@ async function collectModuleGraph(options: {
     modules.set(normalizedPath, { filePath: normalizedPath, source });
 
     const dependencies = await Promise.all(
-      importSpecifierMatches(source).map(async (match) => {
+      importSpecifierMatches(source, { includeTypeOnly: false }).map(async (match) => {
         if (!isLocalSpecifier(match.specifier)) {
           assertSupportedExternalImport(options.kind, match.specifier, options.extensionId, options.extensionDir, normalizedPath);
           return null;
@@ -264,20 +264,29 @@ function contentHash(modules: SourceModule[], extensionDir: string, kind: Extens
   return hash.digest("hex").slice(0, HASH_LENGTH);
 }
 
-function importSpecifierMatches(source: string): Array<{ specifier: string; start: number; end: number }> {
+function importSpecifierMatches(source: string, options: { includeTypeOnly?: boolean } = {}): Array<{ specifier: string; start: number; end: number }> {
   const matches = [
-    ...matchesForPattern(source, STATIC_IMPORT_PATTERN),
+    ...matchesForPattern(source, STATIC_IMPORT_PATTERN, options),
     ...matchesForPattern(source, SIDE_EFFECT_IMPORT_PATTERN),
   ];
   return matches.sort((left, right) => left.start - right.start);
 }
 
-function matchesForPattern(source: string, pattern: RegExp): Array<{ specifier: string; start: number; end: number }> {
-  return [...source.matchAll(pattern)].map((match) => {
+function matchesForPattern(
+  source: string,
+  pattern: RegExp,
+  options: { includeTypeOnly?: boolean } = {},
+): Array<{ specifier: string; start: number; end: number }> {
+  return [...source.matchAll(pattern)].flatMap((match) => {
+    if (!options.includeTypeOnly && isTypeOnlyImport(match[0])) return [];
     const specifier = match[2];
     const start = (match.index ?? 0) + match[1].length;
-    return { specifier, start, end: start + specifier.length };
+    return [{ specifier, start, end: start + specifier.length }];
   });
+}
+
+function isTypeOnlyImport(statement: string): boolean {
+  return /^\s*(?:import|export)\s+type\b/.test(statement);
 }
 
 function applyReplacements(source: string, replacements: Array<{ start: number; end: number; value: string }>): string {
