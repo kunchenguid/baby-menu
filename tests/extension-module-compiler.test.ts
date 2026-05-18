@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -64,6 +64,30 @@ describe("extension module compiler", () => {
     });
 
     await expect(readFile(compiled.outputPath, "utf8")).resolves.not.toContain("../../src/shared/contracts");
+  });
+
+  it("reuses cached output for unchanged extension modules", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-compiler-"));
+    tempDirs.push(rootDir);
+    const extensionDir = join(rootDir, "extensions", "cached");
+    const entryFile = join(extensionDir, "widget.tsx");
+    await mkdir(extensionDir, { recursive: true });
+    await writeFile(entryFile, `export const widget = { id: "cached", title: "Cached", render: () => null };\n`);
+
+    const options = {
+      kind: "widget" as const,
+      extensionId: "cached",
+      extensionDir,
+      entryFile,
+      cacheRoot: join(rootDir, "cache", "widgets"),
+    };
+    const first = await compileExtensionModule(options);
+    const firstStat = await stat(first.outputPath);
+    const second = await compileExtensionModule(options);
+    const secondStat = await stat(second.outputPath);
+
+    expect(second).toEqual(first);
+    expect(secondStat.mtimeMs).toBe(firstStat.mtimeMs);
   });
 
   it("compiles TypeScript server actions with local imports into importable ESM", async () => {

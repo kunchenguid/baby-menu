@@ -1,6 +1,6 @@
 import { builtinModules } from "node:module";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
@@ -49,6 +49,16 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
   });
   const hash = contentHash(graph, extensionDir, options.kind);
   const outputDir = join(options.cacheRoot, options.extensionId, hash);
+  const outputPath = compiledOutputPath(outputDir, extensionDir, entryFile);
+
+  if (await pathExists(outputPath)) {
+    return {
+      hash,
+      outputDir,
+      outputPath,
+      moduleUrl: pathToFileURL(outputPath).href,
+    };
+  }
 
   await Promise.all(
     graph.map(async (module) => {
@@ -65,13 +75,21 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
     }),
   );
 
-  const outputPath = compiledOutputPath(outputDir, extensionDir, entryFile);
   return {
     hash,
     outputDir,
     outputPath,
     moduleUrl: pathToFileURL(outputPath).href,
   };
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function rewriteExtensionModuleImports(options: {

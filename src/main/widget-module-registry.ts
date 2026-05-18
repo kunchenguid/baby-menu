@@ -35,7 +35,16 @@ export async function discoverWidgetModules({
   widgetCacheDir,
 }: DiscoverWidgetModulesOptions): Promise<BabyMenuWidgetModuleDescriptor[]> {
   const files = await discoverWidgetFiles(resolve(extensionsDir));
-  const modules = await Promise.all(files.map((filePath) => widgetModuleDescriptor({ rootDir, extensionsDir, mode, widgetCacheDir }, filePath)));
+  const modules = await Promise.all(
+    files.map(async (filePath) => {
+      try {
+        return await widgetModuleDescriptor({ rootDir, extensionsDir, mode, widgetCacheDir }, filePath);
+      } catch (error) {
+        if (mode !== "compiled") throw error;
+        return null;
+      }
+    }),
+  );
   return modules
     .filter((module): module is BabyMenuWidgetModuleDescriptor => Boolean(module))
     .sort((left, right) => left.id.localeCompare(right.id));
