@@ -118,7 +118,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | -------------------------------- | ------------------------------------------------------------- |
 | `BABY_MENU_KEEP_POPOVER_OPEN=1`  | Disables blur-to-hide so devtools / external windows stay up  |
 | `BABY_MENU_AGENT=<name>`         | Selects the ACP agent (e2e tests use `acpx-mock`)             |
-| `BABY_MENU_EXTENSIONS_DIR=<dir>` | Overrides the active extension workspace                      |
+| `BABY_MENU_EXTENSIONS_DIR=<dir>` | Overrides the active extension workspace in source/dev runs    |
 
 ## Development
 

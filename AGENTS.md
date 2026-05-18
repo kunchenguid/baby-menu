@@ -50,7 +50,7 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 - `ipc.ts` - registers all `ipcMain` handlers exposed via the preload bridge; the single place new generic IPC routes are added.
 - `agent-runtime.ts` - `BabyMenuAgentRuntime` wrapping `acpx/runtime`; gates every `send()` through a change session.
 - `agent-turn-log.ts` - structured per-turn transcript log used by the renderer and tests.
-- `git-change-session.ts` - the production Save/Rollback safety boundary (see below).
+- `git-change-session.ts` - the tracked-source Save/Rollback safety boundary (see below).
 - `dev-extension-change-session.ts` - the snapshot Save/Rollback boundary for gitignored dev and packaged extension workspaces.
 - `extension-seeder.ts` - seeds bundled extension templates into the packaged extension workspace.
 - `extension-module-compiler.ts` - compiles extension widget and server modules for production loading.
