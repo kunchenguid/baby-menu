@@ -84,6 +84,7 @@ Runtime layout:
         hello-world/widget.tsx
 
 ~/.baby-menu/
+  preferences.json
   extensions/
     AGENTS.md
     recipes/*.html
@@ -452,6 +453,7 @@ mac:
   identity: null
   hardenedRuntime: false
   gatekeeperAssess: false
+  x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/{@esbuild/**,esbuild/**}
 
 dmg:
   artifactName: Baby-Menu-${version}-universal.dmg
