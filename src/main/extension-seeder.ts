@@ -7,7 +7,6 @@ export type SeedExtensionWorkspaceOptions = {
 
 export async function seedExtensionWorkspace(options: SeedExtensionWorkspaceOptions): Promise<boolean> {
   if (!options.templateDir) return false;
-  if (await pathExists(options.extensionsDir)) return false;
   if (!(await pathExists(options.templateDir))) return false;
 
   await mkdir(options.extensionsDir, { recursive: true });

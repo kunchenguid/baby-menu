@@ -52,7 +52,7 @@ describe("Baby Menu runtime paths", () => {
     });
   });
 
-  it("seeds packaged extension templates only when the user workspace is missing", async () => {
+  it("seeds missing packaged extension templates without overwriting user files", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-seed-"));
     tempDirs.push(rootDir);
     const templateDir = join(rootDir, "Resources", "extensions-template");
@@ -69,9 +69,16 @@ describe("Baby Menu runtime paths", () => {
     await expect(readFile(join(extensionsDir, "AGENTS.md"), "utf8")).resolves.toBe("template rules\n");
 
     await writeFile(join(extensionsDir, "AGENTS.md"), "user rules\n");
-    const skipped = await seedExtensionWorkspace({ extensionsDir, templateDir });
+    await mkdir(join(templateDir, "goodbye-world"), { recursive: true });
+    await writeFile(join(templateDir, "recipes", "new.html"), "<title>New</title>\n");
+    await writeFile(join(templateDir, "goodbye-world", "widget.tsx"), "export const goodbyeWorldWidget = {};\n");
+    const reseeded = await seedExtensionWorkspace({ extensionsDir, templateDir });
 
-    expect(skipped).toBe(false);
+    expect(reseeded).toBe(true);
     await expect(readFile(join(extensionsDir, "AGENTS.md"), "utf8")).resolves.toBe("user rules\n");
+    await expect(readFile(join(extensionsDir, "recipes", "new.html"), "utf8")).resolves.toBe("<title>New</title>\n");
+    await expect(readFile(join(extensionsDir, "goodbye-world", "widget.tsx"), "utf8")).resolves.toBe(
+      "export const goodbyeWorldWidget = {};\n",
+    );
   });
 });
