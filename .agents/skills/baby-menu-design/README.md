@@ -1,6 +1,6 @@
 # Baby Menu Design System
 
-A design system for **Baby Menu** — a macOS tray-bar Electron app that lives behind a system menu-bar icon. Click the tray icon and a small dark popover falls from the menu bar. Inside the popover, an embedded agent can edit the app's own source code at runtime to add widgets, and the user can interact with those widgets without ever leaving the menu surface.
+A design system for **Baby Menu** — a macOS tray-bar Electron app that lives behind a system menu-bar icon. Click the tray icon and a small dark popover falls from the menu bar. Inside the popover, an embedded agent can edit the active extension workspace at runtime to add widgets, and the user can interact with those widgets without ever leaving the menu surface.
 
 The visual direction is **Monochrome Lab** — terminal-elegant, near-black, mono type, one mint signal color. The popover should read as a calm command-line surface that happens to live in the macOS menu bar.
 
@@ -24,7 +24,7 @@ This system was built from the live codebase at:
 
 Key files referenced (paths in that repo):
 
-- `AGENTS.md` — architecture, three-process split, `GitChangeSession` invariants, recipe conventions.
+- `AGENTS.md` — architecture, three-process split, source-vs-packaged change-session invariants, recipe conventions.
 - `src/renderer/styles.css` — the original warm-paper palette (now replaced by this system's monochrome direction).
 - `src/renderer/App.tsx`, `src/renderer/agent/AgentChat.tsx`, `src/renderer/menu/MenuSurface.tsx`, `src/renderer/menu/WidgetHost.tsx` — the components being redesigned here.
 - `src/shared/contracts.ts` — `BabyMenuWidget`, `RefreshableBabyMenuWidget`, `GitSessionSnapshot`, `AgentChatResult` — the data contracts our redesign remains compatible with.

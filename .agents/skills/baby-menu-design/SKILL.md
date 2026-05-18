@@ -35,4 +35,4 @@ If the user invokes this skill without any other guidance, ask them what they wa
 
 ## Reference repo
 
-The live product code lives at https://github.com/kunchenguid/baby-menu. Read `AGENTS.md` and `src/shared/contracts.ts` there for the architectural ground truth (three-process Electron split, `GitChangeSession` invariants, widget contracts).
+The live product code lives at https://github.com/kunchenguid/baby-menu. Read `AGENTS.md` and `src/shared/contracts.ts` there for the architectural ground truth (three-process Electron split, source-vs-packaged change-session invariants, widget contracts).
