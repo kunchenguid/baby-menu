@@ -47,6 +47,7 @@ brew upgrade --cask baby-menu
 ```
 
 The packaged app stores mutable extensions, caches, agent sessions, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets.
+Use the `login on/off` toggle in the popover header to control whether baby-menu opens at login.
 
 **From source**
 
