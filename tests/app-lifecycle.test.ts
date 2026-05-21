@@ -8,6 +8,7 @@ const trayInstance = {
 
 const electronApp = {
   dock: { hide: vi.fn() },
+  getPath: vi.fn((name: string) => (name === "home" ? "/home/test-user" : "/tmp")),
   getLoginItemSettings: vi.fn(() => ({ openAtLogin: false })),
   setLoginItemSettings: vi.fn(),
   isPackaged: false,
@@ -50,6 +51,27 @@ vi.mock("../src/main/ipc", () => ({
   registerIpcHandlers,
 }));
 
+vi.mock("../src/main/agent-runtime", () => ({
+  BabyMenuAgentRuntime: vi.fn(),
+}));
+
+vi.mock("../src/main/extension-seeder", () => ({
+  seedExtensionWorkspace: vi.fn(async () => undefined),
+}));
+
+vi.mock("../src/main/server-action-registry", () => ({
+  createServerActionRegistry: vi.fn(() => ({})),
+}));
+
+vi.mock("../src/main/widget-module-registry", () => ({
+  createWidgetModuleRegistry: vi.fn(() => ({})),
+}));
+
+vi.mock("../src/main/widget-protocol", () => ({
+  registerBabyMenuProtocolHandlers: vi.fn(),
+  registerBabyMenuProtocolSchemes: vi.fn(),
+}));
+
 vi.mock("../src/main/tray", () => ({
   createBabyMenuTray,
 }));
@@ -66,6 +88,7 @@ vi.mock("../src/shared/paths", () => ({
 describe("startBabyMenuApp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    electronApp.isPackaged = false;
     browserWindowInstance.isDestroyed.mockReturnValue(false);
     browserWindowInstance.isVisible.mockReturnValue(false);
   });
@@ -120,5 +143,15 @@ describe("startBabyMenuApp", () => {
     await appModule.startBabyMenuApp();
 
     expect(electronApp.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: false });
+  });
+
+  it("opts packaged app launches into opening at login by default", async () => {
+    electronApp.isPackaged = true;
+    process.resourcesPath = "/Applications/Baby Menu.app/Contents/Resources";
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+
+    expect(electronApp.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: true });
   });
 });

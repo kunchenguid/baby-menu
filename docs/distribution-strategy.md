@@ -736,7 +736,9 @@ Required install tests:
 - `/Applications/Baby Menu.app` exists.
 - The app launches from Finder.
 - The app launches from Spotlight.
-- The app launches after login when autostart is enabled.
+- The packaged app launches after login by default.
+- The popover exposes a visible opt-out toggle for opening at login.
+- Source/dev mode does not enable a login item.
 - The app does not require a source checkout, Node, or pnpm.
 - Quarantine does not block launch after Homebrew installation.
 
