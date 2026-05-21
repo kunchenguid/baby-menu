@@ -78,6 +78,7 @@ Runtime layout:
     MacOS/Baby Menu
     Resources/
       app.asar or app/
+      tray/baby_menuTemplate.png
       extensions-template/
         AGENTS.md
         recipes/*.html
