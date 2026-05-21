@@ -33,14 +33,17 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 - Run `pnpm package:mac` when changing packaging, runtime paths, extension compilation, or release behavior.
 - Keep `pnpm-lock.yaml` changes with dependency changes.
 - Do not commit generated build output, release artifacts, runtime caches, or dev extension workspaces.
-- Do not hand-edit `CHANGELOG.md` or auto-generated files if they are introduced later.
+- Do not hand-edit release-please metadata such as `CHANGELOG.md` or `.release-please-manifest.json`.
 - See `AGENTS.md` for architecture notes, extension workspace rules, and agent-specific constraints.
 
 ## Release Notes
 
 Baby Menu releases are proposed by release-please after conventional commits land on `main`.
+Use prefixes such as `feat:` and `fix:` so release-please can choose the version bump and release notes.
+Mark breaking changes with `!` in the commit type or a `BREAKING CHANGE:` footer.
 Merging the release-please PR creates the version tag and GitHub Release.
 The release-please workflow then builds and uploads the macOS DMG, then updates `kunchenguid/homebrew-tap` with the release SHA.
+Maintainers must keep `HOMEBREW_TAP_TOKEN` configured with write access to `kunchenguid/homebrew-tap` for that update step.
 Do not manually rewrite the tap from this repo outside that workflow unless you are repairing a failed release.
 
 ## Questions
