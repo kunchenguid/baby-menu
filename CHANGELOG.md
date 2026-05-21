@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.1...baby-menu-v0.1.2) (2026-05-21)
+
+
+### Bug Fixes
+
+* **main:** suppress macOS keychain prompts ([#7](https://github.com/kunchenguid/baby-menu/issues/7)) ([368d0ee](https://github.com/kunchenguid/baby-menu/commit/368d0eefa73dbfb4446ed849d1ddddf0dac68d73))
+
 ## [0.1.1](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.0...baby-menu-v0.1.1) (2026-05-21)
 
 
