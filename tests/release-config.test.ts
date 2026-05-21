@@ -78,6 +78,10 @@ describe("distribution config", () => {
     expect(workflow).toContain("github.event.pull_request.user.login != 'release-please[bot]'");
     expect(workflow).toContain("github.event.pull_request.user.login != 'github-actions[bot]'");
     expect(workflow).toContain("!startsWith(github.event.pull_request.head.ref, 'release-please--')");
-    expect(workflow).toContain("for path in CHANGELOG.md .release-please-manifest.json; do");
+    expect(workflow).toContain('name_status=$(git diff --name-status "${BASE_SHA}...${HEAD_SHA}")');
+    expect(workflow).toContain("manifest_status=$(printf '%s\\n' \"$name_status\" | awk");
+    expect(workflow).toContain('config_status=$(printf \'%s\\n\' "$name_status" | awk');
+    expect(workflow).toContain('[ "$manifest_status" = "A" ] && [ "$config_status" = "A" ]');
+    expect(workflow).toContain("for path in CHANGELOG.md; do");
   });
 });

@@ -33,6 +33,7 @@ jobs:
         run: |
           set -eu
           files=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
+          name_status=$(git diff --name-status "${BASE_SHA}...${HEAD_SHA}")
 
           violated=""
           for path in out release .cache extensions-dev; do
@@ -41,11 +42,17 @@ jobs:
             fi
           done
 
-          for path in CHANGELOG.md .release-please-manifest.json; do
+          for path in CHANGELOG.md; do
             if printf '%s\n' "$files" | grep -qxF -- "$path"; then
               violated="${violated} ${path}"
             fi
           done
+
+          manifest_status=$(printf '%s\n' "$name_status" | awk '$2 == ".release-please-manifest.json" { print $1; exit }')
+          config_status=$(printf '%s\n' "$name_status" | awk '$2 == "release-please-config.json" { print $1; exit }')
+          if [ -n "$manifest_status" ] && ! { [ "$manifest_status" = "A" ] && [ "$config_status" = "A" ]; }; then
+            violated="${violated} .release-please-manifest.json"
+          fi
 
           if [ -n "$violated" ]; then
             {
