@@ -1,7 +1,11 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { AcpRuntimeEvent, AcpRuntimeTurn } from "acpx/runtime";
 import {
   AgentTimeoutError,
+  BabyMenuAgentRuntime,
   agentRuntimeStatusForEvent,
   buildBabyMenuAgentPrompt,
   collectAgentTurnOutput,
@@ -18,6 +22,14 @@ function available(commands: string[]) {
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitUntil(condition: () => boolean, timeoutMs = 100) {
+  const startedAt = Date.now();
+  while (!condition()) {
+    if (Date.now() - startedAt > timeoutMs) throw new Error("Timed out waiting for condition");
+    await wait(1);
+  }
 }
 
 function fakeTurn({
@@ -221,5 +233,70 @@ describe("agent runtime defaults", () => {
     expect(prompt).toContain("Do not add new preload methods");
     expect(prompt).toContain("server action");
     expect(prompt).toContain("recipes/");
+  });
+
+  it("rejects a second send while an agent turn is already running", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-agent-runtime-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    const runtime = new BabyMenuAgentRuntime(rootDir, {
+      agentName: "mock-agent",
+      paths: {
+        extensionsDir,
+        agentStateDir: join(rootDir, ".cache", "acp-sessions"),
+        snapshotDir: join(rootDir, ".cache", "snapshots"),
+      },
+    });
+    const pendingOutputs: Array<(output: string) => void> = [];
+    const runtimeInternals = runtime as unknown as {
+      ensureAgentRuntimeCwd: () => Promise<string>;
+      beginChangeSession: () => Promise<{
+        startedClean: boolean;
+        canSave: boolean;
+        canRollback: boolean;
+        snapshot: (message?: string) => { startedClean: boolean; canSave: boolean; canRollback: boolean; head: string | null; message?: string };
+        save: () => Promise<{ ok: boolean }>;
+        rollback: () => Promise<{ ok: boolean }>;
+      }>;
+      ensureRuntime: () => Promise<{
+        ensureSession: () => Promise<object>;
+        startTurn: () => AcpRuntimeTurn;
+      }>;
+      collectTurnOutput: () => Promise<string>;
+    };
+    runtimeInternals.ensureAgentRuntimeCwd = vi.fn(async () => extensionsDir);
+    runtimeInternals.beginChangeSession = vi.fn(async () => ({
+      startedClean: true,
+      canSave: true,
+      canRollback: true,
+      snapshot: (message?: string) => ({ startedClean: true, canSave: true, canRollback: true, head: "HEAD", message }),
+      save: vi.fn(async () => ({ ok: true })),
+      rollback: vi.fn(async () => ({ ok: true })),
+    }));
+    runtimeInternals.ensureRuntime = vi.fn(async () => ({
+      ensureSession: vi.fn(async () => ({})),
+      startTurn: vi.fn(() => fakeTurn({ events: (async function* () {})() })),
+    }));
+    runtimeInternals.collectTurnOutput = vi.fn(
+      () => new Promise<string>((resolve) => pendingOutputs.push(resolve)),
+    );
+
+    const firstSend = runtime.send("first widget");
+    await waitUntil(() => pendingOutputs.length === 1);
+
+    const secondSend = runtime.send("second widget");
+    const secondResult = await Promise.race([
+      secondSend,
+      wait(25).then(() => "still-running" as const),
+    ]);
+
+    for (const resolve of pendingOutputs) resolve("first done");
+    await Promise.allSettled([firstSend, secondSend]);
+
+    expect(secondResult).not.toBe("still-running");
+    expect(secondResult).toMatchObject({
+      assistantText: expect.stringContaining("already running"),
+    });
+    expect(runtimeInternals.beginChangeSession).toHaveBeenCalledOnce();
+    expect(runtimeInternals.collectTurnOutput).toHaveBeenCalledOnce();
   });
 });

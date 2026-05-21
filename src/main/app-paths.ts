@@ -13,6 +13,7 @@ export type BabyMenuRuntimePaths = {
   agentStateDir: string;
   devExtensionSnapshotDir: string;
   bundledExtensionTemplateDir: string | null;
+  trayIconPath: string;
   isPackaged: boolean;
 };
 
@@ -39,6 +40,7 @@ export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOp
       agentStateDir: join(cacheDir, "acp-sessions"),
       devExtensionSnapshotDir: join(cacheDir, "dev-extension-snapshots"),
       bundledExtensionTemplateDir: null,
+      trayIconPath: join(options.sourceRoot, "assets", "tray", "baby_menuTemplate.png"),
       isPackaged: false,
     };
   }
@@ -60,6 +62,7 @@ export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOp
     agentStateDir: join(cacheDir, "acp-sessions"),
     devExtensionSnapshotDir: join(cacheDir, "snapshots"),
     bundledExtensionTemplateDir: join(options.resourcesPath, "extensions-template"),
+    trayIconPath: join(options.resourcesPath, "tray", "baby_menuTemplate.png"),
     isPackaged: true,
   };
 }

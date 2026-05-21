@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <filter id="mint-glow" x="-30%" y="-300%" width="160%" height="700%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="18" result="blur" />
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.416 0 0 0 0 0.890 0 0 0 0 0.714 0 0 0 0.55 0" result="glow" />
+      <feMerge>
+        <feMergeNode in="glow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="#0B0B0C" />
+  <text
+    x="515"
+    y="696"
+    text-anchor="middle"
+    font-family="Arial Black, Helvetica Neue, Helvetica, Arial, sans-serif"
+    font-size="690"
+    font-weight="900"
+    letter-spacing="-34"
+    fill="#F4F4F4"
+  >b</text>
+  <rect x="225" y="874" width="574" height="9" rx="1" fill="#6AE3B6" filter="url(#mint-glow)" />
+</svg>

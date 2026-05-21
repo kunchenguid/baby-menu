@@ -11,13 +11,13 @@ const tray = {
   setToolTip: vi.fn(),
 };
 
-const createFromDataURL = vi.fn((_dataUrl: string) => image);
+const createFromPath = vi.fn((_path: string) => image);
 const Tray = vi.fn(function MockTray() {
   return tray;
 });
 
 vi.mock("electron", () => ({
-  nativeImage: { createFromDataURL },
+  nativeImage: { createFromPath },
   Tray,
 }));
 
@@ -26,16 +26,15 @@ describe("createBabyMenuTray", () => {
     vi.clearAllMocks();
   });
 
-  it("creates a visible menu bar status item", async () => {
+  it("creates a template menu bar icon from the packaged tray asset", async () => {
     const { createBabyMenuTray } = await import("../src/main/tray");
 
-    createBabyMenuTray(vi.fn());
-    const dataUrl = createFromDataURL.mock.calls[0]?.[0] ?? "";
-    const svg = decodeURIComponent(dataUrl.replace("data:image/svg+xml;utf8,", ""));
+    createBabyMenuTray(vi.fn(), { iconPath: "/repo/assets/tray/baby_menuTemplate.png" });
 
-    expect(svg).toContain('stroke="white"');
-    expect(image.setTemplateImage).not.toHaveBeenCalledWith(true);
-    expect(tray.setTitle).toHaveBeenCalledWith("Baby");
+    expect(createFromPath).toHaveBeenCalledWith("/repo/assets/tray/baby_menuTemplate.png");
+    expect(image.setTemplateImage).toHaveBeenCalledWith(true);
+    expect(Tray).toHaveBeenCalledWith(image);
+    expect(tray.setTitle).not.toHaveBeenCalled();
     expect(tray.setToolTip).toHaveBeenCalledWith("baby-menu");
   });
 });

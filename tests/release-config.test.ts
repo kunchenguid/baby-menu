@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import packageJson from "../package.json";
 import { describe, expect, it } from "vitest";
@@ -16,8 +16,13 @@ describe("distribution config", () => {
 
     expect(config).toContain("appId: com.kunchenguid.baby-menu");
     expect(config).toContain("to: extensions-template");
+    expect(config).toContain("to: tray");
+    expect(config).toContain("baby_menuTemplate*.png");
     expect(config).toContain("identity: null");
     expect(config).toContain("hardenedRuntime: false");
+    expect(config).toContain("icon: assets/app-icon.icns");
+    await expect(stat(resolve(import.meta.dirname, "../assets/app-icon.svg")).then((file) => file.isFile())).resolves.toBe(true);
+    await expect(stat(resolve(import.meta.dirname, "../assets/app-icon.icns")).then((file) => file.isFile())).resolves.toBe(true);
   });
 
   it("adds a tag-triggered release workflow that uploads the DMG and updates the Homebrew tap", async () => {

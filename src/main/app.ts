@@ -127,9 +127,12 @@ export async function startBabyMenuApp(): Promise<void> {
     preferences,
     { recipesDir: paths.recipesDir },
   );
-  activeTray = createBabyMenuTray((bounds) => {
-    void togglePopover(bounds);
-  });
+  activeTray = createBabyMenuTray(
+    (bounds) => {
+      void togglePopover(bounds);
+    },
+    { iconPath: paths.trayIconPath },
+  );
 
   app.on("activate", () => undefined);
   app.on("window-all-closed", () => undefined);

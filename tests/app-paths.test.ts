@@ -28,6 +28,7 @@ describe("Baby Menu runtime paths", () => {
       agentStateDir: "/repo/.cache/baby-menu/acp-sessions",
       devExtensionSnapshotDir: "/repo/.cache/baby-menu/dev-extension-snapshots",
       bundledExtensionTemplateDir: null,
+      trayIconPath: "/repo/assets/tray/baby_menuTemplate.png",
       isPackaged: false,
     });
   });
@@ -48,6 +49,7 @@ describe("Baby Menu runtime paths", () => {
       agentStateDir: "/Users/me/.baby-menu/cache/acp-sessions",
       devExtensionSnapshotDir: "/Users/me/.baby-menu/cache/snapshots",
       bundledExtensionTemplateDir: "/Applications/Baby Menu.app/Contents/Resources/extensions-template",
+      trayIconPath: "/Applications/Baby Menu.app/Contents/Resources/tray/baby_menuTemplate.png",
       isPackaged: true,
     });
   });

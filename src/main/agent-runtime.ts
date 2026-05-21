@@ -256,6 +256,7 @@ export class BabyMenuAgentRuntime {
   private runtime: AcpxRuntime | null = null;
   private handle: AcpRuntimeHandle | null = null;
   private activeSession: AgentChangeSession | null = null;
+  private activeTurn = false;
   private readonly agentName: string;
   private readonly registryOverrides: Record<string, string> | undefined;
   private readonly requestTimeoutMs: number;
@@ -279,6 +280,22 @@ export class BabyMenuAgentRuntime {
   }
 
   async send(prompt: string, options: BabyMenuAgentRuntimeSendOptions = {}): Promise<AgentChatResult> {
+    if (this.activeTurn) {
+      return {
+        assistantText: "An agent turn is already running. Wait for it to finish before asking again.",
+      };
+    }
+
+    this.activeTurn = true;
+
+    try {
+      return await this.runSend(prompt, options);
+    } finally {
+      this.activeTurn = false;
+    }
+  }
+
+  private async runSend(prompt: string, options: BabyMenuAgentRuntimeSendOptions = {}): Promise<AgentChatResult> {
     const agentCwd = await this.ensureAgentRuntimeCwd();
     const changeSession = await this.beginChangeSession(agentCwd);
     this.activeSession = changeSession;

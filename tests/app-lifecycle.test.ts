@@ -102,7 +102,9 @@ describe("startBabyMenuApp", () => {
 
     await appModule.startBabyMenuApp();
 
-    expect(createBabyMenuTray).toHaveBeenCalledOnce();
+    expect(createBabyMenuTray).toHaveBeenCalledWith(expect.any(Function), {
+      iconPath: "/repo/assets/tray/baby_menuTemplate.png",
+    });
     expect(appModule.getActiveBabyMenuTray?.()).toBe(trayInstance);
   });
 

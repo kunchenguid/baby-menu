@@ -16,11 +16,16 @@ extraResources:
       - AGENTS.md
       - recipes/**
       - hello-world/**
+  - from: assets/tray
+    to: tray
+    filter:
+      - baby_menuTemplate*.png
 
 asar: true
 
 mac:
   category: public.app-category.developer-tools
+  icon: assets/app-icon.icns
   identity: null
   hardenedRuntime: false
   gatekeeperAssess: false
