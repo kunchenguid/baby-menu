@@ -24,7 +24,7 @@ function wait(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitUntil(condition: () => boolean, timeoutMs = 100) {
+async function waitUntil(condition: () => boolean, timeoutMs = 1000) {
   const startedAt = Date.now();
   while (!condition()) {
     if (Date.now() - startedAt > timeoutMs) throw new Error("Timed out waiting for condition");

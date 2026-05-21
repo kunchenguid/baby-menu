@@ -132,6 +132,7 @@ export type BabyMenuRuntimePaths = {
   agentStateDir: string;
   devExtensionSnapshotDir: string;
   bundledExtensionTemplateDir: string | null;
+  trayIconPath: string;
 };
 
 export function resolveBabyMenuRuntimePaths(): BabyMenuRuntimePaths {
@@ -144,6 +145,7 @@ export function resolveBabyMenuRuntimePaths(): BabyMenuRuntimePaths {
       agentStateDir: join(root, ".cache", "baby-menu", "acp-sessions"),
       devExtensionSnapshotDir: join(root, ".cache", "baby-menu", "dev-extension-snapshots"),
       bundledExtensionTemplateDir: null,
+      trayIconPath: join(root, "assets", "tray", "baby_menuTemplate.png"),
     };
   }
 
@@ -155,6 +157,7 @@ export function resolveBabyMenuRuntimePaths(): BabyMenuRuntimePaths {
     agentStateDir: join(root, "cache", "acp-sessions"),
     devExtensionSnapshotDir: join(root, "cache", "snapshots"),
     bundledExtensionTemplateDir: join(process.resourcesPath, "extensions-template"),
+    trayIconPath: join(process.resourcesPath, "tray", "baby_menuTemplate.png"),
   };
 }
 ```
@@ -447,11 +450,16 @@ extraResources:
       - AGENTS.md
       - recipes/**
       - hello-world/**
+  - from: assets/tray
+    to: tray
+    filter:
+      - baby_menuTemplate*.png
 
 asar: true
 
 mac:
   category: public.app-category.developer-tools
+  icon: assets/app-icon.icns
   identity: null
   hardenedRuntime: false
   gatekeeperAssess: false
