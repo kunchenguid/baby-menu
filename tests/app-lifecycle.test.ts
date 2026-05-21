@@ -147,7 +147,10 @@ describe("startBabyMenuApp", () => {
 
   it("opts packaged app launches into opening at login by default", async () => {
     electronApp.isPackaged = true;
-    process.resourcesPath = "/Applications/Baby Menu.app/Contents/Resources";
+    Object.defineProperty(process, "resourcesPath", {
+      configurable: true,
+      value: "/Applications/Baby Menu.app/Contents/Resources",
+    });
     const appModule = await import("../src/main/app");
 
     await appModule.startBabyMenuApp();
