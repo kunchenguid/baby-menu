@@ -78,7 +78,6 @@ describe("distribution config", () => {
     expect(workflow).toContain("github.event.pull_request.user.login != 'release-please[bot]'");
     expect(workflow).toContain("github.event.pull_request.user.login != 'github-actions[bot]'");
     expect(workflow).toContain("!startsWith(github.event.pull_request.head.ref, 'release-please--')");
-    expect(workflow).toContain("for path in CHANGELOG.md; do");
-    expect(workflow).not.toContain(".release-please-manifest.json");
+    expect(workflow).toContain("for path in CHANGELOG.md .release-please-manifest.json; do");
   });
 });

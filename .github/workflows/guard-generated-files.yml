@@ -41,7 +41,7 @@ jobs:
             fi
           done
 
-          for path in CHANGELOG.md; do
+          for path in CHANGELOG.md .release-please-manifest.json; do
             if printf '%s\n' "$files" | grep -qxF -- "$path"; then
               violated="${violated} ${path}"
             fi
