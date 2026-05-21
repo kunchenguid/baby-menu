@@ -17,6 +17,10 @@ jobs:
   check:
     name: Generated files must not be committed
     runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.user.login != 'release-please[bot]' &&
+      (github.event.pull_request.user.login != 'github-actions[bot]' ||
+      !startsWith(github.event.pull_request.head.ref, 'release-please--'))
     steps:
       - uses: actions/checkout@v6
         with:
@@ -37,7 +41,7 @@ jobs:
             fi
           done
 
-          for path in CHANGELOG.md .release-please-manifest.json; do
+          for path in CHANGELOG.md; do
             if printf '%s\n' "$files" | grep -qxF -- "$path"; then
               violated="${violated} ${path}"
             fi

@@ -38,8 +38,9 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 
 ## Release Notes
 
-Baby Menu releases are created from version tags such as `v0.1.0`.
-The release workflow builds and uploads the macOS DMG, then updates `kunchenguid/homebrew-tap` with the release SHA.
+Baby Menu releases are proposed by release-please after conventional commits land on `main`.
+Merging the release-please PR creates the version tag and GitHub Release.
+The release-please workflow then builds and uploads the macOS DMG, then updates `kunchenguid/homebrew-tap` with the release SHA.
 Do not manually rewrite the tap from this repo outside that workflow unless you are repairing a failed release.
 
 ## Questions

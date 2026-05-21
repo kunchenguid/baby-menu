@@ -1,21 +1,41 @@
-name: release
+name: release-please
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
 
 permissions:
   contents: write
+  pull-requests: write
+  issues: write
 
 jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      baby-menu-release-created: ${{ steps.release.outputs.release_created }}
+      baby-menu-tag-name: ${{ steps.release.outputs.tag_name }}
+      baby-menu-version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   macos:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.baby-menu-release-created == 'true' }}
     runs-on: macos-latest
     timeout-minutes: 30
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      TAG_NAME: ${{ needs.release-please.outputs.baby-menu-tag-name }}
+      VERSION: ${{ needs.release-please.outputs.baby-menu-version }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.TAG_NAME }}
 
       - uses: pnpm/action-setup@v6
         with:
@@ -46,25 +66,17 @@ jobs:
 
       - name: Create DMG
         run: |
-          VERSION_NUMBER="${GITHUB_REF_NAME#v}"
-          DMG_NAME="Baby-Menu-${VERSION_NUMBER}-universal.dmg"
+          DMG_NAME="Baby-Menu-${VERSION}-universal.dmg"
           hdiutil create -volname "Baby Menu" \
             -srcfolder "release/mac-universal/Baby Menu.app" \
             -ov -format UDZO "release/${DMG_NAME}"
-          echo "VERSION_NUMBER=${VERSION_NUMBER}" >> "$GITHUB_ENV"
           echo "DMG_NAME=${DMG_NAME}" >> "$GITHUB_ENV"
           echo "DMG_PATH=release/${DMG_NAME}" >> "$GITHUB_ENV"
 
-      - name: Create GitHub Release
+      - name: Upload DMG to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$DMG_PATH" --clobber
-            gh release edit "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --latest
-          else
-            gh release create "$GITHUB_REF_NAME" "$DMG_PATH" --title "$GITHUB_REF_NAME" --generate-notes --latest
-          fi
+        run: gh release upload "$TAG_NAME" "$DMG_PATH" --clobber
 
       - name: Compute SHA256
         run: |
@@ -79,10 +91,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/homebrew-tap/Casks"
           cat > "$RUNNER_TEMP/homebrew-tap/Casks/baby-menu.rb" << CASK_EOF
           cask "baby-menu" do
-            version "${VERSION_NUMBER}"
+            version "${VERSION}"
             sha256 "${SHA256}"
 
-            url "https://github.com/kunchenguid/baby-menu/releases/download/v#{version}/Baby-Menu-#{version}-universal.dmg"
+            url "https://github.com/kunchenguid/baby-menu/releases/download/${TAG_NAME}/Baby-Menu-${VERSION}-universal.dmg"
             name "Baby Menu"
             desc "Menu-bar app that writes its own widgets"
             homepage "https://github.com/kunchenguid/baby-menu"
@@ -109,6 +121,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Casks/baby-menu.rb
           if ! git diff --cached --quiet; then
-            git commit -m "baby-menu ${VERSION_NUMBER}"
+            git commit -m "baby-menu ${VERSION}"
             git push
           fi
