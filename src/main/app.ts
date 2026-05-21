@@ -21,6 +21,10 @@ import { createBabyMenuTray, type BabyMenuTray } from "./tray";
 import { createWidgetModuleRegistry } from "./widget-module-registry";
 import { registerBabyMenuProtocolHandlers, registerBabyMenuProtocolSchemes } from "./widget-protocol";
 
+if (process.platform === "darwin") {
+  app.commandLine.appendSwitch("use-mock-keychain");
+}
+
 registerBabyMenuProtocolSchemes();
 
 let popoverWindow: BrowserWindow | null = null;

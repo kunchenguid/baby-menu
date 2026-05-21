@@ -18,6 +18,14 @@ describe("electron-vite config", () => {
     expect(asExternalList(config.preload?.build?.rollupOptions?.external)).toContain("electron");
   });
 
+  it("keeps TypeScript external in the production main bundle", async () => {
+    vi.stubGlobal("__dirname", rootDir);
+
+    const { default: config } = await import("../electron.vite.config");
+
+    expect(asExternalList(config.main?.build?.rollupOptions?.external)).toContain("typescript");
+  });
+
   it("builds the preload bridge as a CommonJS file for Electron", async () => {
     vi.stubGlobal("__dirname", rootDir);
 

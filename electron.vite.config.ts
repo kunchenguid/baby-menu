@@ -7,7 +7,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        external: ["electron"],
+        external: ["electron", "typescript"],
         input: {
           index: resolve(__dirname, "src/main/app.ts"),
         },
