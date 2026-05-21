@@ -90,7 +90,12 @@ export async function startBabyMenuApp(): Promise<void> {
     app.dock?.hide();
   }
 
-  const preferences = createPreferencesService({ userDataDir: paths.appDataRoot, app });
+  const preferences = createPreferencesService({
+    userDataDir: paths.appDataRoot,
+    app,
+    defaultOpenAtLogin: paths.isPackaged,
+    allowOpenAtLogin: paths.isPackaged,
+  });
   await preferences.apply();
 
   const agentRuntime = new BabyMenuAgentRuntime(paths.appDataRoot, {

@@ -25,4 +25,8 @@ describe("package configuration", () => {
   it("provides an explicit command to destroy the generated dev extension workspace", () => {
     expect(packageJson.scripts?.["dev:reset"]).toBe("node scripts/dev.mjs --reset");
   });
+
+  it("does not expose a direct start script that bypasses the packaged app path", () => {
+    expect(packageJson.scripts).not.toHaveProperty("start");
+  });
 });

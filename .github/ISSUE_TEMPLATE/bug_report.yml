@@ -35,7 +35,6 @@ body:
       label: Launch mode
       options:
         - Packaged app
-        - pnpm start
         - pnpm dev
         - tests
         - other / not sure

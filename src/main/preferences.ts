@@ -7,7 +7,6 @@ export type BabyMenuPreferences = {
 
 type LoginItemApp = {
   setLoginItemSettings: (settings: { openAtLogin: boolean }) => void;
-  getLoginItemSettings: () => { openAtLogin?: boolean };
 };
 
 export type PreferencesService = {
@@ -16,15 +15,31 @@ export type PreferencesService = {
   apply: () => Promise<BabyMenuPreferences>;
 };
 
-export function createPreferencesService({ userDataDir, app }: { userDataDir: string; app: LoginItemApp }): PreferencesService {
+type CreatePreferencesServiceOptions = {
+  userDataDir: string;
+  app: LoginItemApp;
+  defaultOpenAtLogin?: boolean;
+  allowOpenAtLogin?: boolean;
+};
+
+export function createPreferencesService({
+  userDataDir,
+  app,
+  defaultOpenAtLogin = true,
+  allowOpenAtLogin = true,
+}: CreatePreferencesServiceOptions): PreferencesService {
   const filePath = join(userDataDir, "preferences.json");
+
+  function normalizePreferences(preferences: BabyMenuPreferences): BabyMenuPreferences {
+    return { openAtLogin: allowOpenAtLogin && preferences.openAtLogin };
+  }
 
   async function readPreferences(): Promise<BabyMenuPreferences> {
     try {
       const parsed = JSON.parse(await readFile(filePath, "utf8")) as Partial<BabyMenuPreferences>;
-      return { openAtLogin: parsed.openAtLogin ?? app.getLoginItemSettings().openAtLogin ?? false };
+      return normalizePreferences({ openAtLogin: parsed.openAtLogin ?? defaultOpenAtLogin });
     } catch {
-      return { openAtLogin: app.getLoginItemSettings().openAtLogin ?? false };
+      return normalizePreferences({ openAtLogin: defaultOpenAtLogin });
     }
   }
 
@@ -37,8 +52,8 @@ export function createPreferencesService({ userDataDir, app }: { userDataDir: st
   return {
     get: readPreferences,
     async setOpenAtLogin(openAtLogin) {
-      const preferences = await writePreferences({ openAtLogin });
-      app.setLoginItemSettings({ openAtLogin });
+      const preferences = await writePreferences(normalizePreferences({ openAtLogin }));
+      app.setLoginItemSettings({ openAtLogin: preferences.openAtLogin });
       return preferences;
     },
     async apply() {

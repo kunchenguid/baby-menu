@@ -12,7 +12,6 @@
   },
   "scripts": {
     "postinstall": "install-electron",
-    "start": "electron-vite dev",
     "dev": "node scripts/dev.mjs",
     "dev:reset": "node scripts/dev.mjs --reset",
     "build": "electron-vite build",

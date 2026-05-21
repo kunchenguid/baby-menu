@@ -5,7 +5,6 @@ Embedded agents launched from baby-menu should work from the active extension wo
 
 ## Commands
 
-- `pnpm start` - runs `electron-vite dev` directly with no extension workspace override. `BabyMenuAgentRuntime` falls back to the tracked `extensions/` directory, so the embedded agent edits real git-tracked files gated by `GitChangeSession`. Use this when iterating on or shipping changes to tracked extensions.
 - `pnpm dev` - runs `scripts/dev.mjs`, prepares a gitignored `extensions-dev/` workspace by copying `extensions/AGENTS.md` and `extensions/recipes/`, and runs `electron-vite dev` from the current checkout. The app itself sees current uncommitted changes, while the embedded agent is launched inside `extensions-dev/`.
 - `pnpm dev:reset` - removes `extensions-dev/`, recreates it with the latest `extensions/AGENTS.md` and `extensions/recipes/`, and starts dev mode.
 - `pnpm build` - build main, preload, and renderer bundles into `out/`.
@@ -27,7 +26,7 @@ Use `pnpm` (declared `packageManager: pnpm@11.1.1`). Renderer dev server is pinn
 ## Architecture
 
 This is a macOS tray-bar Electron app whose distinguishing idea is that an embedded agent (running via `acpx/runtime`) edits the active extension workspace at runtime.
-Source mode uses git as the accept/rollback mechanism for tracked extensions; packaged mode edits `~/.baby-menu/extensions` and uses filesystem snapshots.
+Tracked source extensions use git as the accept/rollback mechanism when selected explicitly; packaged mode edits `~/.baby-menu/extensions` and uses filesystem snapshots.
 
 Three processes, kept deliberately separate:
 
@@ -76,7 +75,7 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 
 1. Resolves the active extension workspace from runtime paths. Source mode honors `BABY_MENU_EXTENSIONS_DIR` or defaults to `extensions/`; packaged mode uses `~/.baby-menu/extensions` after seeding bundled templates.
 2. Uses `DevExtensionChangeSession` for snapshot workspaces such as `extensions-dev/` and packaged `~/.baby-menu/extensions`, so Save keeps generated files and Rollback restores the pre-turn contents.
-3. Uses `GitChangeSession.begin(rootDir)` only for the tracked source `extensions/` workspace. If the working tree is dirty, it short-circuits and returns a refusal message instead of running the agent - this is intentional; do not bypass it for tracked edits.
+3. Uses `GitChangeSession.begin(rootDir)` only for the tracked source `extensions/` workspace when that workspace is selected explicitly. If the working tree is dirty, it short-circuits and returns a refusal message instead of running the agent - this is intentional; do not bypass it for tracked edits.
 4. Lazily constructs the ACP runtime with `createFileSessionStore({ stateDir })` under `.cache/baby-menu/acp-sessions` in source mode or `~/.baby-menu/cache/acp-sessions` in packaged mode, with `permissionMode: "approve-all"`.
 5. Uses a fixed `sessionKey: "baby-menu-agent-chat"` so the agent has a single persistent conversation.
 

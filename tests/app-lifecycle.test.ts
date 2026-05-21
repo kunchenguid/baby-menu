@@ -113,4 +113,12 @@ describe("startBabyMenuApp", () => {
 
     expect(browserWindowInstance.setBounds).toHaveBeenLastCalledWith({ x: 8, y: 42, width: 360, height: 333 });
   });
+
+  it("does not opt source dev mode into opening at login", async () => {
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+
+    expect(electronApp.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: false });
+  });
 });

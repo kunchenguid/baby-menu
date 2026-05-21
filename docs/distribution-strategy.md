@@ -5,7 +5,7 @@ The implemented app now includes packaging, runtime path changes, production ext
 
 ## Goals
 
-- Ship Baby Menu as a macOS menu-bar app, not as a source checkout that users run with `pnpm start`.
+- Ship Baby Menu as a macOS menu-bar app, not as a source checkout that users run with a direct `electron-vite dev` script.
 - Preserve the core product behavior where an embedded agent can create or edit widgets while the app is running.
 - Avoid a production Vite dev server.
 - Avoid Developer ID signing and notarization for now.
@@ -111,7 +111,6 @@ repo/
 
 | Mode | Renderer | Extension Workspace | Change Session | Widget Loader |
 | --- | --- | --- | --- | --- |
-| `pnpm start` | Vite dev server | `repo/extensions` | `GitChangeSession` | Vite `/@fs` |
 | `pnpm dev` | Vite dev server | `repo/extensions-dev` | snapshot session | Vite `/@fs` |
 | Packaged app | `out/renderer/index.html` | `app.getPath("home")/.baby-menu/extensions` | snapshot session | compiled module protocol |
 
@@ -381,12 +380,14 @@ Use Electron's login-item API from the app, not the Homebrew cask.
 
 Recommended default:
 
-- Add a setting in the app UI for “Open Baby Menu at login”.
+- Open the packaged app at login by default.
+- Add a setting in the app UI so users can opt out.
+- Never enable login-item startup from source/dev mode.
 - Persist the preference in user data.
 - Call `app.setLoginItemSettings({ openAtLogin: true })` when enabled.
 - Call `app.setLoginItemSettings({ openAtLogin: false })` when disabled.
 
-For a menu-bar utility, enabling autostart by default may be acceptable, but the least surprising implementation is to show a first-run prompt or settings toggle.
+For a packaged menu-bar utility, enabling autostart by default is acceptable when the opt-out setting is visible.
 Do not rely on a LaunchAgent from the cask unless a future background daemon is introduced.
 
 ## Packaging Tool
@@ -797,7 +798,7 @@ Acceptance criteria:
 
 - Packaged mode never writes generated extension files into the `.app` bundle.
 - Save and Rollback work without a git repo.
-- Source `pnpm start` still uses `GitChangeSession` for tracked `extensions`.
+- Source tracked `extensions` still use `GitChangeSession` when selected explicitly.
 - Source `pnpm dev` still uses snapshot sessions for `extensions-dev`.
 
 ### Phase 3: Add Production Extension Compilation - implemented
