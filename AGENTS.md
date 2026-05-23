@@ -54,7 +54,7 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 - `extension-seeder.ts` - seeds bundled extension templates into the packaged extension workspace.
 - `extension-module-compiler.ts` - compiles extension widget and server modules for production loading.
 - `widget-protocol.ts` - registers custom protocols for compiled widget modules and the renderer host shim.
-- `preferences.ts` - stores app preferences under the active app data root and applies login-item settings.
+- `preferences.ts` - stores app preferences under the active app data root and applies login-item settings only when login items are allowed, keeping source/dev mode as a no-op for macOS login items.
 - `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs.
 - `recipe-loader.ts` - discovers and parses `recipes/*.html` from the active extension workspace.
 - `server-action-registry.ts` - dynamically loads extension server actions from the active extension workspace and exposes them through the generic capability bridge.

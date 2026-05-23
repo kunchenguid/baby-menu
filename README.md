@@ -143,7 +143,7 @@ pnpm lint         # tsc --noEmit (same as typecheck)
 ```
 
 Use `pnpm dev` for source iteration in a throwaway sandbox - the agent edits the gitignored `extensions-dev/` copy and your tracked tree stays clean.
-Source/dev mode never opts Baby Menu into opening at login.
+Source/dev mode never touches macOS login items, including Electron's `setLoginItemSettings` API.
 Use `pnpm package:mac` when you want to test the actual packaged app from `release/mac-universal/Baby Menu.app`.
 
 Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pattern>"`.
