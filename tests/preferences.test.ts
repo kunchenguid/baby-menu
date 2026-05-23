@@ -55,7 +55,7 @@ describe("preferences service", () => {
     await expect(service.setOpenAtLogin(true)).resolves.toEqual({ openAtLogin: false });
     await expect(service.get()).resolves.toEqual({ openAtLogin: false });
 
-    expect(appFacade.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: false });
+    expect(appFacade.setLoginItemSettings).not.toHaveBeenCalled();
     await expect(readFile(join(userDataDir, "preferences.json"), "utf8")).resolves.toContain('"openAtLogin": false');
   });
 

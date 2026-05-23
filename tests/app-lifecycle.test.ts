@@ -157,12 +157,12 @@ describe("startBabyMenuApp", () => {
     expect(browserWindowInstance.setBounds).toHaveBeenLastCalledWith({ x: 8, y: 42, width: 360, height: 333 });
   });
 
-  it("does not opt source dev mode into opening at login", async () => {
+  it("does not touch login items in source dev mode", async () => {
     const appModule = await import("../src/main/app");
 
     await appModule.startBabyMenuApp();
 
-    expect(electronApp.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: false });
+    expect(electronApp.setLoginItemSettings).not.toHaveBeenCalled();
   });
 
   it("opts packaged app launches into opening at login by default", async () => {

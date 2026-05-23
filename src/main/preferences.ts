@@ -34,6 +34,11 @@ export function createPreferencesService({
     return { openAtLogin: allowOpenAtLogin && preferences.openAtLogin };
   }
 
+  function applyLoginItemSettings(preferences: BabyMenuPreferences): void {
+    if (!allowOpenAtLogin) return;
+    app.setLoginItemSettings({ openAtLogin: preferences.openAtLogin });
+  }
+
   async function readPreferences(): Promise<BabyMenuPreferences> {
     try {
       const parsed = JSON.parse(await readFile(filePath, "utf8")) as Partial<BabyMenuPreferences>;
@@ -53,12 +58,12 @@ export function createPreferencesService({
     get: readPreferences,
     async setOpenAtLogin(openAtLogin) {
       const preferences = await writePreferences(normalizePreferences({ openAtLogin }));
-      app.setLoginItemSettings({ openAtLogin: preferences.openAtLogin });
+      applyLoginItemSettings(preferences);
       return preferences;
     },
     async apply() {
       const preferences = await readPreferences();
-      app.setLoginItemSettings({ openAtLogin: preferences.openAtLogin });
+      applyLoginItemSettings(preferences);
       return preferences;
     },
   };
