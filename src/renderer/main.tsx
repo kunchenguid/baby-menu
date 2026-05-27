@@ -7,6 +7,10 @@ import { installWidgetHostShims } from "./widget-host-shim";
 import "../ui/styles.css";
 import "./styles.css";
 
+if (import.meta.env.DEV) {
+  void import("../ui/styles.dev.css");
+}
+
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing root element");
 

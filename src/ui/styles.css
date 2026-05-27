@@ -1,10 +1,10 @@
 /*
  * Renderer entry for the design system. Imported once by src/renderer/main.tsx.
  *
- * Tailwind scans the host components and the app renderer at build time. It also
- * scans the extension workspaces so that in dev/source mode (which serves widgets
- * through Vite, not the per-widget compiler) the utilities an agent authors in a
- * widget are present in the global stylesheet. Missing @source dirs are ignored.
+ * Tailwind scans the host components, app renderer, and tracked source
+ * extensions at build time. Dev-only generated extensions are scanned by
+ * styles.dev.css so production builds do not depend on gitignored workspace
+ * contents. Missing @source dirs are ignored.
  */
 @import "tailwindcss";
 @import "./theme.css";
@@ -12,4 +12,3 @@
 @source "../ui";
 @source "../renderer";
 @source "../../extensions";
-@source "../../extensions-dev";
