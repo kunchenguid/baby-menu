@@ -59,10 +59,17 @@ export type BabyMenuWidget = {
   render: () => ReactNode;
 };
 
-export type RefreshableBabyMenuWidget = BabyMenuWidget & {
-  refreshIntervalMs?: number;
-  refresh?: () => void | Promise<void>;
-};
+export type RefreshableBabyMenuWidget = BabyMenuWidget &
+  (
+    | {
+        refreshIntervalMs?: number;
+        refresh: () => void | Promise<void>;
+      }
+    | {
+        refreshIntervalMs?: never;
+        refresh?: never;
+      }
+  );
 
 export type BabyMenuApi = {
   recipes: {

@@ -2,7 +2,7 @@
 import { act, render, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RefreshableBabyMenuWidget } from "../src/shared/contracts";
-import { WidgetHost } from "../src/renderer/menu/WidgetHost";
+import { WidgetHost, widgetsFromModule } from "../src/renderer/menu/WidgetHost";
 import { useWidgetRefresh } from "../src/renderer/menu/useWidgetRefresh";
 
 describe("useWidgetRefresh", () => {
@@ -52,5 +52,18 @@ describe("WidgetHost", () => {
 
     expect(refresh).toHaveBeenCalledTimes(3);
     vi.useRealTimers();
+  });
+
+  it("ignores runtime widget exports without refresh callbacks", () => {
+    expect(
+      widgetsFromModule({
+        stale: {
+          id: "stale",
+          title: "Stale",
+          refreshIntervalMs: 1000,
+          render: () => null,
+        },
+      }),
+    ).toEqual([]);
   });
 });

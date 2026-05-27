@@ -122,7 +122,16 @@ export function widgetsFromModule(module: unknown): RefreshableBabyMenuWidget[] 
 function isRefreshableBabyMenuWidget(value: unknown): value is RefreshableBabyMenuWidget {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<RefreshableBabyMenuWidget>;
-  return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.render === "function";
+  const hasRefresh = typeof candidate.refresh === "function";
+  const hasInvalidRefresh = candidate.refresh !== undefined && !hasRefresh;
+  const hasInvalidInterval = candidate.refreshIntervalMs !== undefined && !hasRefresh;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.title === "string" &&
+    typeof candidate.render === "function" &&
+    !hasInvalidRefresh &&
+    !hasInvalidInterval
+  );
 }
 
 function importRuntimeWidgetModule(moduleUrl: string): Promise<unknown> {
