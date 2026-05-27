@@ -8,11 +8,11 @@ The visual direction is **Monochrome Lab** — terminal-elegant, near-black, mon
 
 ## What Baby Menu is
 
-Baby Menu is a tray-popover OS-level utility built around a single moving surface: the user looks at and uses the widgets the agent has built, and the agent is always one slim prompt away at the bottom. There is no mode toggle, no separate "build" view, no chat panel. The composer is *the* affordance for talking to the agent, and it sits there permanently — a single line of mono type with a `›` prompt prefix.
+Baby Menu is a tray-popover OS-level utility built around a single moving surface: the user looks at and uses the widgets the agent has built, and the agent is one slim prompt away at the bottom of the main menu. There is no build-mode toggle, no separate "build" view, no chat panel. The composer is *the* affordance for talking to the agent in the main surface, and it sits there permanently - a single line of mono type with a `›` prompt prefix. The settings view is the exception: it replaces the body and composer while open.
 
 When the user sends a request, the composer momentarily becomes a `RunStrip`: a single live affordance with a pulsing mint dot, the agent's current step, and an elapsed timer. **No log, no step history.** When the agent finishes, a `SessionBar` slides in with a plain-language summary of what was added (`Added a CPU temperature widget`) and two buttons: **Keep** and **Undo**. The user never sees commit SHAs, file counts, or the word "git" — those are infrastructure they shouldn't have to think about.
 
-The popover surface is dynamic-height. The composer is always pinned to the bottom; everything above it stacks and grows.
+The popover surface is dynamic-height. On the main menu, the composer is pinned to the bottom; everything above it stacks and grows.
 
 ---
 
@@ -139,7 +139,7 @@ The palette is **near-black + white-at-alpha + one mint signal**. Inspect `color
 - **Mono** — `JetBrains Mono`, 300 / 400 / 500 / 600. Used for *everything* in the popover surface — body, labels, values, buttons, error messages. Weight 300 is reserved for big numbers; 400 for body; 500 for buttons and titles.
 - **Prose** — `Inter Tight`, 300 / 400 / 500. Used ONLY in long-form explanatory copy (e.g. this README, preview-card notes). Never inside the popover surface itself. Opt in via `.prose`.
 
-Scale stays small. Body **12–13px**, caption **11px**, tracked-caps key **10px**, hero value **28–36px**. Tabular numerals are on by default (`font-feature-settings: "tnum"`) so columns of values align.
+Scale stays compact but readable: `--fs-xxs` / `text-xxs` **11px**, `xs` **12px**, `sm` **13px**, `base` **14px**, `md` **16px**, with hero values **28–36px**. Tabular numerals are on by default (`font-feature-settings: "tnum"`) so columns of values align.
 
 ### Spacing
 
