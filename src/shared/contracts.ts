@@ -56,11 +56,11 @@ export type BabyMenuWidgetModuleDescriptor = {
 export type BabyMenuWidget = {
   id: string;
   title: string;
-  refreshIntervalMs?: number;
   render: () => ReactNode;
 };
 
 export type RefreshableBabyMenuWidget = BabyMenuWidget & {
+  refreshIntervalMs?: number;
   refresh?: () => void | Promise<void>;
 };
 

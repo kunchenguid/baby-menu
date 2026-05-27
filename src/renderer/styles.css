@@ -26,6 +26,30 @@ button {
   -webkit-appearance: none;
 }
 
+/* Native-feel cursors: arrow everywhere, I-beam only in editable fields,
+   pointer on controls. cursor inherits, so the root rule sets the default
+   and interactive elements override it. */
+html {
+  cursor: default;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  cursor: text;
+}
+
+button,
+[role="button"],
+a[href] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 .app-shell {
   width: 360px;
   height: auto;
