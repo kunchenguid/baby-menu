@@ -39,7 +39,7 @@ add a CPU temp widget that shows current temperature and fan status
 Baby Menu writes the extension under `~/.baby-menu/extensions`, mounts the widget live, and shows Save / Rollback controls for the turn.
 Use Save to keep it, or Rollback to throw it away.
 The packaged app opens at login by default.
-Use the `login on/off` toggle in the popover header to turn that off or back on.
+Open settings from the popover header to turn `open at login` off or back on.
 
 ## Install Details
 
@@ -111,7 +111,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | --------------------------- | ----------------------------------------------------------- |
 | `src/main/`                 | Electron lifecycle, tray, popover, IPC, git, agent runtime  |
 | `src/preload/index.ts`      | The stable `window.babyMenu` bridge                         |
-| `src/renderer/`             | React UI: `AgentChat` + `WidgetHost`                        |
+| `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, and settings            |
+| `src/ui/`                   | Shared `@babymenu/ui` design system for shell and widgets    |
 | `src/shared/contracts.ts`   | `BabyMenuApi`, `BabyMenuWidget`, `GitSessionSnapshot`, etc. |
 | `extensions/<id>/`          | Tracked extensions (`widget.tsx`, `server.ts`)              |
 | `extensions/recipes/*.html` | Self-contained widget specs the agent reads                 |

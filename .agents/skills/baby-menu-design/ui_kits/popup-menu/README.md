@@ -31,7 +31,7 @@ A clickable recreation of the redesigned Baby Menu tray popover in the Monochrom
 
 | Live file | Kit equivalent | Notes |
 | --- | --- | --- |
-| `App.tsx` | `App.jsx` | The mode toggle is gone; the composer is always rendered. |
+| `App.tsx` | `App.jsx` | The mode toggle is gone; the live app has a settings view, and the composer is hidden while settings are open. |
 | `agent/AgentChat.tsx` | `Composer.jsx` + `RunStrip.jsx` + `SessionBar.jsx` | Three components from one chat surface. There is no message history. |
 | `menu/MenuSurface.tsx` + `menu/WidgetHost.tsx` | `WidgetHost.jsx` | Recipes pill row removed — recipes are an agent-side concept, not user UI. |
 | `styles.css` | `popup.css` + `colors_and_type.css` | |

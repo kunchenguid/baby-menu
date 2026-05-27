@@ -195,7 +195,7 @@ Easings: `--ease` `cubic-bezier(0.22, 0.61, 0.36, 1)` for entry; `--ease-in-out`
 ### Layout rules
 
 - Width is fixed at **360px**, **400px max**. Never less than 320px.
-- **Height is auto.** The popover grows to fit. Plan layouts for any height between 220px and 720px. When the widget host would exceed 360px, it scrolls internally; the composer and SessionBar stay sticky at the bottom.
+- **Height is auto.** The popover grows to fit. Plan layouts for any height between 220px and 720px. Once the popover reaches its max height, the popover body scrolls; the header, composer, and SessionBar stay pinned.
 - The **composer** is always pinned to the bottom.
 - The **SessionBar** is pinned just above the composer **only when** the agent has just added or undone something and is waiting for the user to decide.
 - The **RunStrip** is pinned just above the composer **only while** an agent run is in flight, and it replaces any SessionBar that might otherwise be shown.
@@ -219,7 +219,7 @@ Widgets do **not** have backgrounds, borders, shadows, or padding-as-containers.
 Type is the iconography. The system leans on **ASCII glyphs** and **tracked-caps words** instead of a drawn icon set.
 
 1. **ASCII first.** `›` is the prompt and the menu-affordance pointer. `⟳` is refresh. `+` is add. `·` is separator. `↵` and `⌘` appear in shortcut hints. `●` is a status dot. These read crisp at any size because they are real characters in the body font (JetBrains Mono).
-2. **Lucide as fallback.** When an ASCII glyph won't carry a meaning, use [Lucide](https://lucide.dev) at **16×16**, stroke width **1.5**, color `currentColor`. Lucide is the closest visual match — slightly soft, geometric, monoline — and is CDN-loadable. *Flagged substitution*: Lucide is not currently bundled with the live codebase.
+2. **Lucide as fallback.** When an ASCII glyph won't carry a meaning, use [Lucide](https://lucide.dev) at **16×16**, stroke width **1.5**, color `currentColor`. Lucide is the closest visual match - slightly soft, geometric, monoline - and is bundled with the live codebase.
 3. **No emoji as UI.** No `🟢 / ✅ / ⚠️ / 🚫`. Status is the mint dot + word.
 4. **No custom hand-drawn SVG.** The tray glyph is the wordmark's `b` rendered as a template PNG by `src/main/tray.ts`.
 
