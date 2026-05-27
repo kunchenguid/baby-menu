@@ -1,11 +1,11 @@
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { cp, mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
-import packageJson from "../../package.json";
+import { dirname, join, sep } from "node:path";
 
 const require = createRequire(import.meta.url);
 
@@ -46,17 +46,25 @@ export async function compileWidgetTailwindCss({ sourceDir, themeCss }: CompileW
 }
 
 export function widgetTailwindCssCacheKey(themeCss: string): string {
-  const dependencies = packageJson.dependencies;
+  const compilerPackageMetadata = ["tailwindcss", "@tailwindcss/postcss", "postcss"].map((packageName) =>
+    readFileSync(resolvePackageJson(packageName), "utf8"),
+  );
   return createHash("sha256")
     .update("widget-tailwind-css-v1")
     .update("\0")
     .update(themeCss)
     .update("\0")
-    .update(dependencies.tailwindcss ?? "")
-    .update("\0")
-    .update(dependencies["@tailwindcss/postcss"] ?? "")
-    .update("\0")
-    .update(dependencies.postcss ?? "")
+    .update(compilerPackageMetadata.join("\0"))
     .digest("hex")
     .slice(0, 16);
+}
+
+function resolvePackageJson(packageName: string): string {
+  let currentDir = dirname(require.resolve(packageName));
+  while (currentDir !== dirname(currentDir)) {
+    const packageJsonPath = join(currentDir, "package.json");
+    if (existsSync(packageJsonPath)) return packageJsonPath;
+    currentDir = dirname(currentDir);
+  }
+  throw new Error(`Could not resolve package.json for ${packageName}`);
 }

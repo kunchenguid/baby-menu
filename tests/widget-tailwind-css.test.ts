@@ -1,8 +1,13 @@
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { compileWidgetTailwindCss } from "../src/main/widget-tailwind-css";
+import { compileWidgetTailwindCss, widgetTailwindCssCacheKey } from "../src/main/widget-tailwind-css";
+
+const require = createRequire(import.meta.url);
 
 describe("per-widget Tailwind compile", () => {
   const tempDirs: string[] = [];
@@ -41,4 +46,30 @@ describe("per-widget Tailwind compile", () => {
     expect(css).not.toContain(".bg-red-500");
     expect(css).not.toContain(".text-blue-300");
   });
+
+  it("keys cached CSS by resolved compiler package metadata", () => {
+    const compilerPackageMetadata = ["tailwindcss", "@tailwindcss/postcss", "postcss"].map((packageName) =>
+      readFileSync(resolvePackageJson(packageName), "utf8"),
+    );
+    const expectedKey = createHash("sha256")
+      .update("widget-tailwind-css-v1")
+      .update("\0")
+      .update(themeCss)
+      .update("\0")
+      .update(compilerPackageMetadata.join("\0"))
+      .digest("hex")
+      .slice(0, 16);
+
+    expect(widgetTailwindCssCacheKey(themeCss)).toBe(expectedKey);
+  });
 });
+
+function resolvePackageJson(packageName: string): string {
+  let currentDir = dirname(require.resolve(packageName));
+  while (currentDir !== dirname(currentDir)) {
+    const packageJsonPath = join(currentDir, "package.json");
+    if (existsSync(packageJsonPath)) return packageJsonPath;
+    currentDir = dirname(currentDir);
+  }
+  throw new Error(`Could not resolve package.json for ${packageName}`);
+}
