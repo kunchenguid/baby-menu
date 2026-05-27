@@ -6,11 +6,11 @@
  *   2. The per-widget Tailwind compiler in the main process
  *      (src/main/widget-tailwind-css.ts reads this file ?raw).
  *
- * Monochrome Lab is framework-enforced: `--color-*: initial` wipes Tailwind's
- * default palette, so only the tokens below exist as color utilities. There is
- * no `bg-red-500`. Spacing keeps Tailwind's conventional 4px base so ported
- * component dimensions stay correct; the 2px --space-* scale lives in
- * colors_and_type.css for the legacy app-shell CSS.
+ * Monochrome Lab is token-first: `--color-*: initial` wipes Tailwind's default
+ * palette so named color utilities come from the tokens below. Arbitrary values
+ * remain available for rare widget-specific needs. Spacing keeps Tailwind's
+ * conventional 4px base so ported component dimensions stay correct; the 2px
+ * --space-* scale lives in colors_and_type.css for the legacy app-shell CSS.
  */
 @theme {
   --color-*: initial;

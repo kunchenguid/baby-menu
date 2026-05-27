@@ -48,8 +48,10 @@ describe("extension layout", () => {
     expect(instructions).toContain("StatusDot");
     expect(instructions).toContain("Progress");
     expect(instructions).toContain("Field");
-    // Tailwind utilities are token-restricted; off-palette colors do not exist.
+    // Tailwind guidance prefers tokens while allowing rare arbitrary-color exceptions.
     expect(instructions).toContain("bg-red-500");
+    expect(instructions).toContain("Prefer Baby Menu token utilities for color");
+    expect(instructions).toContain("Use arbitrary color values only when a widget genuinely needs them");
     expect(instructions).toContain("text-signal-live");
     expect(instructions).toContain("font-mono");
     expect(instructions).toContain("Readable hierarchy");
@@ -60,6 +62,7 @@ describe("extension layout", () => {
     expect(instructions).not.toContain("Remove the `hello-world` starter widget");
     // The old CSS-class catalogue is gone in favor of components + tokens.
     expect(instructions).not.toContain("Public widget classes available to widgets");
+    expect(instructions).not.toContain("off-brand colors literally do not exist");
   });
 
   it("keeps the dev extension workspace out of git", async () => {

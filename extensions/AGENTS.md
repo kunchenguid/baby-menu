@@ -71,7 +71,9 @@ Overlays such as `Dialog`, `Select`, and `Tooltip` are already sized to fit the 
 ### Style with Tailwind tokens
 
 Widgets are styled with Tailwind utility classes, and the per-widget stylesheet is compiled for you - you never configure Tailwind.
-The palette is restricted to Baby Menu tokens, so off-brand colors literally do not exist: there is no `bg-red-500` and no `text-blue-300`.
+Prefer Baby Menu token utilities for color, type, radius, and surfaces so widgets match the host app.
+Default Tailwind palette colors such as `bg-red-500` and `text-blue-300` are unavailable, but arbitrary Tailwind values can still compile.
+Use arbitrary color values only when a widget genuinely needs them, and keep them rare.
 
 Use these token utilities:
 
