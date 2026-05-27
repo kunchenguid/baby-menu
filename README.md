@@ -36,8 +36,8 @@ Click the tray icon, then ask for a widget in the popover chat such as:
 add a CPU temp widget that shows current temperature and fan status
 ```
 
-Baby Menu writes the extension under `~/.baby-menu/extensions`, mounts the widget live, and shows Save / Rollback controls for the turn.
-Use Save to keep it, or Rollback to throw it away.
+Baby Menu writes the extension under `~/.baby-menu/extensions`, mounts the widget live, and shows Keep / Undo controls for the turn.
+Use Keep to keep it, or Undo to throw it away.
 The packaged app opens at login by default.
 Open settings from the popover header to turn `open at login` off or back on.
 
@@ -81,7 +81,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
    │   wraps acpx/runtime │       │   git or snapshot    │
    └──────────┬──────────┘       │   by runtime mode    │
               │                   └──────────┬───────────┘
-              │ edits files                  │ Save / Rollback
+              │ edits files                  │ save / rollback
               ▼                              ▼
    ┌─────────────────────┐       ┌──────────────────────┐
    │ active extensions/  │       │   save snapshot or   │
@@ -102,7 +102,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
   The agent reads the matching recipe before implementing.
 - **Extension server actions** - privileged work (shell, network, credentials) lives in `<extension-id>/server.ts` and is invoked from widgets via `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
   No per-widget IPC channels.
-- **Runtime-specific extension roots** - `pnpm dev` edits gitignored `extensions-dev/`; packaged builds seed and edit `~/.baby-menu/extensions` with snapshot Save/Rollback.
+- **Runtime-specific extension roots** - `pnpm dev` edits gitignored `extensions-dev/`; packaged builds seed and edit `~/.baby-menu/extensions` with internal snapshot save/rollback.
   Tracked `extensions/` remain the source templates for dev and packaged extension workspaces.
 
 ## Layout

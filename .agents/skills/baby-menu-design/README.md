@@ -27,6 +27,9 @@ Key files referenced (paths in that repo):
 - `AGENTS.md` — architecture, three-process split, source-vs-packaged change-session invariants, recipe conventions.
 - `src/renderer/styles.css` — the original warm-paper palette (now replaced by this system's monochrome direction).
 - `src/renderer/App.tsx`, `src/renderer/agent/AgentChat.tsx`, `src/renderer/menu/MenuSurface.tsx`, `src/renderer/menu/WidgetHost.tsx` — the components being redesigned here.
+- `src/ui/` — the shared `@babymenu/ui` component kit used by the app shell and extension widgets.
+- `src/ui/theme.css` — the Tailwind `@theme` token source consumed by the renderer and per-widget CSS compiler.
+- `src/shared/ui-exports.ts` — the public export contract for the host-provided design-system surface.
 - `src/shared/contracts.ts` — `BabyMenuWidget`, `RefreshableBabyMenuWidget`, `GitSessionSnapshot`, `AgentChatResult` — the data contracts our redesign remains compatible with.
 - `extensions/hello-world/widget.tsx` — the first-run greeting widget and starter example of widget shape.
 - `extensions/recipes/*.html` — daisyUI/Tailwind "wireframe" recipe docs. Note: recipes use a separate visual system and should not bleed into popover designs.
