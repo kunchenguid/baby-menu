@@ -35,7 +35,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "acp-mock": "1.1.0",
-    "electron": "42.1.0",
+    "electron": "42.2.0",
     "electron-builder": "26.8.1",
     "electron-vite": "5.0.0",
     "jsdom": "29.1.1",

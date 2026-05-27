@@ -49,6 +49,9 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
     if (process.env.BABY_MENU_KEEP_POPOVER_OPEN === "1") return;
     popoverWindow?.hide();
   });
+  // Once the popover is hidden, drop back to accessory mode so the dock icon disappears again.
+  // See setPopoverKeyWindowActive for why the popover becomes a regular-policy app while visible.
+  popoverWindow.on("hide", () => setPopoverKeyWindowActive(false));
 
   await loadPopoverRenderer(
     popoverWindow,
@@ -70,8 +73,22 @@ async function togglePopover(trayBounds: Rectangle): Promise<void> {
 
   const display = screen.getDisplayNearestPoint({ x: trayBounds.x, y: trayBounds.y });
   window.setBounds(calculatePopoverBounds(trayBounds, display.workArea, latestPopoverSize));
+  setPopoverKeyWindowActive(true);
   window.show();
   window.focus();
+}
+
+// baby-menu runs as a macOS accessory app (dock hidden) so it has no permanent dock icon. But an
+// accessory app's windows never become the macOS "key window", and macOS only does CSS cursor-rect
+// tracking for the key window - so as an accessory app the popover's cursor never updates correctly
+// (it stays the default arrow, or updates unstably and flickers). Switching to the "regular"
+// activation policy while the popover is visible lets it become the key window so the cursor tracks
+// correctly; switching back to "accessory" on hide keeps the dock icon from lingering. Net effect:
+// the dock icon is only present for the brief moment the popover is open.
+function setPopoverKeyWindowActive(active: boolean): void {
+  if (process.platform !== "darwin") return;
+  app.setActivationPolicy(active ? "regular" : "accessory");
+  if (active) app.focus({ steal: true });
 }
 
 function setPopoverContentHeight(height: number) {
