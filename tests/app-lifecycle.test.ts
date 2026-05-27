@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Rectangle } from "electron";
 
 const trayInstance = {
@@ -97,6 +97,13 @@ describe("startBabyMenuApp", () => {
     electronApp.isPackaged = false;
     browserWindowInstance.isDestroyed.mockReturnValue(false);
     browserWindowInstance.isVisible.mockReturnValue(false);
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: originalPlatform,
+    });
+  });
+
+  afterEach(() => {
     Object.defineProperty(process, "platform", {
       configurable: true,
       value: originalPlatform,
