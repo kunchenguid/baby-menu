@@ -15,7 +15,7 @@ Embedded agents launched from baby-menu should work from the active extension wo
 - `pnpm typecheck` / `pnpm lint` - both run `tsc --noEmit` against `tsconfig.json`.
 - Single test: `pnpm vitest run tests/<name>.test.ts` (or `pnpm vitest run -t "<name pattern>"`).
 
-Use `pnpm` (declared `packageManager: pnpm@11.1.1`). Renderer dev server is pinned to port 5173 (`strictPort: true`).
+Use `pnpm` (declared `packageManager: pnpm@11.1.1`). Renderer dev server is pinned to port 5273 (`strictPort: true`).
 
 ## Dev mode helpers
 
@@ -32,7 +32,7 @@ Three processes, kept deliberately separate:
 
 1. **Main** (`src/main/`) - app lifecycle, tray, popover window, IPC, git, agent runtime. Never call agent or git from the renderer directly.
 2. **Preload** (`src/preload/index.ts`) - the stable bridge. Exposes `window.babyMenu` via `contextBridge`. Do not add one-off preload methods for each widget.
-3. **Renderer** (`src/renderer/`) - React UI: `AgentChat` + `WidgetHost`. Widgets should be hot reloadable and should not require an Electron restart for each new capability.
+3. **Renderer** (`src/renderer/`) - React UI: `AgentChat` + `WidgetHost`. Widgets should be hot reloadable and should not require an Electron restart for each new capability. The app shell and extension widgets share one design system, `@babymenu/ui` (`src/ui/`); see "Design system" below.
 4. **Extension server actions** - privileged filesystem, shell, network, credential, and token work should live behind extension-owned server actions invoked through the stable generic capability bridge.
    Renderer widgets call these actions with `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
    Server actions live in the active extension workspace under `<extension-id>/server.ts` and export an `actions` object.
@@ -52,8 +52,10 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 - `git-change-session.ts` - the tracked-source Save/Rollback safety boundary (see below).
 - `dev-extension-change-session.ts` - the snapshot Save/Rollback boundary for gitignored dev and packaged extension workspaces.
 - `extension-seeder.ts` - seeds bundled extension templates into the packaged extension workspace.
-- `extension-module-compiler.ts` - compiles extension widget and server modules for production loading.
-- `widget-protocol.ts` - registers custom protocols for compiled widget modules and the renderer host shim.
+- `extension-module-compiler.ts` - compiles extension widget and server modules for production loading; rewrites the `react` and `@babymenu/ui` imports to host protocol modules and rejects any other external import.
+- `widget-tailwind-css.ts` - compiles a widget's authored Tailwind utilities against the `@babymenu/ui` `@theme` (single source of truth, `src/ui/theme.css`) for packaged loading.
+- `widget-module-registry.ts` - discovers widget modules, returning a renderer `/@fs` URL in dev and, in packaged mode, a compiled `baby-menu-widget://` module URL plus a sibling compiled `cssUrl`.
+- `widget-protocol.ts` - registers custom protocols for compiled widget modules, the per-widget `.css`, and the renderer host shims (`react`, `react/jsx-runtime`, and `@babymenu/ui` re-exported from the host global).
 - `preferences.ts` - stores app preferences under the active app data root and applies login-item settings only when login items are allowed, keeping source/dev mode as a no-op for macOS login items.
 - `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs.
 - `recipe-loader.ts` - discovers and parses `recipes/*.html` from the active extension workspace.
@@ -69,6 +71,17 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 
 `typescript` is intentionally externalized from the production main bundle because `extension-module-compiler.ts` imports it at runtime to compile packaged extensions.
 Keep `typescript` in runtime dependencies unless that compiler path changes.
+`tailwindcss`, `@tailwindcss/postcss`, and `postcss` are externalized for the same reason: `widget-tailwind-css.ts` runs Tailwind in the main process to compile per-widget CSS in packaged mode.
+Keep them in runtime dependencies, and keep the single pinned `postcss` (`pnpm-workspace.yaml` `overrides`) so the Tailwind plugin and the processor share one version.
+The renderer build adds `@tailwindcss/vite` and aliases `@babymenu/ui` to `src/ui/index.ts` so dev-mode widgets resolve the design system directly.
+
+### Design system (`@babymenu/ui`)
+
+`src/ui/` is a shadcn-derived component kit (Radix + Tailwind v4) restyled to the Monochrome Lab tokens, shared by the app shell and extension widgets.
+`src/ui/theme.css` is the single `@theme` source of truth: it wipes Tailwind's default palette so only token colors exist, and it is consumed by both the renderer build (`src/ui/styles.css`) and the per-widget compiler (imported `?raw` into the main bundle).
+Delivery mirrors the React shim exactly: `main.tsx` installs the kit on `window.__BABY_MENU_WIDGET_HOST__.ui`, `widget-protocol.ts` serves `baby-menu-host://ui/index.mjs` as a thin re-export, and the compiler rewrites the bare `@babymenu/ui` specifier to that URL - so Radix, cva, and lucide stay inside the host bundle and never reach the widget import allowlist.
+`src/shared/ui-exports.ts` is the public surface contract (treated like the preload bridge): the barrel, the contract list, and the generated host shim are kept in lockstep by `tests/ui-export-contract.test.ts`, so changing a public export is a deliberate, tested act.
+Extension widgets may additionally import only `@babymenu/ui`; they author token-scoped Tailwind utilities, and the per-widget stylesheet is compiled and injected automatically.
 
 `createPopoverOptions` enforces `frame:false`, `contextIsolation:true`, `nodeIntegration:false`, `skipTaskbar:true`, `alwaysOnTop:true`. Do not relax these without a reason.
 On macOS, `app.ts` appends Chromium's `use-mock-keychain` switch before app readiness, so do not rely on Chromium or renderer storage for keychain-backed secrets.

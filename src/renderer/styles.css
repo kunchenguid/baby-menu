@@ -53,7 +53,10 @@ button:disabled,
 .app-shell {
   width: 360px;
   height: auto;
-  max-height: min(720px, 100vh);
+  /* A fixed cap, not a viewport-relative one: the viewport height equals the
+     auto-sized window, so capping to it would ratchet the popover - it could
+     shrink but never grow back. The main process clamps the reported height. */
+  max-height: 720px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -66,6 +69,7 @@ button:disabled,
 }
 
 .pop-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -86,29 +90,24 @@ button:disabled,
   color: var(--signal-live);
 }
 
-.settings-toggle {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--ink-faint);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  padding: 3px 8px;
-  text-transform: uppercase;
-}
-
-.settings-toggle.enabled {
-  border-color: rgba(106, 227, 182, 0.35);
-  color: var(--signal-live);
-}
-
+/* The scroll region. The window auto-extends to fit content (app-shell grows to
+   its 720px max), so this only scrolls once the window is actually maxed out -
+   the header and composer stay pinned via flex: 0 0 auto. */
 .pop-body {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   padding: 12px 14px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.pop-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.pop-body::-webkit-scrollbar-thumb {
+  background: var(--ink-800);
+  border-radius: var(--radius-pill);
 }
 
 .menu-surface {
@@ -118,19 +117,8 @@ button:disabled,
 .widget-host {
   display: flex;
   flex-direction: column;
-  max-height: 360px;
-  overflow-y: auto;
   margin: 0 -4px;
   padding: 0 4px;
-}
-
-.widget-host::-webkit-scrollbar {
-  width: 4px;
-}
-
-.widget-host::-webkit-scrollbar-thumb {
-  background: var(--ink-800);
-  border-radius: var(--radius-pill);
 }
 
 .widget {
@@ -268,6 +256,7 @@ button:disabled,
 }
 
 .runstrip {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: 14px 1fr auto;
   align-items: center;
@@ -343,6 +332,7 @@ button:disabled,
 }
 
 .sessionbar {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: 14px 1fr auto auto;
   align-items: center;
@@ -469,6 +459,7 @@ button:disabled,
 }
 
 .composer-wrap {
+  flex: 0 0 auto;
   padding: 8px 12px 10px;
   border-top: 1px solid var(--line);
   background: var(--bg-stage);

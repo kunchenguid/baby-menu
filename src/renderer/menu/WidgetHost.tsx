@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import type { RefreshableBabyMenuWidget } from "../../shared/contracts";
 import { helloWorldWidget } from "../../../extensions/hello-world/widget";
+import { Button } from "../../ui";
 import { useWidgetRefresh } from "./useWidgetRefresh";
 
 export type RuntimeWidgetImporter = (moduleUrl: string) => Promise<unknown>;
@@ -18,9 +20,15 @@ function WidgetCard({ widget }: { widget: RefreshableBabyMenuWidget }) {
     <article className="widget">
       <header className="w-head">
         <h3 className="key">{widget.title}</h3>
-        <button type="button" className="refresh" onClick={refreshNow} aria-label={`refresh ${widget.title}`}>
-          ⟳
-        </button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="refresh -mr-1 px-1.5"
+          onClick={refreshNow}
+          aria-label={`refresh ${widget.title}`}
+        >
+          <RefreshCw className="size-3.5" />
+        </Button>
       </header>
       <div>{widget.render()}</div>
     </article>
@@ -104,6 +112,7 @@ export async function loadRuntimeWidgets(importer: RuntimeWidgetImporter = impor
   const widgetGroups = await Promise.all(
     descriptors.map(async (descriptor) => {
       try {
+        if (descriptor.cssUrl) ensureWidgetStylesheet(descriptor.cssUrl);
         return widgetsFromModule(await importer(descriptor.moduleUrl));
       } catch {
         return [];
@@ -111,6 +120,18 @@ export async function loadRuntimeWidgets(importer: RuntimeWidgetImporter = impor
     }),
   );
   return widgetGroups.flat();
+}
+
+// Injects a compiled widget's Tailwind stylesheet (packaged mode only). Dev mode
+// descriptors carry no cssUrl because utilities come from the global stylesheet.
+function ensureWidgetStylesheet(href: string) {
+  if (typeof document === "undefined") return;
+  if (document.querySelector(`link[data-baby-menu-widget-css="${CSS.escape(href)}"]`)) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  link.dataset.babyMenuWidgetCss = href;
+  document.head.appendChild(link);
 }
 
 export function widgetsFromModule(module: unknown): RefreshableBabyMenuWidget[] {

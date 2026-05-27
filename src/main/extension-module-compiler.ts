@@ -31,6 +31,11 @@ type ResolvedLocalImport = {
   path: string;
 };
 
+// Host-provided design system. Widgets import this bare specifier; it is
+// rewritten to the host protocol so Radix/cva/lucide stay inside the host
+// bundle and never reach the widget compiler. Mirrors how `react` is handled.
+export const UI_IMPORT_SPECIFIER = "@babymenu/ui";
+
 const LOCAL_EXTENSIONS = [".tsx", ".ts", ".jsx", ".js", ".mjs"];
 const STATIC_IMPORT_PATTERN = /(\b(?:import|export)\b[\s\S]*?\bfrom\s*["'])([^"']+)(["'])/g;
 const SIDE_EFFECT_IMPORT_PATTERN = /(\bimport\s*["'])([^"']+)(["'])/g;
@@ -205,6 +210,7 @@ function rewriteWidgetExternalImport(options: {
   if (options.specifier === "react/jsx-runtime" || options.specifier === "react/jsx-dev-runtime") {
     return "baby-menu-host://react-jsx-runtime/index.mjs";
   }
+  if (options.specifier === UI_IMPORT_SPECIFIER) return "baby-menu-host://ui/index.mjs";
   if (options.validateExternalImports) {
     assertSupportedExternalImport("widget", options.specifier, options.extensionId, options.extensionDir, options.filePath);
   }
@@ -218,7 +224,13 @@ function assertSupportedExternalImport(
   extensionDir: string,
   filePath: string,
 ) {
-  if (kind === "widget" && (specifier === "react" || specifier === "react/jsx-runtime" || specifier === "react/jsx-dev-runtime")) {
+  if (
+    kind === "widget" &&
+    (specifier === "react" ||
+      specifier === "react/jsx-runtime" ||
+      specifier === "react/jsx-dev-runtime" ||
+      specifier === UI_IMPORT_SPECIFIER)
+  ) {
     return;
   }
   if (kind === "server" && (specifier.startsWith("node:") || builtinModules.includes(specifier))) return;

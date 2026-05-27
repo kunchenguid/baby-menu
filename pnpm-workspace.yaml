@@ -2,3 +2,6 @@ allowBuilds:
   electron: true
   electron-winstaller: false
   esbuild: true
+
+overrides:
+  postcss: ^8.5.15

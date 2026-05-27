@@ -1,6 +1,7 @@
 import { protocol } from "electron";
 import { readFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { extname, isAbsolute, join, relative, resolve } from "node:path";
+import { UI_EXPORT_NAMES } from "../shared/ui-exports";
 
 const WIDGET_SCHEME = "baby-menu-widget";
 const HOST_SCHEME = "baby-menu-host";
@@ -32,7 +33,7 @@ export function registerBabyMenuProtocolHandlers(options: { widgetCacheDir: stri
   protocol.handle(WIDGET_SCHEME, async (request) => {
     const filePath = resolveWidgetProtocolFilePath(options.widgetCacheDir, request.url);
     const source = await readFile(filePath, "utf8");
-    return new Response(source, { headers: { "content-type": "text/javascript; charset=utf-8" } });
+    return new Response(source, { headers: { "content-type": widgetContentType(filePath) } });
   });
 
   protocol.handle(HOST_SCHEME, async (request) => {
@@ -50,7 +51,8 @@ export function resolveWidgetProtocolFilePath(widgetCacheDir: string, rawUrl: st
   if (!extensionId || pathSegments.length < 2 || pathSegments.some((segment) => segment === "." || segment === "..")) {
     throw new Error("Invalid widget module URL");
   }
-  if (!pathSegments.at(-1)?.endsWith(".mjs")) throw new Error("Invalid widget module URL");
+  const lastSegment = pathSegments.at(-1) ?? "";
+  if (!lastSegment.endsWith(".mjs") && !lastSegment.endsWith(".css")) throw new Error("Invalid widget module URL");
 
   const filePath = resolve(join(widgetCacheDir, extensionId, ...pathSegments));
   const relativePath = relative(resolve(widgetCacheDir), filePath);
@@ -114,5 +116,20 @@ export const Fragment = runtime.Fragment;
 `;
   }
 
+  if (moduleId === "ui/index.mjs") {
+    // Re-export the design system from the host global, mirroring the React
+    // shim. The export list is the contract in shared/ui-exports.ts; Radix, cva,
+    // and lucide are bundled inside the host build and never seen by the widget
+    // compiler, so widget import constraints stay intact.
+    const reexports = UI_EXPORT_NAMES.map((name) => `export const ${name} = ui.${name};`).join("\n");
+    return `const ui = window.__BABY_MENU_WIDGET_HOST__.ui;\n${reexports}\n`;
+  }
+
   throw new Error("Unknown host module URL");
+}
+
+function widgetContentType(filePath: string): string {
+  return extname(filePath) === ".css"
+    ? "text/css; charset=utf-8"
+    : "text/javascript; charset=utf-8";
 }

@@ -1,4 +1,5 @@
 import type { RefreshableBabyMenuWidget } from "../../src/shared/contracts";
+import { StatusDot } from "@babymenu/ui";
 
 const examplePrompts = [
   "add a battery widget that shows current charge and power source",
@@ -8,80 +9,28 @@ const examplePrompts = [
 
 function HelloWorldView() {
   return (
-    <div
-      className="hello-world-widget"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "var(--space-7)",
-        padding: "var(--space-3) 0 var(--space-4)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--space-4)",
-        }}
-      >
-        <span className="status">ready</span>
-        <span
-          style={{
-            color: "var(--ink-strong)",
-            fontSize: "var(--fs-3xl)",
-            fontWeight: "var(--weight-light)",
-            letterSpacing: "var(--tracking-value)",
-            lineHeight: "var(--lh-tight)",
-          }}
-        >
-          hello world
+    <div className="flex flex-col gap-7 pb-2 pt-1.5">
+      <div className="flex flex-col gap-3">
+        <span className="flex items-center gap-1.5 text-xxs uppercase tracking-caps text-signal-live">
+          <StatusDot /> ready
         </span>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "var(--space-2)",
-          }}
-        >
-          <p style={{ color: "var(--ink-strong)", fontSize: "var(--fs-md)" }}>
-            tell baby_menu what to build.
-          </p>
-          <p style={{ color: "var(--ink-muted)", fontSize: "var(--fs-base)" }}>
+        <span className="text-3xl font-light tracking-value text-ink-strong">hello world</span>
+        <div className="flex flex-col gap-1">
+          <p className="text-md text-ink-strong">tell baby_menu what to build.</p>
+          <p className="text-base text-ink-muted">
             paste an example into the prompt below, or ask for any widget you want.
           </p>
         </div>
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--space-4)",
-        }}
-      >
-        <span className="label">examples</span>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "var(--space-3)",
-          }}
-        >
+      <div className="flex flex-col gap-3">
+        <span className="text-xxs uppercase tracking-caps text-ink-label">examples</span>
+        <div className="flex flex-col gap-2">
           {examplePrompts.map((example) => (
             <span
               key={example}
-              style={{
-                alignItems: "flex-start",
-                border: "1px solid var(--line)",
-                borderRadius: "var(--radius-sm)",
-                color: "var(--ink)",
-                display: "flex",
-                fontSize: "var(--fs-sm)",
-                gap: "var(--space-3)",
-                lineHeight: "var(--lh-body)",
-                padding: "var(--space-4) var(--space-5)",
-              }}
+              className="flex items-start gap-2 rounded-sm border border-line px-3 py-2 text-sm leading-snug text-ink"
             >
-              <span style={{ color: "var(--signal-live)", flex: "0 0 auto" }}>›</span>
+              <span className="shrink-0 text-signal-live">›</span>
               <span>{example}</span>
             </span>
           ))}

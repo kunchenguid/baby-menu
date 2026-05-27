@@ -69,9 +69,9 @@ describe("calculatePopoverBounds", () => {
   it("loads localhost renderer URLs during development", async () => {
     const window = createRendererWindow();
 
-    await loadPopoverRenderer(window, "http://localhost:5173/", "/app/out/renderer/index.html");
+    await loadPopoverRenderer(window, "http://localhost:5273/", "/app/out/renderer/index.html");
 
-    expect(window.loadURL).toHaveBeenCalledWith("http://localhost:5173/");
+    expect(window.loadURL).toHaveBeenCalledWith("http://localhost:5273/");
     expect(window.loadFile).not.toHaveBeenCalled();
   });
 
@@ -87,7 +87,7 @@ describe("calculatePopoverBounds", () => {
   it("ignores dev renderer URLs in packaged builds", async () => {
     const window = createRendererWindow();
 
-    await loadPopoverRenderer(window, "http://localhost:5173/", "/app/out/renderer/index.html", {
+    await loadPopoverRenderer(window, "http://localhost:5273/", "/app/out/renderer/index.html", {
       isPackaged: true,
     });
 

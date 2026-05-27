@@ -17,7 +17,7 @@ Common files are:
 - Optional notes that make the extension understandable and shareable.
 
 Packaged Baby Menu compiles extension modules before loading them.
-Keep imports package-safe: widgets may import `react`, `react/jsx-runtime`, `react/jsx-dev-runtime`, and local helper files only.
+Keep imports package-safe: widgets may import `react`, `react/jsx-runtime`, `react/jsx-dev-runtime`, the design system `@babymenu/ui`, and local helper files only.
 Server actions may import Node built-ins such as `node:fs` plus local helper files only.
 Do not add arbitrary npm package imports to extension code unless the host compiler is updated to support them.
 
@@ -48,82 +48,91 @@ The host owns the outer widget wrapper, title row, refresh button, dashed divide
 `widget.title` should be a terse tracked-caps key such as `BATTERY`, `CPU TEMP`, or `CLAUDE · WEEKLY`.
 `render()` should return only the body content that belongs below the host title row.
 
-Use the existing global design tokens and widget classes from the renderer CSS.
-Prefer `value-row`, `value`, `progress`, `fill`, `foot`, `src`, `status`, and `label` before writing custom CSS.
-Custom classes must be extension-prefixed and use `var(--...)` tokens rather than raw colors, font stacks, shadows, or spacing scales.
+### Build with @babymenu/ui first
 
-Public tokens available to widgets:
-
-- Type: `--font-mono`, `--fs-xxs`, `--fs-xs`, `--fs-sm`, `--fs-base`, `--fs-lg`, `--fs-xl`, `--fs-2xl`, `--fs-3xl`, `--weight-light`, `--weight-reg`, `--weight-med`, `--tracking-caps`, `--tracking-value`, `--lh-tight`, `--lh-body`.
-- Ink: `--ink-strong`, `--ink`, `--ink-muted`, `--ink-soft`, `--ink-label`, `--ink-faint`.
-- Lines: `--line`, `--line-faint`.
-- Signals: `--signal-live`, `--signal-warn`, `--signal-danger`, `--signal-live-glow`, `--signal-live-tint`, `--signal-pending-tint`, `--signal-error-tint`.
-- Space: `--space-1` through `--space-9` for the 2px-based spacing scale.
-- Radius: `--radius-xs`, `--radius-sm`, `--radius-md`, `--radius-lg`, `--radius-pill`.
-- Motion: `--motion-fast`, `--motion-base`, `--motion-slow`, `--ease`, `--ease-in-out`.
-
-Public widget classes available to widgets:
-
-- `value-row` lays out the primary value and optional right-side status.
-- `value` styles the main numeric or short text value; put units in a nested `small` element.
-- `progress` creates the 1px scanline track; `fill` is the mint progress segment inside it.
-- `foot` lays out quiet metadata and source text only.
-- `src` styles an uppercase source tag inside `foot` such as `CLI`, `OAUTH`, or `MOCK`.
-- `status` renders a mint dot and tracked-caps status word.
-- `status warn`, `status danger`, and `status muted` switch status tone.
-- `label` renders a small tracked-caps label.
-- `btn`, `btn-primary`, `btn-danger`, and `btn-ghost` are available for rare interactive widget controls.
-
-Readable hierarchy rules:
-
-- The host `widget.title`, `label`, `src`, and `foot` text may be tiny because they are metadata.
-- Primary user-facing content should be at least `--fs-sm`; use `--fs-md`, `--fs-lg`, or a `value` class for the main thing the user should read first.
-- Use `--fs-xs` only for optional hints and metadata.
-- Do not use `foot` for primary instructions, onboarding copy, warnings, or calls to action.
-- If every line is small, the design is wrong even if it uses the right tokens.
-- One element should clearly win: a number, title, current state, or next action.
-
-Onboarding widgets are not data widgets.
-For greeting, setup, empty, or explanatory widgets, do not force `value`, `progress`, `foot`, or `src` into the layout just to match the data-widget anatomy.
-Onboarding widget headlines should usually use `--fs-md` or `--fs-lg`.
-Starter empty states may use `--fs-2xl` or `--fs-3xl` for a single display line because the menu is otherwise empty.
-Use readable body copy at `--fs-base`, and keep examples or hints outside `foot`.
-Example prompts should be complete pasteable user asks, not one-word labels.
-Label them `examples` and phrase each one as something likely to produce a useful widget.
-
-Canonical widget body pattern:
+Import ready-made, on-brand components from `@babymenu/ui` instead of hand-rolling tables, inputs, charts, or status chips.
+These are the same components the Baby Menu app uses, so widgets stay visually consistent for free.
 
 ```tsx
-<div className="value-row">
-  <span className="value">
-    72<small>%</small>
-  </span>
-  <span className="status">live</span>
-</div>
-<div className="progress">
-  <div className="fill" style={{ width: "72%" }} />
-</div>
-<div className="foot">
-  <span>last sync 12:04</span>
-  <span className="src">mock</span>
-</div>
+import { DataTable, StatusDot, Progress, Badge, Sparkline } from "@babymenu/ui";
 ```
 
-Recommended widget body anatomy:
+Available components:
 
-- A value row with one confident numeric or textual value.
-- An optional `status` word for live, pending, error, or muted state.
-- An optional 1px `progress` scanline with a `fill`.
-- A `foot` row with quiet metadata on the left and an uppercase source tag with `src` on the right.
+- Data display: `DataTable`, `Sparkline`, `Progress`, `Badge`, `StatusDot`, `Skeleton`.
+- Layout: `Card`, `CardHeader`, `CardBody`.
+- Input: `Button`, `Field`, `Input`, `Textarea`, `Switch`, and `Select` with `SelectTrigger`, `SelectContent`, `SelectItem`, `SelectValue`.
+- Disclosure: `Tabs` with `TabsList`, `TabsTrigger`, `TabsContent`; `Dialog` with `DialogTrigger`, `DialogContent`, `DialogTitle`, `DialogDescription`, `DialogBody`, `DialogFooter`; `DropdownMenu` with `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuItem`; and `Tooltip`.
+- `cn(...)` merges Tailwind class strings safely.
 
-Visual rules:
+`@babymenu/ui` is the only extra import a widget may add beyond `react` and local files.
+Overlays such as `Dialog`, `Select`, and `Tooltip` are already sized to fit the tray popover; do not reposition them.
 
-- Use JetBrains Mono through `var(--font-mono)` and keep copy terse, lowercase, present tense unless text is a proper noun or tracked-caps label.
-- Use mint only as a signal dot, glow, single word, or progress fill.
+### Style with Tailwind tokens
+
+Widgets are styled with Tailwind utility classes, and the per-widget stylesheet is compiled for you - you never configure Tailwind.
+The palette is restricted to Baby Menu tokens, so off-brand colors literally do not exist: there is no `bg-red-500` and no `text-blue-300`.
+
+Use these token utilities:
+
+- Surfaces: `bg-stage`, `bg-surface`, `bg-elevated`, `bg-pressed`.
+- Ink (text): `text-ink-strong`, `text-ink`, `text-ink-muted`, `text-ink-soft`, `text-ink-label`.
+- Lines: `border-line`, `border-line-faint`.
+- Signals: `text-signal-live` and `bg-signal-live` for mint, `text-signal-warn` for amber, `text-signal-danger` for coral.
+- Type: `font-mono`, the `text-xxs` through `text-3xl` scale, `tracking-caps`, and `tracking-value`.
+- Radius: `rounded-xs` through `rounded-xl`, and `rounded-pill`.
+
+Spacing, flex, and grid utilities are standard Tailwind.
+
+### Readable hierarchy
+
+- Primary user-facing content should be at least `text-sm`; use `text-md`, `text-lg`, or larger for the main thing the user should read first.
+- Use `text-xs` and `text-xxs` only for optional hints, metadata, and tracked-caps labels.
+- One element should clearly win: a number, title, current state, or next action.
+- If every line is small, the design is wrong even if it uses the right tokens.
+
+### Visual rules
+
+- Use JetBrains Mono via `font-mono` and keep copy terse, lowercase, present tense unless text is a proper noun or tracked-caps label.
+- Use mint only as a signal: a `StatusDot`, a glow, a single word, or a `Progress` fill.
 - Use amber and coral only for pending and error status.
 - Do not add gradients, emoji, large icons, card shadows, full-card accent fills, custom palettes, or new typefaces.
 - Do not wrap widget bodies in their own card background, border, or shadow.
 - Keep layouts narrow and resilient; truncate long labels and avoid horizontal scrolling.
+
+### Example data-widget body
+
+```tsx
+import { Progress, StatusDot } from "@babymenu/ui";
+
+export function render() {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-2xl font-light tracking-value text-ink-strong">
+          72<span className="ml-0.5 text-sm text-ink-soft">%</span>
+        </span>
+        <span className="flex items-center gap-1.5 text-xxs uppercase tracking-caps text-signal-live">
+          <StatusDot /> live
+        </span>
+      </div>
+      <Progress value={72} />
+      <div className="flex justify-between text-xxs uppercase tracking-caps text-ink-label">
+        <span>last sync 12:04</span>
+        <span>cli</span>
+      </div>
+    </div>
+  );
+}
+```
+
+### Onboarding widgets are not data widgets
+
+For greeting, setup, empty, or explanatory widgets, do not force the data-widget anatomy.
+Onboarding widget headlines should usually use `text-md` or `text-lg`.
+Starter empty states may use `text-2xl` or `text-3xl` for a single display line because the menu is otherwise empty.
+Use readable body copy at `text-base`, and keep examples or hints small but legible.
+Example prompts should be complete pasteable user asks, not one-word labels.
 
 ## Server Actions
 

@@ -15,7 +15,10 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals"],
+    "paths": {
+      "@babymenu/ui": ["./src/ui/index.ts"]
+    }
   },
   "include": ["electron.vite.config.ts", "vitest.config.ts", "src", "extensions", "tests"]
 }

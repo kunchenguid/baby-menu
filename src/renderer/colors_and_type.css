@@ -57,11 +57,11 @@
   --font-prose: "Inter Tight", -apple-system, BlinkMacSystemFont,
     "SF Pro Text", "Segoe UI", sans-serif;
 
-  --fs-xxs: 0.625rem;
-  --fs-xs: 0.6875rem;
-  --fs-sm: 0.75rem;
-  --fs-base: 0.8125rem;
-  --fs-md: 0.9375rem;
+  --fs-xxs: 0.6875rem;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.875rem;
+  --fs-md: 1rem;
   --fs-lg: 1.125rem;
   --fs-xl: 1.5rem;
   --fs-2xl: 1.75rem;

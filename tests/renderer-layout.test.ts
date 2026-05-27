@@ -14,10 +14,16 @@ describe("renderer layout styles", () => {
     expect(css).toMatch(/\.app-shell\s*\{[^}]*border-radius:\s*var\(--radius-xl\)/s);
   });
 
-  it("keeps widgets as dashed log sections above a pinned composer", async () => {
+  it("keeps widgets as dashed log sections in a scroll region above a pinned composer", async () => {
     const css = await readFile(stylesPath, "utf8");
 
-    expect(css).toMatch(/\.widget-host\s*\{[^}]*max-height:\s*360px/s);
+    // The widget region scrolls via .pop-body, which flexes to fill the window
+    // (so the popover auto-extends to fit content) while the composer stays pinned.
+    expect(css).toMatch(/\.pop-body\s*\{[^}]*flex:\s*1 1 auto/s);
+    expect(css).toMatch(/\.pop-body\s*\{[^}]*min-height:\s*0/s);
+    expect(css).toMatch(/\.pop-body\s*\{[^}]*overflow-y:\s*auto/s);
+    expect(css).not.toMatch(/\.widget-host\s*\{[^}]*max-height/s);
+    expect(css).toMatch(/\.composer-wrap\s*\{[^}]*flex:\s*0 0 auto/s);
     expect(css).toMatch(/\.widget\s*\{[^}]*border-bottom:\s*1px\s+dashed\s+var\(--line-faint\)/s);
     expect(css).toMatch(/\.composer-wrap\s*\{[^}]*border-top:\s*1px\s+solid\s+var\(--line\)/s);
     expect(css).not.toMatch(/\.message-list/);
@@ -28,14 +34,9 @@ describe("renderer layout styles", () => {
 
     expect(css).toMatch(/html,\s*\nbody,\s*\n#root\s*\{[^}]*background:\s*var\(--bg-stage\)/s);
     expect(css).toMatch(/\.app-shell\s*\{[^}]*height:\s*auto/s);
-    expect(css).toMatch(/\.app-shell\s*\{[^}]*max-height:\s*min\(720px,\s*100vh\)/s);
-    expect(css).not.toMatch(/\.app-shell\s*\{[^}]*height:\s*100vh/s);
+    expect(css).toMatch(/\.app-shell\s*\{[^}]*max-height:\s*720px/s);
+    // 100vh equals the auto-sized window height, which ratchets the popover.
+    expect(css).not.toMatch(/\.app-shell\s*\{[^}]*100vh/s);
   });
 
-  it("includes compact settings styles for the open-at-login toggle", async () => {
-    const css = await readFile(stylesPath, "utf8");
-
-    expect(css).toMatch(/\.settings-toggle\s*\{/);
-    expect(css).toMatch(/\.settings-toggle\.enabled\s*\{/);
-  });
 });

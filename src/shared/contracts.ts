@@ -51,6 +51,9 @@ export type BabyMenuWidgetModuleDescriptor = {
   id: string;
   extensionId: string;
   moduleUrl: string;
+  // Compiled per-widget Tailwind stylesheet, present only in packaged/compiled
+  // mode. In dev/source mode widget utilities come from the global stylesheet.
+  cssUrl?: string;
 };
 
 export type BabyMenuWidget = {
@@ -105,6 +108,7 @@ declare global {
     __BABY_MENU_WIDGET_HOST__?: {
       React: unknown;
       jsxRuntime: unknown;
+      ui: unknown;
     };
   }
 }

@@ -1,9 +1,17 @@
 import type { Dirent } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { access, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import type { BabyMenuWidgetModuleDescriptor } from "../shared/contracts";
 import { getExtensionsDir } from "../shared/paths";
 import { compileExtensionModule } from "./extension-module-compiler";
+import { compileWidgetTailwindCss } from "./widget-tailwind-css";
+// The single @theme source, inlined into the main bundle so it ships with the
+// packaged app. electron-vite (dev + build) resolves `?raw` to the file text;
+// note vitest returns "" for `.css?raw`, so token-mapping coverage lives in
+// tests/widget-tailwind-css.test.ts which reads theme.css via fs instead.
+import themeCss from "../ui/theme.css?raw";
+
+const WIDGET_CSS_FILENAME = "widget.css";
 
 export type WidgetModuleRegistry = {
   list: () => Promise<BabyMenuWidgetModuleDescriptor[]>;
@@ -74,14 +82,14 @@ async function widgetModuleDescriptor(options: Required<Pick<DiscoverWidgetModul
   if (!extensionId || extensionId === STARTER_EXTENSION_ID) return null;
 
   const fileStat = await stat(filePath);
-  const moduleUrl =
+  const urls =
     options.mode === "compiled"
-      ? await compiledWidgetModuleUrl({ extensionsDir: options.extensionsDir, extensionId, filePath, widgetCacheDir: options.widgetCacheDir })
-      : rendererModuleUrl(filePath, fileStat.mtimeMs);
+      ? await compiledWidgetModuleUrls({ extensionsDir: options.extensionsDir, extensionId, filePath, widgetCacheDir: options.widgetCacheDir })
+      : { moduleUrl: rendererModuleUrl(filePath, fileStat.mtimeMs) };
   return {
     id: `${extensionId}.widget`,
     extensionId,
-    moduleUrl,
+    ...urls,
   };
 }
 
@@ -94,7 +102,7 @@ function inferExtensionId(extensionsDir: string, filePath: string): string | nul
   return parent && parent !== "." ? parent : basename(filePath, extname(filePath));
 }
 
-async function compiledWidgetModuleUrl({
+async function compiledWidgetModuleUrls({
   extensionsDir,
   extensionId,
   filePath,
@@ -104,7 +112,7 @@ async function compiledWidgetModuleUrl({
   extensionId: string;
   filePath: string;
   widgetCacheDir?: string;
-}): Promise<string> {
+}): Promise<{ moduleUrl: string; cssUrl: string }> {
   if (!widgetCacheDir) throw new Error("widgetCacheDir is required for compiled widget modules");
   const extensionDir = join(resolve(extensionsDir), extensionId);
   const compiled = await compileExtensionModule({
@@ -114,10 +122,37 @@ async function compiledWidgetModuleUrl({
     entryFile: filePath,
     cacheRoot: widgetCacheDir,
   });
-  const outputRelativePath = relative(compiled.outputDir, compiled.outputPath).split("\\").join("/");
+
+  const cssFileUrl = await ensureWidgetCss({ extensionDir, outputDir: compiled.outputDir });
   const encodedExtensionId = encodeURIComponent(extensionId);
-  const encodedPath = outputRelativePath.split("/").map(encodeURIComponent).join("/");
-  return `baby-menu-widget://${encodedExtensionId}/${compiled.hash}/${encodedPath}`;
+  const moduleUrl = `baby-menu-widget://${encodedExtensionId}/${compiled.hash}/${encodeModulePath(compiled.outputDir, compiled.outputPath)}`;
+  const cssUrl = `baby-menu-widget://${encodedExtensionId}/${compiled.hash}/${encodeModulePath(compiled.outputDir, cssFileUrl)}`;
+  return { moduleUrl, cssUrl };
+}
+
+// Compiles the widget's Tailwind utilities once per content hash (the JS compile
+// already keys the output dir by source hash), so polling list() is cheap.
+async function ensureWidgetCss({ extensionDir, outputDir }: { extensionDir: string; outputDir: string }): Promise<string> {
+  const cssPath = join(outputDir, WIDGET_CSS_FILENAME);
+  if (!(await pathExists(cssPath))) {
+    const css = await compileWidgetTailwindCss({ sourceDir: extensionDir, themeCss });
+    await writeFile(cssPath, css, "utf8");
+  }
+  return cssPath;
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function encodeModulePath(outputDir: string, filePath: string): string {
+  const relativePath = relative(outputDir, filePath).split("\\").join("/");
+  return relativePath.split("/").map(encodeURIComponent).join("/");
 }
 
 function rendererModuleUrl(filePath: string, mtimeMs: number): string {

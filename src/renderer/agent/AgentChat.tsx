@@ -1,4 +1,5 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+import { Button } from "../../ui";
 import { useAgentRuntime, type AgentRun, type AgentSessionNotice } from "./useAgentRuntime";
 
 export function AgentChat() {
@@ -121,12 +122,12 @@ function SessionBar({
           {session.summary}
           <span className="sb-hint">{session.hint}</span>
         </div>
-        <button type="button" className="btn btn-primary" disabled={!session.canKeep} onClick={() => void onKeep()}>
+        <Button variant="primary" size="sm" disabled={!session.canKeep} onClick={() => void onKeep()}>
           Keep
-        </button>
-        <button type="button" className="btn btn-danger" disabled={!session.canUndo} onClick={() => void onUndo()}>
+        </Button>
+        <Button variant="danger" size="sm" disabled={!session.canUndo} onClick={() => void onUndo()}>
           Undo
-        </button>
+        </Button>
       </div>
     );
   }
@@ -138,9 +139,9 @@ function SessionBar({
         {session.summary}
         {session.hint ? <span className="sb-hint">{session.hint}</span> : null}
       </div>
-      <button type="button" className="btn btn-ghost" onClick={onDismiss}>
+      <Button variant="ghost" size="sm" onClick={onDismiss}>
         Dismiss
-      </button>
+      </Button>
       <span />
     </div>
   );
