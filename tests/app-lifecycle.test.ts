@@ -12,6 +12,8 @@ const electronApp = {
   getPath: vi.fn((name: string) => (name === "home" ? "/home/test-user" : "/tmp")),
   getLoginItemSettings: vi.fn(() => ({ openAtLogin: false })),
   setLoginItemSettings: vi.fn(),
+  setActivationPolicy: vi.fn(),
+  focus: vi.fn(),
   isPackaged: false,
   on: vi.fn(),
   whenReady: vi.fn(async () => undefined),
@@ -91,6 +93,7 @@ describe("startBabyMenuApp", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.resetModules();
     electronApp.isPackaged = false;
     browserWindowInstance.isDestroyed.mockReturnValue(false);
     browserWindowInstance.isVisible.mockReturnValue(false);
@@ -151,6 +154,7 @@ describe("startBabyMenuApp", () => {
     const popoverController = registerIpcHandlers.mock.calls.at(-1)?.[4];
     const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
     await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+    await vi.waitFor(() => expect(browserWindowInstance.setBounds).toHaveBeenCalled());
 
     popoverController.setContentHeight(333);
 
@@ -176,5 +180,31 @@ describe("startBabyMenuApp", () => {
     await appModule.startBabyMenuApp();
 
     expect(electronApp.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: true });
+  });
+
+  it("temporarily uses regular activation policy while the macOS popover is visible", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "darwin",
+    });
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+
+    await vi.waitFor(() =>
+      expect((electronApp as { setActivationPolicy: ReturnType<typeof vi.fn> }).setActivationPolicy).toHaveBeenCalledWith(
+        "regular",
+      ),
+    );
+    expect((electronApp as { focus: ReturnType<typeof vi.fn> }).focus).toHaveBeenCalledWith({ steal: true });
+
+    const onHide = browserWindowInstance.on.mock.calls.find(([event]) => event === "hide")?.[1];
+    onHide?.();
+
+    expect((electronApp as { setActivationPolicy: ReturnType<typeof vi.fn> }).setActivationPolicy).toHaveBeenLastCalledWith(
+      "accessory",
+    );
   });
 });
