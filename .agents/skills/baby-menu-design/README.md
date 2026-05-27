@@ -190,6 +190,7 @@ Easings: `--ease` `cubic-bezier(0.22, 0.61, 0.36, 1)` for entry; `--ease-in-out`
 - **Focus** (keyboard): `--focus-ring` 1px solid mint + 4px mint glow. Same rule for everything.
 - **Disabled**: `opacity: 0.32`. No filter, no grayscale.
 - **Composer focus**: input border shifts to `rgba(106,227,182,0.45)`. The caret stays.
+- **Cursors**: use the default arrow across the popover, text cursor only in editable fields, pointer on buttons and links, and `not-allowed` on disabled controls.
 
 ### Layout rules
 

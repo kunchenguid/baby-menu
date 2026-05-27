@@ -34,6 +34,8 @@ Do not leave placeholder, demo, or mock widgets alongside the user's requested w
 ## Widget Contract
 
 Export a `RefreshableBabyMenuWidget` or `BabyMenuWidget` from `widget.tsx`.
+Only `RefreshableBabyMenuWidget` may declare `refreshIntervalMs`, and it must also declare `refresh`.
+Plain `BabyMenuWidget` exports must not declare a refresh interval.
 Keep the widget renderer-only.
 Do not read files, spawn commands, use credentials, or perform privileged network work from the renderer.
 Do not store tokens or secrets in renderer or browser storage; Baby Menu disables Chromium keychain-backed storage on macOS.
