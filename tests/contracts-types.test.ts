@@ -1,4 +1,5 @@
 import type { RefreshableBabyMenuWidget } from "../src/shared/contracts";
+import { describe, expect, it } from "vitest";
 
 const refreshableWidget: RefreshableBabyMenuWidget = {
   id: "quota",
@@ -19,3 +20,9 @@ const intervalWithoutRefresh: RefreshableBabyMenuWidget = {
 };
 
 void intervalWithoutRefresh;
+
+describe("RefreshableBabyMenuWidget contract", () => {
+  it("accepts widgets that pair refresh intervals with refresh callbacks", () => {
+    expect(refreshableWidget.refreshIntervalMs).toBe(1000);
+  });
+});
