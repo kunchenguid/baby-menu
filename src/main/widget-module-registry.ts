@@ -1,10 +1,10 @@
 import type { Dirent } from "node:fs";
-import { access, readdir, stat, writeFile } from "node:fs/promises";
+import { access, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import type { BabyMenuWidgetModuleDescriptor } from "../shared/contracts";
 import { getExtensionsDir } from "../shared/paths";
 import { compileExtensionModule } from "./extension-module-compiler";
-import { compileWidgetTailwindCss } from "./widget-tailwind-css";
+import { compileWidgetTailwindCss, widgetTailwindCssCacheKey } from "./widget-tailwind-css";
 // The single @theme source, inlined into the main bundle so it ships with the
 // packaged app. electron-vite (dev + build) resolves `?raw` to the file text;
 // note vitest returns "" for `.css?raw`, so token-mapping coverage lives in
@@ -12,6 +12,7 @@ import { compileWidgetTailwindCss } from "./widget-tailwind-css";
 import themeCss from "../ui/theme.css?raw";
 
 const WIDGET_CSS_FILENAME = "widget.css";
+const WIDGET_CSS_CACHE_KEY_FILENAME = "widget.css.cache-key";
 
 export type WidgetModuleRegistry = {
   list: () => Promise<BabyMenuWidgetModuleDescriptor[]>;
@@ -134,11 +135,22 @@ async function compiledWidgetModuleUrls({
 // already keys the output dir by source hash), so polling list() is cheap.
 async function ensureWidgetCss({ extensionDir, outputDir }: { extensionDir: string; outputDir: string }): Promise<string> {
   const cssPath = join(outputDir, WIDGET_CSS_FILENAME);
-  if (!(await pathExists(cssPath))) {
+  const cacheKeyPath = join(outputDir, WIDGET_CSS_CACHE_KEY_FILENAME);
+  const cacheKey = widgetTailwindCssCacheKey(themeCss);
+  if (!(await pathExists(cssPath)) || (await readCacheKey(cacheKeyPath)) !== cacheKey) {
     const css = await compileWidgetTailwindCss({ sourceDir: extensionDir, themeCss });
     await writeFile(cssPath, css, "utf8");
+    await writeFile(cacheKeyPath, cacheKey, "utf8");
   }
   return cssPath;
+}
+
+async function readCacheKey(filePath: string): Promise<string | null> {
+  try {
+    return await readFile(filePath, "utf8");
+  } catch {
+    return null;
+  }
 }
 
 async function pathExists(filePath: string): Promise<boolean> {

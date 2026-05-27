@@ -60,4 +60,44 @@ describe("compiled widget pipeline", () => {
     expect(compiledCss).toContain(".flex");
     expect(compiledCss).toContain(".items-center");
   });
+
+  it("rebuilds a cached stylesheet when its cache key is stale", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-pipeline-"));
+    tempDirs.push(rootDir);
+    const extensionsDir = join(rootDir, ".baby-menu", "extensions");
+    const widgetCacheDir = join(rootDir, "cache", "widgets");
+    await mkdir(join(extensionsDir, "cpu-temp"), { recursive: true });
+    await writeFile(
+      join(extensionsDir, "cpu-temp", "widget.tsx"),
+      [
+        `export const cpuTempWidget = {`,
+        `  id: "cpu-temp",`,
+        `  title: "CPU TEMP",`,
+        `  render: () => <span className="flex items-center gap-2" />,`,
+        `};`,
+        ``,
+      ].join("\n"),
+    );
+
+    const [descriptor] = await discoverWidgetModules({
+      rootDir,
+      extensionsDir,
+      mode: "compiled",
+      widgetCacheDir,
+    });
+    const cssPath = cachePath(widgetCacheDir, descriptor!.cssUrl!);
+    await writeFile(cssPath, "stale css", "utf8");
+    await writeFile(join(cssPath, "..", "widget.css.cache-key"), "stale-key", "utf8");
+
+    await discoverWidgetModules({
+      rootDir,
+      extensionsDir,
+      mode: "compiled",
+      widgetCacheDir,
+    });
+
+    const compiledCss = await readFile(cssPath, "utf8");
+    expect(compiledCss).toContain(".flex");
+    expect(compiledCss).not.toBe("stale css");
+  });
 });

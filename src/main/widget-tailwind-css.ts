@@ -1,9 +1,11 @@
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
+import { createHash } from "node:crypto";
 import { cp, mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
+import packageJson from "../../package.json";
 
 const require = createRequire(import.meta.url);
 
@@ -41,4 +43,20 @@ export async function compileWidgetTailwindCss({ sourceDir, themeCss }: CompileW
   } finally {
     await rm(scanDir, { recursive: true, force: true });
   }
+}
+
+export function widgetTailwindCssCacheKey(themeCss: string): string {
+  const dependencies = packageJson.dependencies;
+  return createHash("sha256")
+    .update("widget-tailwind-css-v1")
+    .update("\0")
+    .update(themeCss)
+    .update("\0")
+    .update(dependencies.tailwindcss ?? "")
+    .update("\0")
+    .update(dependencies["@tailwindcss/postcss"] ?? "")
+    .update("\0")
+    .update(dependencies.postcss ?? "")
+    .digest("hex")
+    .slice(0, 16);
 }
