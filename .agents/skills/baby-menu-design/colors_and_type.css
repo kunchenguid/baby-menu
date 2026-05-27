@@ -88,11 +88,11 @@
 
   /* Scale -- mono runs slightly narrower than sans, so values feel */
   /* smaller for the same px. Numbers are quoted in px equivalents. */
-  --fs-xxs:   0.625rem;     /* 10px  -- tracked-caps keys, footer  */
-  --fs-xs:    0.6875rem;    /* 11px  -- meta, hints, footer        */
-  --fs-sm:    0.75rem;      /* 12px  -- body, button copy          */
-  --fs-base:  0.8125rem;    /* 13px  -- module title, default      */
-  --fs-md:    0.9375rem;    /* 15px  -- subhead                    */
+  --fs-xxs:   0.6875rem;    /* 11px  -- tracked-caps keys, footer  */
+  --fs-xs:    0.75rem;      /* 12px  -- meta, hints, footer        */
+  --fs-sm:    0.8125rem;    /* 13px  -- body, button copy          */
+  --fs-base:  0.875rem;     /* 14px  -- module title, default      */
+  --fs-md:    1rem;         /* 16px  -- subhead                    */
   --fs-lg:    1.125rem;     /* 18px  -- inline value mid           */
   --fs-xl:    1.5rem;       /* 24px  -- inline value lg            */
   --fs-2xl:   1.75rem;      /* 28px  -- hero value                 */
