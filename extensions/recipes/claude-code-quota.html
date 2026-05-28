@@ -156,8 +156,9 @@ Cookie: sessionKey=&lt;value&gt;</code></pre>
         <p>Create or edit these extension files:</p>
         <ul>
           <li><code>claude-code-quota/server.ts</code> for privileged token, CLI, network, timeout, and parser work.</li>
-          <li><code>claude-code-quota/widget.tsx</code> for the renderer widget, using <code>@babymenu/ui</code>.</li>
+          <li><code>claude-code-quota/widget.tsx</code> for a <code>RefreshableBabyMenuWidget</code>, using <code>@babymenu/ui</code>.</li>
           <li>The widget should call <code>window.babyMenu.capabilities.invoke("claude-code-quota", "getQuota", input)</code>.</li>
+          <li>Put quota reload logic in the widget's exported <code>refresh</code> method and set <code>refreshIntervalMs</code> to 5 minutes; <code>WidgetHost</code> owns timer and manual refresh calls.</li>
           <li>Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</li>
         </ul>
         <p>Add repo-level tests:</p>

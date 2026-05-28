@@ -31,7 +31,7 @@ If the user invokes this skill without any other guidance, ask them what they wa
 6. **Type and ASCII glyphs are the iconography.** `›` `⟳` `+` `·` `↵` `⌘` `●`. Lucide is the fallback if an ASCII glyph won't carry the meaning; use 14px in compact controls and 16px in roomier controls.
 7. **JetBrains Mono everywhere** inside the popover surface. Inter Tight only for long prose outside the surface.
 8. **Mint is the only signal color** and is used ONLY as a dot, glow, single word, or 1px progress fill — never as a button fill, never as a background of more than 10% alpha.
-9. Buttons are pill-shaped. Primary is **inverse white** (`--ink-100` on near-black). Default is transparent with a 1px hairline border. Destructive is coral outline.
+9. Production `@babymenu/ui` buttons use compact `rounded-sm` corners. Primary is **inverse white** (`--ink-100` on near-black). Default is transparent with a 1px hairline border. Destructive is coral outline. Reserve pill buttons for prototype/app-shell affordances where the design brief calls for them.
 
 ## Reference repo
 

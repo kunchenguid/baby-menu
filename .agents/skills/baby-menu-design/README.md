@@ -162,7 +162,7 @@ There are no background images, no full-bleed photography, no illustrations. Ima
 - **Outer popover** radius: **10px** (`--radius-xl`). Sharper than most macOS native windows - this is intentional terminal posture.
 - **Modules / cards** inside preview surfaces: **8px** (`--radius-lg`).
 - **Inputs**: **4px** (`--radius-sm`).
-- **Buttons**: full pill (`999px`). The only rounded affordance.
+- **Buttons**: shared production buttons use compact `--radius-sm` corners. Prototype/app-shell pill controls are allowed for tight terminal affordances, but do not assume pill shape for `@babymenu/ui` buttons.
 - **Borders** are 1px white at low alpha (`--line` `12%`, `--line-faint` `7%`). Inside the popover, the only borders are the outer 1px and the divider between head/body/composer.
 - **Dividers** between widgets: `1px dashed --line-faint`. Between popover sections (head, body, composer): `1px solid --line`. The shift from solid to dashed signals "infrastructure" vs "content".
 
