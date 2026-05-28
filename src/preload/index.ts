@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AgentRuntimeStatus, BabyMenuApi } from "../shared/contracts";
+import type {
+  AgentRuntimeStatus,
+  BabyMenuApi,
+  BackgroundTaskUpdate,
+  PopoverVisibilityState,
+  SqlParams,
+} from "../shared/contracts";
 
 const api: BabyMenuApi = {
   recipes: {
@@ -22,11 +28,29 @@ const api: BabyMenuApi = {
     invoke: (extensionId: string, action: string, input?: unknown) =>
       ipcRenderer.invoke("baby-menu:capabilities:invoke", extensionId, action, input),
   },
+  db: {
+    query: (sql: string, params?: SqlParams) => ipcRenderer.invoke("baby-menu:db:query", sql, params),
+    get: (sql: string, params?: SqlParams) => ipcRenderer.invoke("baby-menu:db:get", sql, params),
+    run: (sql: string, params?: SqlParams) => ipcRenderer.invoke("baby-menu:db:run", sql, params),
+    exec: (sql: string) => ipcRenderer.invoke("baby-menu:db:exec", sql),
+  },
   widgets: {
     list: () => ipcRenderer.invoke("baby-menu:widgets:list"),
   },
+  background: {
+    onUpdate: (listener: (event: BackgroundTaskUpdate) => void) => {
+      const handler = (_event: unknown, update: BackgroundTaskUpdate) => listener(update);
+      ipcRenderer.on("baby-menu:background:update", handler);
+      return () => ipcRenderer.removeListener("baby-menu:background:update", handler);
+    },
+  },
   popover: {
     setContentHeight: (height: number) => ipcRenderer.invoke("baby-menu:popover:set-content-height", height),
+    onVisibility: (listener: (state: PopoverVisibilityState) => void) => {
+      const handler = (_event: unknown, state: PopoverVisibilityState) => listener(state);
+      ipcRenderer.on("baby-menu:popover:visibility", handler);
+      return () => ipcRenderer.removeListener("baby-menu:popover:visibility", handler);
+    },
   },
   settings: {
     get: () => ipcRenderer.invoke("baby-menu:settings:get"),

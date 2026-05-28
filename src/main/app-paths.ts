@@ -14,6 +14,7 @@ export type BabyMenuRuntimePaths = {
   devExtensionSnapshotDir: string;
   bundledExtensionTemplateDir: string | null;
   trayIconPath: string;
+  databasePath: string;
   isPackaged: boolean;
 };
 
@@ -41,6 +42,7 @@ export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOp
       devExtensionSnapshotDir: join(cacheDir, "dev-extension-snapshots"),
       bundledExtensionTemplateDir: null,
       trayIconPath: join(options.sourceRoot, "assets", "tray", "baby_menuTemplate.png"),
+      databasePath: join(cacheDir, "baby-menu.db"),
       isPackaged: false,
     };
   }
@@ -63,6 +65,7 @@ export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOp
     devExtensionSnapshotDir: join(cacheDir, "snapshots"),
     bundledExtensionTemplateDir: join(options.resourcesPath, "extensions-template"),
     trayIconPath: join(options.resourcesPath, "tray", "baby_menuTemplate.png"),
+    databasePath: join(appDataRoot, "baby-menu.db"),
     isPackaged: true,
   };
 }

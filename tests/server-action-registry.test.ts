@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { createServerActionRegistry, rewriteLocalServerActionImports } from "../src/main/server-action-registry";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createBackgroundTaskSource, createServerActionRegistry, rewriteLocalServerActionImports } from "../src/main/server-action-registry";
 
 describe("server action registry", () => {
   const tempDirs: string[] = [];
@@ -113,6 +113,94 @@ describe("server action registry", () => {
 
     expect(rewritten).toContain(`from "./codex-quota.mjs"`);
     expect(rewritten).toContain(`from "react"`);
+  });
+
+  it("discovers background tasks exported from extension server modules", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-bg-"));
+    tempDirs.push(rootDir);
+    const withTask = join(rootDir, "extensions", "pulse", "server.ts");
+    const withoutTask = join(rootDir, "extensions", "plain", "server.ts");
+    await mkdir(dirname(withTask), { recursive: true });
+    await mkdir(dirname(withoutTask), { recursive: true });
+    await writeFile(
+      withTask,
+      `export const background = { intervalMs: 90000, runOnStart: false, run: async () => undefined };`,
+    );
+    await writeFile(withoutTask, `export const actions = { ping: () => "ok" };`);
+
+    const source = createBackgroundTaskSource({ rootDir });
+    const tasks = await source.list();
+
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]).toMatchObject({ extensionId: "pulse", intervalMs: 90000, runOnStart: false });
+    expect(tasks[0]?.run).toBeTypeOf("function");
+  });
+
+  it("ignores background exports with a missing or invalid interval", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-bg-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "broken", "server.ts");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(actionPath, `export const background = { run: async () => undefined };`);
+
+    const source = createBackgroundTaskSource({ rootDir });
+
+    await expect(source.list()).resolves.toEqual([]);
+  });
+
+  it("runs a discovered background task that persists to the shared database", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-bg-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "counter", "server.ts");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(
+      actionPath,
+      `export const background = {
+        intervalMs: 90000,
+        run: (ctx) => {
+          ctx.db.exec("CREATE TABLE IF NOT EXISTS counter_ticks (id INTEGER PRIMARY KEY)");
+          ctx.db.run("INSERT INTO counter_ticks DEFAULT VALUES");
+        },
+      };`,
+    );
+
+    const { createExtensionDatabase } = await import("../src/main/extension-database");
+    const { createBackgroundTaskScheduler } = await import("../src/main/background-task-scheduler");
+    const db = createExtensionDatabase(":memory:");
+    const scheduler = createBackgroundTaskScheduler({
+      source: createBackgroundTaskSource({ rootDir }),
+      context: { rootDir, db, notify: () => undefined },
+      minIntervalMs: 10,
+    });
+
+    await scheduler.start(); // runOnStart defaults true
+    await vi.waitFor(() => expect(db.get<{ c: number }>("SELECT COUNT(*) AS c FROM counter_ticks")?.c).toBe(1));
+    scheduler.stop();
+    db.close();
+  });
+
+  it("passes a notify capability to background tasks", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-bg-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "alert", "server.ts");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(
+      actionPath,
+      `export const background = { intervalMs: 90000, run: (ctx) => ctx.notify({ title: "hi", body: "there" }) };`,
+    );
+
+    const { createExtensionDatabase } = await import("../src/main/extension-database");
+    const { createBackgroundTaskScheduler } = await import("../src/main/background-task-scheduler");
+    const notify = vi.fn();
+    const scheduler = createBackgroundTaskScheduler({
+      source: createBackgroundTaskSource({ rootDir }),
+      context: { rootDir, db: createExtensionDatabase(":memory:"), notify },
+      minIntervalMs: 10,
+    });
+
+    await scheduler.start();
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledWith({ title: "hi", body: "there" }));
+    scheduler.stop();
   });
 
   it("throws a clear error for unknown server actions", async () => {

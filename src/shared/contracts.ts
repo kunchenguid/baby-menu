@@ -41,6 +41,55 @@ export type BabyMenuSettings = {
   openAtLogin: boolean;
 };
 
+// SQL bind parameters: positional (an array) or named (an object keyed by the
+// bare parameter name, e.g. { name } for ":name").
+export type SqlParams = unknown[] | Record<string, unknown>;
+
+export type SqlRunResult = {
+  changes: number;
+  lastInsertRowid: number | bigint;
+};
+
+// The synchronous SQL surface extensions use from server actions and background
+// tasks. The host's ExtensionDatabase implements this plus lifecycle (close).
+export type BabyMenuDatabase = {
+  query: <T = Record<string, unknown>>(sql: string, params?: SqlParams) => T[];
+  get: <T = Record<string, unknown>>(sql: string, params?: SqlParams) => T | undefined;
+  run: (sql: string, params?: SqlParams) => SqlRunResult;
+  exec: (sql: string) => void;
+  transaction: <T>(fn: () => T) => T;
+};
+
+export type BabyMenuNotification = {
+  title: string;
+  body?: string;
+};
+
+// Passed to every server action and background task. Privileged, main-process side.
+export type BabyMenuServerContext = {
+  rootDir: string;
+  db: BabyMenuDatabase;
+  // Show a native system notification. The main reason a background task is worth
+  // having: it can alert the user (e.g. a threshold breach) while the popover is closed.
+  notify: (notification: BabyMenuNotification) => void;
+};
+
+// Declared as `export const background` in an extension's server.ts. The host runs
+// `run` on its own timer (clamped to a 60s floor) whether or not the popover is open,
+// so it is the place for work that must keep happening in the background. Persist
+// results with `context.db` and a widget can read them on open.
+export type BabyMenuBackgroundTask = {
+  intervalMs: number;
+  run: (context: BabyMenuServerContext) => void | Promise<void>;
+  // Whether to run once as soon as the task is scheduled (default true) so data is
+  // warm before the first refresh tick.
+  runOnStart?: boolean;
+};
+
+export type BackgroundTaskUpdate = {
+  extensionId: string;
+};
+
 export type BabyMenuCapabilityDescriptor = {
   id: string;
   extensionId: string;
@@ -65,14 +114,21 @@ export type BabyMenuWidget = {
 export type RefreshableBabyMenuWidget = BabyMenuWidget &
   (
     | {
-        refreshIntervalMs?: number;
-        refresh: () => void | Promise<void>;
+        // View refresh re-renders a visible widget. It is owned by the host and
+        // paused while the popover is hidden. It is not a way to sync data in the
+        // background - declare a `background` task in server.ts for that.
+        viewRefreshIntervalMs?: number;
+        refreshView: () => void | Promise<void>;
       }
     | {
-        refreshIntervalMs?: never;
-        refresh?: never;
+        viewRefreshIntervalMs?: never;
+        refreshView?: never;
       }
   );
+
+export type PopoverVisibilityState = {
+  visible: boolean;
+};
 
 export type BabyMenuApi = {
   recipes: {
@@ -90,11 +146,27 @@ export type BabyMenuApi = {
     list: () => Promise<BabyMenuCapabilityDescriptor[]>;
     invoke: <T = unknown>(extensionId: string, action: string, input?: unknown) => Promise<T>;
   };
+  // Direct access to the shared local SQLite store. Queries run synchronously in the
+  // main process, so keep renderer-side queries small and indexed; push heavy work
+  // into a background task that writes results back to a table.
+  db: {
+    query: <T = Record<string, unknown>>(sql: string, params?: SqlParams) => Promise<T[]>;
+    get: <T = Record<string, unknown>>(sql: string, params?: SqlParams) => Promise<T | undefined>;
+    run: (sql: string, params?: SqlParams) => Promise<SqlRunResult>;
+    exec: (sql: string) => Promise<void>;
+  };
   widgets: {
     list: () => Promise<BabyMenuWidgetModuleDescriptor[]>;
   };
+  background: {
+    // Fires when an extension's background task finishes a run, so an open widget
+    // can re-read its data. Nothing arrives while the task runs with the popover
+    // closed - the widget just reads warm data the next time it opens.
+    onUpdate: (listener: (event: BackgroundTaskUpdate) => void) => () => void;
+  };
   popover: {
     setContentHeight: (height: number) => Promise<{ ok: boolean }>;
+    onVisibility: (listener: (state: PopoverVisibilityState) => void) => () => void;
   };
   settings: {
     get: () => Promise<BabyMenuSettings>;

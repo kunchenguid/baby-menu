@@ -158,7 +158,7 @@ Cookie: sessionKey=&lt;value&gt;</code></pre>
           <li><code>claude-code-quota/server.ts</code> for privileged token, CLI, network, timeout, and parser work.</li>
           <li><code>claude-code-quota/widget.tsx</code> for a <code>RefreshableBabyMenuWidget</code>, using <code>@babymenu/ui</code>.</li>
           <li>The widget should call <code>window.babyMenu.capabilities.invoke("claude-code-quota", "getQuota", input)</code>.</li>
-          <li>Put quota reload logic in the widget's exported <code>refresh</code> method and set <code>refreshIntervalMs</code> to 5 minutes; <code>WidgetHost</code> owns timer and manual refresh calls.</li>
+          <li>Put quota reload logic in the widget's exported <code>refreshView</code> method and set <code>viewRefreshIntervalMs</code> to 5 minutes; <code>WidgetHost</code> owns the timer and manual refresh calls, and pauses view refresh while the popover is hidden.</li>
           <li>Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</li>
         </ul>
         <p>Add repo-level tests:</p>

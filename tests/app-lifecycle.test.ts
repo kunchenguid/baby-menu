@@ -30,6 +30,7 @@ const browserWindowInstance = {
   on: vi.fn(),
   loadFile: vi.fn(async () => undefined),
   loadURL: vi.fn(async () => undefined),
+  webContents: { send: vi.fn() },
 };
 const BrowserWindow = vi.fn(function BrowserWindowMock() {
   return browserWindowInstance;
@@ -64,6 +65,26 @@ vi.mock("../src/main/extension-seeder", () => ({
 
 vi.mock("../src/main/server-action-registry", () => ({
   createServerActionRegistry: vi.fn(() => ({})),
+  createBackgroundTaskSource: vi.fn(() => ({ list: vi.fn(async () => []) })),
+}));
+
+vi.mock("../src/main/background-task-scheduler", () => ({
+  createBackgroundTaskScheduler: vi.fn(() => ({
+    start: vi.fn(async () => undefined),
+    resync: vi.fn(async () => undefined),
+    stop: vi.fn(),
+  })),
+}));
+
+vi.mock("../src/main/extension-database", () => ({
+  createExtensionDatabase: vi.fn(() => ({
+    query: vi.fn(() => []),
+    get: vi.fn(),
+    run: vi.fn(() => ({ changes: 0, lastInsertRowid: 0 })),
+    exec: vi.fn(),
+    transaction: vi.fn(),
+    close: vi.fn(),
+  })),
 }));
 
 vi.mock("../src/main/widget-module-registry", () => ({
@@ -166,6 +187,44 @@ describe("startBabyMenuApp", () => {
     popoverController.setContentHeight(333);
 
     expect(browserWindowInstance.setBounds).toHaveBeenLastCalledWith({ x: 8, y: 42, width: 360, height: 333 });
+  });
+
+  it("starts the background scheduler and forwards task-run events to the renderer", async () => {
+    const { createBackgroundTaskScheduler } = await import("../src/main/background-task-scheduler");
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+
+    const schedulerOptions = (createBackgroundTaskScheduler as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(schedulerOptions.watchDir).toBe("/repo/extensions");
+
+    schedulerOptions.onTaskRun("cpu-usage");
+    expect(browserWindowInstance.webContents.send).toHaveBeenCalledWith("baby-menu:background:update", {
+      extensionId: "cpu-usage",
+    });
+  });
+
+  it("emits popover visibility to the renderer on show and hide", async () => {
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+
+    const onShow = browserWindowInstance.on.mock.calls.find(([event]) => event === "show")?.[1];
+    const onHide = browserWindowInstance.on.mock.calls.find(([event]) => event === "hide")?.[1];
+
+    onShow?.();
+    expect(browserWindowInstance.webContents.send).toHaveBeenCalledWith("baby-menu:popover:visibility", {
+      visible: true,
+    });
+
+    onHide?.();
+    expect(browserWindowInstance.webContents.send).toHaveBeenLastCalledWith("baby-menu:popover:visibility", {
+      visible: false,
+    });
   });
 
   it("does not touch login items in source dev mode", async () => {

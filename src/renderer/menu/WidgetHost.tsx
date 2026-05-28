@@ -3,17 +3,17 @@ import { RefreshCw } from "lucide-react";
 import type { RefreshableBabyMenuWidget } from "../../shared/contracts";
 import { helloWorldWidget } from "../../../extensions/hello-world/widget";
 import { Button } from "../../ui";
-import { useWidgetRefresh } from "./useWidgetRefresh";
+import { useViewRefresh } from "./useViewRefresh";
 
 export type RuntimeWidgetImporter = (moduleUrl: string) => Promise<unknown>;
 
 const DEFAULT_RUNTIME_REFRESH_INTERVAL_MS = 1000;
 
 function WidgetCard({ widget }: { widget: RefreshableBabyMenuWidget }) {
-  const { refreshNow } = useWidgetRefresh({
+  const { refreshNow } = useViewRefresh({
     id: widget.id,
-    refreshIntervalMs: widget.refreshIntervalMs,
-    refresh: widget.refresh ?? (() => undefined),
+    viewRefreshIntervalMs: widget.viewRefreshIntervalMs,
+    refreshView: widget.refreshView ?? (() => undefined),
   });
 
   return (
@@ -143,9 +143,9 @@ export function widgetsFromModule(module: unknown): RefreshableBabyMenuWidget[] 
 function isRefreshableBabyMenuWidget(value: unknown): value is RefreshableBabyMenuWidget {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<RefreshableBabyMenuWidget>;
-  const hasRefresh = typeof candidate.refresh === "function";
-  const hasInvalidRefresh = candidate.refresh !== undefined && !hasRefresh;
-  const hasInvalidInterval = candidate.refreshIntervalMs !== undefined && !hasRefresh;
+  const hasRefresh = typeof candidate.refreshView === "function";
+  const hasInvalidRefresh = candidate.refreshView !== undefined && !hasRefresh;
+  const hasInvalidInterval = candidate.viewRefreshIntervalMs !== undefined && !hasRefresh;
   return (
     typeof candidate.id === "string" &&
     typeof candidate.title === "string" &&

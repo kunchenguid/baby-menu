@@ -30,6 +30,18 @@ describe("preload capabilities bridge", () => {
     await api.widgets.list();
     expect(invoke).toHaveBeenCalledWith("baby-menu:widgets:list");
 
+    await api.db.query("SELECT 1", [1]);
+    expect(invoke).toHaveBeenCalledWith("baby-menu:db:query", "SELECT 1", [1]);
+
+    await api.db.get("SELECT 1");
+    expect(invoke).toHaveBeenCalledWith("baby-menu:db:get", "SELECT 1", undefined);
+
+    await api.db.run("INSERT INTO t VALUES (?)", ["x"]);
+    expect(invoke).toHaveBeenCalledWith("baby-menu:db:run", "INSERT INTO t VALUES (?)", ["x"]);
+
+    await api.db.exec("CREATE TABLE t (a)");
+    expect(invoke).toHaveBeenCalledWith("baby-menu:db:exec", "CREATE TABLE t (a)");
+
     await api.popover.setContentHeight(333);
     expect(invoke).toHaveBeenCalledWith("baby-menu:popover:set-content-height", 333);
 
@@ -41,6 +53,22 @@ describe("preload capabilities bridge", () => {
 
     await api.app.quit();
     expect(invoke).toHaveBeenCalledWith("baby-menu:app:quit");
+  });
+
+  it("exposes popover visibility events from the main process", async () => {
+    await import("../src/preload/index");
+    const api = exposeInMainWorld.mock.calls[0]?.[1];
+    const listener = vi.fn();
+
+    const unsubscribe = api.popover.onVisibility(listener);
+    const handler = on.mock.calls.at(-1)?.[1];
+    handler({}, { visible: false });
+
+    expect(on).toHaveBeenCalledWith("baby-menu:popover:visibility", expect.any(Function));
+    expect(listener).toHaveBeenCalledWith({ visible: false });
+
+    unsubscribe();
+    expect(removeListener).toHaveBeenCalledWith("baby-menu:popover:visibility", handler);
   });
 
   it("exposes agent status events from the main process", async () => {

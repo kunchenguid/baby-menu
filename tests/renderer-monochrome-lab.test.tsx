@@ -30,11 +30,19 @@ function installBabyMenuApi(overrides: Partial<BabyMenuApi> = {}) {
       list: vi.fn(async () => []),
       invoke: vi.fn(async () => undefined) as BabyMenuApi["capabilities"]["invoke"],
     },
+    db: {
+      query: vi.fn(async () => []),
+      get: vi.fn(async () => undefined),
+      run: vi.fn(async () => ({ changes: 0, lastInsertRowid: 0 })),
+      exec: vi.fn(async () => undefined),
+    },
     widgets: {
       list: vi.fn(async () => []),
     },
+    background: { onUpdate: vi.fn(() => () => undefined) },
     popover: {
       setContentHeight: vi.fn(async () => ({ ok: true })),
+      onVisibility: vi.fn(() => () => undefined),
     },
     settings: {
       get: vi.fn(async () => ({ openAtLogin: false })),

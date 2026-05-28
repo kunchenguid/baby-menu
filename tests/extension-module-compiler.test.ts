@@ -52,7 +52,7 @@ describe("extension module compiler", () => {
     await writeFile(
       entryFile,
       `import type { RefreshableBabyMenuWidget } from "../../src/shared/contracts";
-      export const widget: RefreshableBabyMenuWidget = { id: "starter", title: "Starter", render: () => "ok", refresh: async () => undefined };`,
+      export const widget: RefreshableBabyMenuWidget = { id: "starter", title: "Starter", render: () => "ok", refreshView: async () => undefined };`,
     );
 
     const compiled = await compileExtensionModule({

@@ -34,11 +34,15 @@ Do not leave placeholder, demo, or mock widgets alongside the user's requested w
 ## Widget Contract
 
 Export a `RefreshableBabyMenuWidget` or `BabyMenuWidget` from `widget.tsx`.
-Only `RefreshableBabyMenuWidget` may declare `refreshIntervalMs`, and it must also declare `refresh`.
-Plain `BabyMenuWidget` exports must not declare a refresh interval.
+Only `RefreshableBabyMenuWidget` may declare `viewRefreshIntervalMs`, and it must also declare `refreshView`.
+Plain `BabyMenuWidget` exports must not declare a view refresh interval.
 Keep the widget renderer-only.
 Do not read files, spawn commands, use credentials, or perform privileged network work from the renderer.
 Do not store tokens or secrets in renderer or browser storage; Baby Menu disables Chromium keychain-backed storage on macOS.
+
+`refreshView` is for re-rendering a *visible* widget; the host pauses it while the popover is hidden and runs it once each time the popover opens.
+It is not a way to keep data fresh in the background - if data must stay current while the popover is closed, use a background task (see "Background tasks").
+A widget may also read data directly with `window.babyMenu.db` and subscribe to `window.babyMenu.background.onUpdate` to re-read when a background task finishes.
 
 ## Widget Design System
 
@@ -232,6 +236,78 @@ Put privileged filesystem, shell, network, credential, and token work in `server
 Export an `actions` object from `server.ts`.
 Renderer widgets call server actions through `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
 Do not add preload methods or per-extension IPC channels.
+
+Each action receives `(input, context)`.
+The `context` is `{ rootDir, db, notify }`:
+
+- `rootDir` is the active extension workspace root.
+- `db` is the shared SQL store (see "Storage").
+- `notify({ title, body })` shows a native system notification.
+
+## Storage
+
+Extensions share one local SQLite database, exposed as a small SQL interface.
+It is available as `context.db` in server actions and background tasks, and as `window.babyMenu.db` in widgets.
+
+```ts
+db.query<T>(sql, params?): T[]            // SELECT -> rows
+db.get<T>(sql, params?): T | undefined    // SELECT -> one row
+db.run(sql, params?): { changes, lastInsertRowid }  // INSERT / UPDATE / DELETE
+db.exec(sql): void                        // multi-statement DDL / migrations
+db.transaction(fn): T                     // BEGIN / COMMIT / ROLLBACK (server side only)
+```
+
+`params` is either a positional array (`[a, b]` for `?` placeholders) or a named object (`{ name }` for `:name`).
+Create your own tables with `CREATE TABLE IF NOT EXISTS`, and prefix table names with your extension id (for example `system_usage_samples`) so extensions do not collide.
+The renderer `window.babyMenu.db` methods return promises; the `context.db` methods are synchronous.
+
+Two constraints:
+
+- Queries run synchronously in the main process, so keep them small and indexed.
+  Do not run heavy or analytical queries from a widget; do that work in a background task and write the result to a table the widget reads.
+- This store is plaintext on disk and is not for secrets.
+  Keep tokens, credentials, and cookies in dedicated credential handling, not in `db`.
+
+## Background tasks
+
+A view refresh only runs while the popover is open.
+When data must stay fresh even while the popover is closed - polling an API, accumulating history, watching a threshold to alert on - declare a background task.
+
+Export `background` from `server.ts` alongside `actions`:
+
+```ts
+export const background = {
+  intervalMs: 300_000, // 5 minutes; the host enforces a 60s minimum
+  runOnStart: true,    // run once immediately so data is warm (default true)
+  run: async (context) => {
+    const sample = await readSomething();
+    context.db.exec("CREATE TABLE IF NOT EXISTS my_ext_samples (at INTEGER, value REAL)");
+    context.db.run("INSERT INTO my_ext_samples (at, value) VALUES (?, ?)", [Date.now(), sample]);
+    if (sample > THRESHOLD) context.notify({ title: "Heads up", body: `value is ${sample}` });
+  },
+};
+```
+
+The host runs `run` on its own timer in the main process whether or not the popover is open, with one timer per extension.
+Newly added or edited background tasks are picked up automatically, without restarting the app.
+The widget reads the persisted data with `window.babyMenu.db` on open and subscribes to `window.babyMenu.background.onUpdate` to re-read when a run finishes.
+
+## Performance
+
+Baby Menu lives in the tray and stays running for the whole session, and the popover is hidden (not unmounted) on blur.
+Choosing the right mechanism is the main performance decision:
+
+- Use `viewRefreshIntervalMs` / `refreshView` for keeping a *visible* widget current, including live real-time displays.
+  It pauses while the popover is hidden, so a 1-2s loop costs nothing when nobody is looking.
+  A live monitor that is only interesting while you are watching it - CPU, memory, a clock - belongs here, sampled on demand through a server action, not in a background task.
+  Choose the slowest interval that still feels live, and omit it entirely for data that rarely changes (the host always offers a manual refresh button).
+- Use a background task for anything that must keep running while the popover is closed.
+  It runs in the main process on a single owned timer, clamped to a 60s floor; pick the slowest cadence that meets the need, since each run wakes the machine.
+- Never start your own `setInterval`, `setTimeout` loops, or recursive polling inside a widget or server action - the host owns all timing.
+- Keep both server actions and background `run` functions cheap and non-blocking.
+  An action should read and return quickly; never `await` a fixed delay to build a measurement window.
+  For rate-derived metrics such as CPU percent, store the previous reading (in a table or module scope) and diff against it on the next run, instead of opening a fresh sampling window each call.
+- Guard long work with an in-flight flag and keep stored history bounded.
 
 ## Tests
 

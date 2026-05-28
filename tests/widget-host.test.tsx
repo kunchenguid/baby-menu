@@ -1,57 +1,96 @@
 // @vitest-environment jsdom
 import { act, render, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import type { RefreshableBabyMenuWidget } from "../src/shared/contracts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { PopoverVisibilityState, RefreshableBabyMenuWidget } from "../src/shared/contracts";
 import { WidgetHost, widgetsFromModule } from "../src/renderer/menu/WidgetHost";
-import { useWidgetRefresh } from "../src/renderer/menu/useWidgetRefresh";
+import { useViewRefresh } from "../src/renderer/menu/useViewRefresh";
 
-describe("useWidgetRefresh", () => {
+type VisibilityListener = (state: PopoverVisibilityState) => void;
+
+function installPopoverVisibility() {
+  let listener: VisibilityListener | null = null;
+  window.babyMenu = {
+    popover: {
+      setContentHeight: vi.fn(async () => ({ ok: true })),
+      onVisibility: vi.fn((cb: VisibilityListener) => {
+        listener = cb;
+        return () => {
+          listener = null;
+        };
+      }),
+    },
+  } as unknown as typeof window.babyMenu;
+  return {
+    emit(visible: boolean) {
+      listener?.({ visible });
+    },
+  };
+}
+
+afterEach(() => {
+  delete window.babyMenu;
+  vi.useRealTimers();
+});
+
+describe("useViewRefresh", () => {
   it("refreshes a widget on its interval", () => {
     vi.useFakeTimers();
-    const refresh = vi.fn();
+    const refreshView = vi.fn();
 
-    renderHook(() =>
-      useWidgetRefresh({ id: "quota", refreshIntervalMs: 1000, refresh }),
-    );
+    renderHook(() => useViewRefresh({ id: "quota", viewRefreshIntervalMs: 1000, refreshView }));
 
-    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refreshView).toHaveBeenCalledTimes(1);
     act(() => vi.advanceTimersByTime(2500));
 
-    expect(refresh).toHaveBeenCalledTimes(3);
-    vi.useRealTimers();
+    expect(refreshView).toHaveBeenCalledTimes(3);
   });
 
   it("supports manual refresh", () => {
-    const refresh = vi.fn();
+    const refreshView = vi.fn();
 
-    const { result } = renderHook(() =>
-      useWidgetRefresh({ id: "quota", refreshIntervalMs: 1000, refresh }),
-    );
+    const { result } = renderHook(() => useViewRefresh({ id: "quota", viewRefreshIntervalMs: 1000, refreshView }));
     act(() => result.current.refreshNow());
 
-    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(refreshView).toHaveBeenCalledTimes(2);
+  });
+
+  it("pauses the interval while the popover is hidden and resumes on show", () => {
+    vi.useFakeTimers();
+    const popover = installPopoverVisibility();
+    const refreshView = vi.fn();
+
+    renderHook(() => useViewRefresh({ id: "quota", viewRefreshIntervalMs: 1000, refreshView }));
+    expect(refreshView).toHaveBeenCalledTimes(1); // initial mount refresh
+
+    act(() => popover.emit(false)); // popover hidden
+    act(() => vi.advanceTimersByTime(5000));
+    expect(refreshView).toHaveBeenCalledTimes(1); // no ticks while hidden
+
+    act(() => popover.emit(true)); // popover shown again
+    expect(refreshView).toHaveBeenCalledTimes(2); // refreshes immediately on show
+    act(() => vi.advanceTimersByTime(2000));
+    expect(refreshView).toHaveBeenCalledTimes(4); // interval resumed
   });
 });
 
 describe("WidgetHost", () => {
-  it("honors a refreshable widget's declared interval", () => {
+  it("honors a refreshable widget's declared view refresh interval", () => {
     vi.useFakeTimers();
-    const refresh = vi.fn();
+    const refreshView = vi.fn();
     const widget: RefreshableBabyMenuWidget = {
       id: "quota",
       title: "quota",
-      refreshIntervalMs: 1000,
-      refresh,
+      viewRefreshIntervalMs: 1000,
+      refreshView,
       render: () => null,
     };
 
     render(<WidgetHost widgets={[widget]} />);
 
-    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refreshView).toHaveBeenCalledTimes(1);
     act(() => vi.advanceTimersByTime(2500));
 
-    expect(refresh).toHaveBeenCalledTimes(3);
-    vi.useRealTimers();
+    expect(refreshView).toHaveBeenCalledTimes(3);
   });
 
   it("ignores runtime widget exports without refresh callbacks", () => {
@@ -60,7 +99,7 @@ describe("WidgetHost", () => {
         stale: {
           id: "stale",
           title: "Stale",
-          refreshIntervalMs: 1000,
+          viewRefreshIntervalMs: 1000,
           render: () => null,
         },
       }),

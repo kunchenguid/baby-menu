@@ -4,25 +4,25 @@ import { describe, expect, it } from "vitest";
 const refreshableWidget: RefreshableBabyMenuWidget = {
   id: "quota",
   title: "Quota",
-  refreshIntervalMs: 1000,
-  refresh: async () => undefined,
+  viewRefreshIntervalMs: 1000,
+  refreshView: async () => undefined,
   render: () => null,
 };
 
 void refreshableWidget;
 
-// @ts-expect-error refresh intervals require a refresh callback.
+// @ts-expect-error view refresh intervals require a refreshView callback.
 const intervalWithoutRefresh: RefreshableBabyMenuWidget = {
   id: "quota",
   title: "Quota",
-  refreshIntervalMs: 1000,
+  viewRefreshIntervalMs: 1000,
   render: () => null,
 };
 
 void intervalWithoutRefresh;
 
 describe("RefreshableBabyMenuWidget contract", () => {
-  it("accepts widgets that pair refresh intervals with refresh callbacks", () => {
-    expect(refreshableWidget.refreshIntervalMs).toBe(1000);
+  it("accepts widgets that pair view refresh intervals with refreshView callbacks", () => {
+    expect(refreshableWidget.viewRefreshIntervalMs).toBe(1000);
   });
 });

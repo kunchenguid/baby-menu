@@ -14,8 +14,11 @@ import {
   responsivePopoverSize,
   type Size,
 } from "./popover";
+import { createBackgroundTaskScheduler } from "./background-task-scheduler";
+import { createExtensionDatabase } from "./extension-database";
+import { createNotifier } from "./notifier";
 import { createPreferencesService } from "./preferences";
-import { createServerActionRegistry } from "./server-action-registry";
+import { createBackgroundTaskSource, createServerActionRegistry } from "./server-action-registry";
 import { expandProcessPathForGuiLaunch } from "./shell-path";
 import { createBabyMenuTray, type BabyMenuTray } from "./tray";
 import { createWidgetModuleRegistry } from "./widget-module-registry";
@@ -49,9 +52,17 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
     if (process.env.BABY_MENU_KEEP_POPOVER_OPEN === "1") return;
     popoverWindow?.hide();
   });
+  // Tell the renderer when the popover is shown or hidden so view refresh can pause
+  // while nobody is looking. Main owns the authoritative signal: the Page Visibility
+  // API is unreliable here (the popover is created show:false, and the gating would
+  // silently break if backgroundThrottling were ever disabled).
+  popoverWindow.on("show", () => sendPopoverVisibility(true));
   // Once the popover is hidden, drop back to accessory mode so the dock icon disappears again.
   // See setPopoverKeyWindowActive for why the popover becomes a regular-policy app while visible.
-  popoverWindow.on("hide", () => setPopoverKeyWindowActive(false));
+  popoverWindow.on("hide", () => {
+    setPopoverKeyWindowActive(false);
+    sendPopoverVisibility(false);
+  });
 
   await loadPopoverRenderer(
     popoverWindow,
@@ -91,6 +102,15 @@ function setPopoverKeyWindowActive(active: boolean): void {
   if (active) app.focus({ steal: true });
 }
 
+function sendToPopover(channel: string, payload: unknown): void {
+  if (!popoverWindow || popoverWindow.isDestroyed()) return;
+  popoverWindow.webContents.send(channel, payload);
+}
+
+function sendPopoverVisibility(visible: boolean): void {
+  sendToPopover("baby-menu:popover:visibility", { visible });
+}
+
 function setPopoverContentHeight(height: number) {
   latestPopoverSize = responsivePopoverSize(height);
   if (!latestTrayBounds || !popoverWindow || popoverWindow.isDestroyed()) return;
@@ -127,10 +147,14 @@ export async function startBabyMenuApp(): Promise<void> {
       isPackaged: paths.isPackaged,
     },
   });
+  const database = createExtensionDatabase(paths.databasePath);
+  const notify = createNotifier();
   const serverActions = createServerActionRegistry({
     rootDir: paths.appDataRoot,
     actionRoots: [paths.extensionsDir],
     cacheDir: paths.serverActionCacheDir,
+    db: database,
+    notify,
   });
   const widgetModules = createWidgetModuleRegistry({
     rootDir: paths.appDataRoot,
@@ -147,7 +171,7 @@ export async function startBabyMenuApp(): Promise<void> {
     { setContentHeight: setPopoverContentHeight },
     preferences,
     undefined,
-    { recipesDir: paths.recipesDir },
+    { recipesDir: paths.recipesDir, database },
   );
   activeTray = createBabyMenuTray(
     (bounds) => {
@@ -156,8 +180,26 @@ export async function startBabyMenuApp(): Promise<void> {
     { iconPath: paths.trayIconPath },
   );
 
+  // Background tasks run on their own cadence in the main process, regardless of whether
+  // the popover is open, and notify open widgets to re-read when a run completes.
+  const backgroundTasks = createBackgroundTaskScheduler({
+    source: createBackgroundTaskSource({
+      rootDir: paths.appDataRoot,
+      actionRoots: [paths.extensionsDir],
+      cacheDir: paths.serverActionCacheDir,
+    }),
+    context: { rootDir: paths.appDataRoot, db: database, notify },
+    watchDir: paths.extensionsDir,
+    onTaskRun: (extensionId) => sendToPopover("baby-menu:background:update", { extensionId }),
+  });
+  void backgroundTasks.start();
+
   app.on("activate", () => undefined);
   app.on("window-all-closed", () => undefined);
+  app.on("before-quit", () => {
+    backgroundTasks.stop();
+    database.close();
+  });
 }
 
 if (!process.env.VITEST) {
