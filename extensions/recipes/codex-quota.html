@@ -160,6 +160,9 @@ Authorization: Bearer &lt;access_token&gt;</code></pre>
           <li><code>codex-quota/widget.tsx</code> for the renderer widget, using <code>@babymenu/ui</code>.</li>
           <li>The widget should call <code>window.babyMenu.capabilities.invoke("codex-quota", "getQuota", input)</code>.</li>
           <li>Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</li>
+        </ul>
+        <p>Add repo-level tests:</p>
+        <ul>
           <li><code>tests/codex-quota.test.ts</code> for parser, RPC fallback, timeout, and mock tests.</li>
         </ul>
         <p>Server action response shape:</p>

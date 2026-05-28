@@ -159,6 +159,9 @@ Cookie: sessionKey=&lt;value&gt;</code></pre>
           <li><code>claude-code-quota/widget.tsx</code> for the renderer widget, using <code>@babymenu/ui</code>.</li>
           <li>The widget should call <code>window.babyMenu.capabilities.invoke("claude-code-quota", "getQuota", input)</code>.</li>
           <li>Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</li>
+        </ul>
+        <p>Add repo-level tests:</p>
+        <ul>
           <li><code>tests/claude-quota.test.ts</code> for parser and fallback tests.</li>
         </ul>
         <p>Server action response shape:</p>

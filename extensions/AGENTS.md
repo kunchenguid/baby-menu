@@ -105,8 +105,10 @@ const rows: Row[] = [
   { name: "queue", status: "warn", load: 88 },
 ];
 
-export function render() {
-  return (
+export const serviceWidget = {
+  id: "service-status",
+  title: "SERVICES",
+  render: () => (
     <div className="flex flex-col gap-3">
       <DataTable
         rows={rows}
@@ -141,8 +143,8 @@ export function render() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
+  ),
+};
 ```
 
 ### Style with Tailwind tokens
@@ -184,8 +186,10 @@ Spacing, flex, and grid utilities are standard Tailwind.
 ```tsx
 import { Progress, StatusDot } from "@babymenu/ui";
 
-export function render() {
-  return (
+export const quotaWidget = {
+  id: "quota",
+  title: "QUOTA",
+  render: () => (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between">
         <span className="text-2xl font-light tracking-value text-ink-strong">
@@ -201,8 +205,8 @@ export function render() {
         <span>cli</span>
       </div>
     </div>
-  );
-}
+  ),
+};
 ```
 
 ### Onboarding widgets are not data widgets

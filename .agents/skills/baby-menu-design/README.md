@@ -201,10 +201,10 @@ Easings: `--ease` `cubic-bezier(0.22, 0.61, 0.36, 1)` for entry; `--ease-in-out`
 ### Layout rules
 
 - Width is fixed at **360px**, **400px max**. Never less than 320px.
-- **Height is auto.** The popover grows to fit. Plan layouts for any height between 220px and 720px. Once the popover reaches its max height, the popover body scrolls; the header, composer, and SessionBar stay pinned.
-- The **composer** is pinned to the bottom on the main menu and agent surface; it is hidden while the settings view is open.
+- **Height is auto.** The popover grows to fit. Plan layouts for any height between 220px and 720px. Once the popover reaches its max height, the popover body scrolls; the header and active agent-control surface stay pinned.
+- The **composer** is pinned to the bottom on the main menu and idle agent surface; it is hidden while the settings view is open and replaced by the RunStrip while an agent run is in flight.
 - The **SessionBar** is pinned just above the composer **only when** the agent has just added or undone something and is waiting for the user to decide.
-- The **RunStrip** is pinned just above the composer **only while** an agent run is in flight, and it replaces any SessionBar that might otherwise be shown.
+- The **RunStrip** is pinned at the bottom **only while** an agent run is in flight, and it replaces both the composer and any SessionBar that might otherwise be shown.
 - The popover never has horizontal scroll. Long file paths and names truncate with ellipsis.
 
 ### Card anatomy (widget)
