@@ -13,7 +13,7 @@ If the user invokes this skill without any other guidance, ask them what they wa
 ## What's here
 
 - `README.md` — full brand brief: product context, content fundamentals, visual foundations, iconography.
-- `colors_and_type.css` — token source of truth. Always import this. Never invent new tokens; if you need a color or size that isn't in this file, add it here first.
+- `colors_and_type.css` — prototype and app-shell token reference. For production widgets, use `@babymenu/ui` and the live Tailwind tokens in `src/ui/theme.css`; never invent new tokens without updating the relevant source first.
 - `preview/` — small HTML cards that document each token / component visually.
 - `ui_kits/popup-menu/` — the canonical UI kit: a clickable recreation of the redesigned tray popover with `MenuBar`, `Composer`, `RunStrip`, `SessionBar`, `WidgetHost` and three sample widgets.
 

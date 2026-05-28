@@ -43,7 +43,7 @@ Key files referenced (paths in that repo):
 | Path | What |
 | --- | --- |
 | `README.md` | This document. Start here. |
-| `colors_and_type.css` | The token source of truth — colors, type, spacing, radius, shadow, motion. Import this. |
+| `colors_and_type.css` | Prototype and app-shell token reference — colors, type, spacing, radius, shadow, motion. Production widgets use `src/ui/theme.css` through `@babymenu/ui` and compiled Tailwind. |
 | `SKILL.md` | Agent-skill manifest. Same folder can be dropped into a Claude Code Skills directory. |
 | `preview/` | Small HTML cards that render in the Design System tab. Type specimens, color swatches, components. |
 | `ui_kits/popup-menu/` | The redesigned tray popover. `index.html` is a clickable prototype; JSX files are the components. See [`ui_kits/popup-menu/README.md`](./ui_kits/popup-menu/README.md). |
@@ -129,7 +129,7 @@ Everything in the system aims for one feeling: **a calm command-line surface tha
 
 ### Color
 
-The palette is **near-black + white-at-alpha + one mint signal**. Inspect `colors_and_type.css` for the source of truth.
+The palette is **near-black + white-at-alpha + one mint signal**. Inspect `src/ui/theme.css` for the live Tailwind token source and `colors_and_type.css` for prototype/app-shell CSS tokens.
 
 - **Background** is layered near-black: `--bg-void` `#060607` (outside the popover), `--bg-stage` `#0B0B0C` (popover canvas), `--bg-surface` `#101012` (modules in preview cards), `--bg-elevated` `#16161A` (composer field, hover). **Never use `#000` directly** — pure black reads as missing pixels against the macOS desktop.
 - **Ink** is white at progressively lower alpha — `0.96 / 0.86 / 0.65 / 0.48 / 0.34 / 0.22 / 0.12 / 0.07`. The alpha is part of the system; never write `color: #FFF` directly. Use `rgba(255,255,255,…)` or the `--ink-*` tokens.
@@ -249,5 +249,5 @@ A designer or agent picking this up:
 1. Read this README top to bottom.
 2. Open the Design System tab to flip through every token as a card.
 3. Open `ui_kits/popup-menu/index.html` to see the popover live as a clickable prototype.
-4. Cross-reference `colors_and_type.css` whenever picking a value — never invent a new color.
+4. Cross-reference `src/ui/theme.css` for production widget values and `colors_and_type.css` for prototype values - never invent a new color.
 5. Cross-reference the [live repo](https://github.com/kunchenguid/baby-menu) for ground truth on data shapes (`src/shared/contracts.ts`) and on extension/widget conventions (`extensions/AGENTS.md`).
