@@ -33,9 +33,9 @@ Three processes, kept deliberately separate:
 1. **Main** (`src/main/`) - app lifecycle, tray, popover window, IPC, git, agent runtime. Never call agent or git from the renderer directly.
 2. **Preload** (`src/preload/index.ts`) - the stable bridge. Exposes `window.babyMenu` via `contextBridge`. Do not add one-off preload methods for each widget.
 3. **Renderer** (`src/renderer/`) - React UI: `AgentChat`, `WidgetHost`, `SettingsView`, and app-shell controls such as Quit. Widgets should be hot reloadable and should not require an Electron restart for each new capability. The app shell and extension widgets share one design system, `@babymenu/ui` (`src/ui/`); see "Design system" below.
-4. **Extension server actions** - privileged filesystem, shell, network, credential, and token work should live behind extension-owned server actions invoked through the stable generic capability bridge.
+4. **Extension server actions and background tasks** - privileged filesystem, shell, network, credential, token, storage, notification, and background work should live behind extension-owned `server.ts` modules.
    Renderer widgets call these actions with `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
-   Server actions live in the active extension workspace under `<extension-id>/server.ts` and export an `actions` object.
+   Server actions live in the active extension workspace under `<extension-id>/server.ts` and export an `actions` object; background tasks export `background` from the same file.
    Do not add per-widget IPC channels or preload methods.
 
 Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`, `GitSessionSnapshot`, etc. The `Window.babyMenu` global is declared here.
@@ -59,7 +59,10 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 - `preferences.ts` - stores app preferences under the active app data root and applies login-item settings only when login items are allowed, keeping source/dev mode as a no-op for macOS login items.
 - `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs.
 - `recipe-loader.ts` - discovers and parses `recipes/*.html` from the active extension workspace.
-- `server-action-registry.ts` - dynamically loads extension server actions from the active extension workspace and exposes them through the generic capability bridge.
+- `server-action-registry.ts` - dynamically loads extension server actions and background task declarations from the active extension workspace.
+- `background-task-scheduler.ts` - runs discovered extension background tasks on host-owned timers, hot-reloads changed tasks, and enforces the 60-second minimum interval.
+- `extension-database.ts` - owns the shared local SQLite database exposed to extension server actions, background tasks, and widgets through the bridge.
+- `notifier.ts` - backs `context.notify` for server actions and background tasks with native notifications.
 
 ### Electron build wiring
 
@@ -100,16 +103,18 @@ Keep credential and token work in extension server actions.
 `GitChangeSession` (`src/main/git-change-session.ts`) is the safety boundary for Save/Rollback. Both operations refuse unless: the session started clean, the session is not already completed, and `HEAD` has not moved since the session began. `rollback()` runs `git reset --hard <recorded HEAD>` + `git clean -fd` - those destructive commands are only acceptable because of the preceding guards. Preserve this invariant.
 
 Packaged runtime state lives under `~/.baby-menu` and is not git-backed.
-Do not write generated extension files, compiled modules, preferences, logs, snapshots, or ACP session state into the `.app` bundle.
+Do not write generated extension files, the local extension database, compiled modules, preferences, logs, snapshots, or ACP session state into the `.app` bundle.
 
 ### Recipes and extensions
 
 - Recipes are HTML files in `recipes/` inside the active extension workspace. `recipe-loader.ts` discovers `*.html`, sorts them, and extracts the title from `<title>` or first `<h1>`. They are intentionally HTML so the embedded agent can read them from its cwd and use embedded interactive demos.
 - Extensions live in the active extension workspace under `<extension-id>/` and may include `widget.tsx`, `server.ts`, and local helper files.
 - Packaged widgets and server actions are compiled into `~/.baby-menu/cache` and loaded through custom protocols or cached modules; dev mode keeps Vite `/@fs` loading.
-- Widgets conform to `BabyMenuWidget` / `RefreshableBabyMenuWidget`. The `WidgetHost` owns refresh timing via `useWidgetRefresh` - widgets should not start their own polling.
+- Widgets conform to `BabyMenuWidget` / `RefreshableBabyMenuWidget`. The `WidgetHost` owns visible-widget refresh timing via `useViewRefresh`, using the main-process popover visibility signal - widgets should not start their own polling.
 - New widgets and capabilities should be built as self-contained extensions behind the stable `window.babyMenu` bridge.
-- Extension server actions are discovered dynamically from the active extension workspace, so new or changed actions can be picked up without changing preload.
+- Extension server actions and background tasks are discovered dynamically from the active extension workspace, so new or changed capabilities can be picked up without changing preload.
+- Use `viewRefreshIntervalMs` / `refreshView` for live data that only matters while the popover is visible, and use background tasks only for work that must keep running while the popover is closed.
+- Extension data that should persist locally belongs in the shared SQLite store, exposed as `context.db` server-side and `window.babyMenu.db` renderer-side; keep heavy queries out of widgets.
 - The embedded agent should be steered toward editing its active extension workspace. The Electron core in `src/main/`, `src/preload/`, and shared IPC wiring is meant to be boring infrastructure.
 
 ### Recipe authoring best practices
@@ -120,6 +125,8 @@ Do not write generated extension files, compiled modules, preferences, logs, sna
 - A recipe should let an agent implement the feature from the recipe plus this repo alone.
 - Each recipe should include a clear capability statement, expected user-facing behavior, recommended data-source order, implementation contract, error handling, security constraints, interactive demo, and acceptance criteria.
 - For privileged work, explicitly say that filesystem, shell, network, credential, and token access belongs in extension-owned server actions behind `window.babyMenu.capabilities.invoke`.
+- For durable local data, explicitly say whether the widget should read directly from `window.babyMenu.db`, whether a server action should use `context.db`, or whether a background task should persist data for later widget reads.
+- For ongoing work, explicitly distinguish visible-widget refresh from background tasks and require the slowest acceptable interval.
 - Renderer widgets should receive normalized data over `window.babyMenu` and should not add new preload methods for each capability.
 - If a real data source may be unavailable, define the mock fallback and require the UI to label it as mock data.
 - Define normalized TypeScript shapes in the recipe so the agent knows what data extension server actions should return to widgets.

@@ -38,13 +38,14 @@ add a CPU temp widget that shows current temperature and fan status
 
 Baby Menu writes the extension under `~/.baby-menu/extensions`, mounts the widget live, and shows Keep / Undo controls for the turn.
 Use Keep to keep it, or Undo to throw it away.
+Extensions can keep local state in Baby Menu's shared SQLite store and can register background tasks for work that must continue while the popover is closed.
 The packaged app opens at login by default.
 Use the popover header to open settings or fully quit the app.
 Settings lets you turn `open at login` off or back on.
 
 ## Install Details
 
-The packaged app stores mutable extensions, caches, agent sessions, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets.
+The packaged app stores mutable extensions, the local extension database, caches, agent sessions, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets and extension state.
 Set `BABY_MENU_AGENT=<name>` in the launch environment to choose an agent explicitly.
 
 Update with Homebrew:
@@ -104,6 +105,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
   The agent reads the matching recipe before implementing.
 - **Extension server actions** - privileged work (shell, network, credentials) lives in `<extension-id>/server.ts` and is invoked from widgets via `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
   No per-widget IPC channels.
+- **Local extension storage** - extensions share a local SQLite store exposed as `context.db` in server actions and background tasks, and as `window.babyMenu.db` in widgets.
+- **Background tasks vs view refresh** - `refreshView` / `viewRefreshIntervalMs` keeps a visible widget current and pauses while the popover is hidden; `export const background` in `server.ts` runs on a host-owned timer, clamped to a 60-second minimum, for work that must continue while the popover is closed.
 - **Runtime-specific extension roots** - `pnpm dev` edits gitignored `extensions-dev/`; packaged builds seed and edit `~/.baby-menu/extensions` with internal snapshot save/rollback.
   Tracked `extensions/` remain the source templates for dev and packaged extension workspaces.
 
@@ -120,6 +123,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | `extensions/recipes/*.html` | Self-contained widget specs the agent reads                 |
 | `extensions-dev/`           | Gitignored dev workspace prepared by `scripts/dev.mjs`      |
 | `~/.baby-menu/extensions/`  | Packaged app extension workspace                            |
+| `~/.baby-menu/baby-menu.db`  | Packaged app's shared local SQLite store for extensions      |
 | `~/.baby-menu/cache/`       | Packaged widget, server-action, snapshot, and agent caches  |
 | `tests/`                    | Vitest tests (e2e specs are `tests/e2e-*.test.ts`)          |
 
