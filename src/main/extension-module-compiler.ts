@@ -20,6 +20,9 @@ export type CompiledExtensionModule = {
   outputDir: string;
   outputPath: string;
   moduleUrl: string;
+  // Absolute paths of every source file in the compiled module graph (entry plus local
+  // imports). Callers use these to detect edits cheaply via mtime/size before recompiling.
+  sourceFiles: string[];
 };
 
 type SourceModule = {
@@ -55,6 +58,7 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
   const hash = contentHash(graph, extensionDir, options.kind);
   const outputDir = join(options.cacheRoot, options.extensionId, hash);
   const outputPath = compiledOutputPath(outputDir, extensionDir, entryFile);
+  const sourceFiles = graph.map((module) => module.filePath);
 
   if (await pathExists(outputPath)) {
     return {
@@ -62,6 +66,7 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
       outputDir,
       outputPath,
       moduleUrl: pathToFileURL(outputPath).href,
+      sourceFiles,
     };
   }
 
@@ -85,6 +90,7 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
     outputDir,
     outputPath,
     moduleUrl: pathToFileURL(outputPath).href,
+    sourceFiles,
   };
 }
 

@@ -1,7 +1,6 @@
 import type { Dirent } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import type { BabyMenuBackgroundTask, BabyMenuCapabilityDescriptor, BabyMenuServerContext } from "../shared/contracts";
 import { createExtensionDatabase, type ExtensionDatabase } from "./extension-database";
 import { compileExtensionModule, rewriteExtensionModuleImports } from "./extension-module-compiler";
@@ -59,8 +58,8 @@ const DEFAULT_ACTION_ROOTS = ["extensions"];
 const SERVER_ACTION_FILE_PATTERN = /(^server|\.server)\.(mjs|js|ts)$/;
 
 export function createServerActionRegistry(options: CreateServerActionRegistryOptions): ServerActionRegistry {
-  let importVersion = 0;
   const actionRoots = options.actionRoots ?? DEFAULT_ACTION_ROOTS;
+  const loader = createServerModuleLoader({ cacheDir: options.cacheDir });
   // Share the host database with actions. Default to an in-memory store so a registry
   // can be exercised in isolation (e.g. tests) without a backing file.
   let database = options.db ?? null;
@@ -71,7 +70,8 @@ export function createServerActionRegistry(options: CreateServerActionRegistryOp
       await Promise.all(actionRoots.map((root) => discoverServerActionFiles(resolveActionRoot(options.rootDir, root))))
     ).flat();
 
-    const loaded = await Promise.all(files.map(async (filePath) => loadServerActionFile(filePath, options.rootDir, ++importVersion, options.cacheDir)));
+    loader.prune(files);
+    const loaded = await Promise.all(files.map((filePath) => loadServerActionFile(loader, filePath, options.rootDir)));
     return loaded.flat();
   };
 
@@ -98,8 +98,8 @@ export function createServerActionRegistry(options: CreateServerActionRegistryOp
 // same file discovery and compilation as the action registry, so background and actions
 // always come from one compiled module per file.
 export function createBackgroundTaskSource(options: CreateBackgroundTaskSourceOptions): BackgroundTaskSource {
-  let importVersion = 0;
   const actionRoots = options.actionRoots ?? DEFAULT_ACTION_ROOTS;
+  const loader = createServerModuleLoader({ cacheDir: options.cacheDir });
 
   return {
     async list() {
@@ -107,10 +107,11 @@ export function createBackgroundTaskSource(options: CreateBackgroundTaskSourceOp
         await Promise.all(actionRoots.map((root) => discoverServerActionFiles(resolveActionRoot(options.rootDir, root))))
       ).flat();
 
+      loader.prune(files);
       const loaded = await Promise.all(
         files.map(async (filePath) => {
           try {
-            return await loadBackgroundTaskFile(filePath, options.rootDir, ++importVersion, options.cacheDir);
+            return await loadBackgroundTaskFile(loader, filePath, options.rootDir);
           } catch (error) {
             (options.onError ?? defaultBackgroundTaskDiscoveryError)(inferExtensionId(filePath), error);
             return null;
@@ -149,22 +150,99 @@ async function discoverServerActionFiles(rootDir: string): Promise<string[]> {
   return files.flat().sort();
 }
 
-async function importServerModule(
-  filePath: string,
-  rootDir: string,
-  importVersion: number,
-  cacheDir?: string,
-): Promise<{ extensionId: string; module: ServerActionModule }> {
-  const importPath = await prepareServerActionModule(filePath, rootDir, cacheDir);
-  const moduleUrl = pathToFileURL(importPath);
-  moduleUrl.searchParams.set("babyMenuServerActionVersion", String(importVersion));
-  const module = (await import(moduleUrl.href)) as ServerActionModule;
-  const extensionId = normalizeExtensionId(module.extensionId ?? module.id) ?? inferExtensionId(filePath);
-  return { extensionId, module };
+export type ServerModuleLoad = { extensionId: string; module: ServerActionModule };
+
+export type ServerModuleLoader = {
+  load: (filePath: string, rootDir: string) => Promise<ServerModuleLoad>;
+  // Drop cache entries for files that are no longer present, so deleting an extension
+  // does not leak its cached module forever.
+  prune: (activePaths: Iterable<string>) => void;
+};
+
+type CreateServerModuleLoaderOptions = {
+  cacheDir?: string;
+  // Overridable for tests so the compile/import steps can be observed.
+  compile?: typeof compileExtensionModule;
+  importModule?: (moduleUrl: string) => Promise<unknown>;
+};
+
+type ServerModuleCacheEntry = {
+  signature: string;
+  sourceFiles: string[];
+  result: ServerModuleLoad;
+};
+
+// Compiles, imports, and caches an extension server module per source file.
+//
+// The compiler is content-addressed: identical source compiles to the same module URL, and
+// edited source compiles to a new one. Importing that URL therefore reuses a single module
+// instance while the code is unchanged - module-scope state survives across calls - and
+// loads a fresh module (with reset state) only after a real edit. This is why server actions
+// must not rely on a fresh module per call, and why durable state belongs in the database.
+//
+// On top of that, an mtime/size signature over the module graph lets a repeated load skip
+// recompiling entirely while nothing on disk has changed, so a hot path like a 1-2s view
+// refresh does not re-read and re-hash every extension source on every invoke.
+export function createServerModuleLoader(options: CreateServerModuleLoaderOptions = {}): ServerModuleLoader {
+  const compile = options.compile ?? compileExtensionModule;
+  const importModule = options.importModule ?? ((moduleUrl: string) => import(moduleUrl));
+  const cache = new Map<string, ServerModuleCacheEntry>();
+
+  return {
+    async load(filePath, rootDir) {
+      const normalizedPath = resolve(filePath);
+      const cached = cache.get(normalizedPath);
+      if (cached && (await sourceSignature(cached.sourceFiles)) === cached.signature) {
+        return cached.result;
+      }
+
+      const inferredId = inferExtensionId(normalizedPath);
+      const compiled = await compile({
+        kind: "server",
+        extensionId: inferredId,
+        extensionDir: dirname(normalizedPath),
+        entryFile: normalizedPath,
+        cacheRoot: options.cacheDir ?? join(rootDir, ".cache", "baby-menu", "server-actions"),
+      });
+      const module = (await importModule(compiled.moduleUrl)) as ServerActionModule;
+      const extensionId = normalizeExtensionId(module.extensionId ?? module.id) ?? inferredId;
+      const result: ServerModuleLoad = { extensionId, module };
+
+      cache.set(normalizedPath, {
+        signature: await sourceSignature(compiled.sourceFiles),
+        sourceFiles: compiled.sourceFiles,
+        result,
+      });
+      return result;
+    },
+    prune(activePaths) {
+      const active = new Set([...activePaths].map((filePath) => resolve(filePath)));
+      for (const key of [...cache.keys()]) {
+        if (!active.has(key)) cache.delete(key);
+      }
+    },
+  };
 }
 
-async function loadServerActionFile(filePath: string, rootDir: string, importVersion: number, cacheDir?: string): Promise<LoadedServerAction[]> {
-  const { extensionId, module } = await importServerModule(filePath, rootDir, importVersion, cacheDir);
+// A cheap fingerprint of a module graph: the size and mtime of every source file. A real
+// edit always changes at least one of these, so this detects changes without reading or
+// hashing file contents on every load.
+async function sourceSignature(files: string[]): Promise<string> {
+  const parts = await Promise.all(
+    files.map(async (filePath) => {
+      try {
+        const stats = await stat(filePath);
+        return `${filePath}:${stats.size}:${stats.mtimeMs}`;
+      } catch {
+        return `${filePath}:missing`;
+      }
+    }),
+  );
+  return parts.join("|");
+}
+
+async function loadServerActionFile(loader: ServerModuleLoader, filePath: string, rootDir: string): Promise<LoadedServerAction[]> {
+  const { extensionId, module } = await loader.load(filePath, rootDir);
   const actions = normalizeActions(module.actions);
 
   return Object.entries(actions).map(([action, handler]) => ({
@@ -176,12 +254,11 @@ async function loadServerActionFile(filePath: string, rootDir: string, importVer
 }
 
 async function loadBackgroundTaskFile(
+  loader: ServerModuleLoader,
   filePath: string,
   rootDir: string,
-  importVersion: number,
-  cacheDir?: string,
 ): Promise<DiscoveredBackgroundTask | null> {
-  const { extensionId, module } = await importServerModule(filePath, rootDir, importVersion, cacheDir);
+  const { extensionId, module } = await loader.load(filePath, rootDir);
   const background = normalizeBackgroundTask(module.background);
   if (!background) return null;
 
@@ -192,19 +269,6 @@ async function loadBackgroundTaskFile(
     runOnStart: background.runOnStart ?? true,
     run: background.run,
   };
-}
-
-async function prepareServerActionModule(filePath: string, rootDir: string, cacheDir?: string): Promise<string> {
-  const normalizedPath = resolve(filePath);
-  const extensionId = inferExtensionId(normalizedPath);
-  const compiled = await compileExtensionModule({
-    kind: "server",
-    extensionId,
-    extensionDir: dirname(normalizedPath),
-    entryFile: normalizedPath,
-    cacheRoot: cacheDir ?? join(rootDir, ".cache", "baby-menu", "server-actions"),
-  });
-  return compiled.outputPath;
 }
 
 export async function rewriteLocalServerActionImports(source: string, filePath: string): Promise<string> {

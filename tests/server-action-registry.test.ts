@@ -2,7 +2,12 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createBackgroundTaskSource, createServerActionRegistry, rewriteLocalServerActionImports } from "../src/main/server-action-registry";
+import {
+  createBackgroundTaskSource,
+  createServerActionRegistry,
+  createServerModuleLoader,
+  rewriteLocalServerActionImports,
+} from "../src/main/server-action-registry";
 
 describe("server action registry", () => {
   const tempDirs: string[] = [];
@@ -48,6 +53,56 @@ describe("server action registry", () => {
     await writeFile(actionPath, `export const actions = { ping: () => "second" };`);
 
     await expect(registry.invoke("demo", "ping")).resolves.toBe("second");
+  });
+
+  it("reuses one module instance across invokes so module-scope state persists while the source is unchanged", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "counter", "server.mjs");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(actionPath, `let count = 0; export const actions = { next: () => ++count };`);
+    const registry = createServerActionRegistry({ rootDir });
+
+    await expect(registry.invoke("counter", "next")).resolves.toBe(1);
+    await expect(registry.invoke("counter", "next")).resolves.toBe(2);
+    await expect(registry.invoke("counter", "next")).resolves.toBe(3);
+  });
+
+  it("loads a fresh module with reset state after the source changes", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "counter", "server.mjs");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(actionPath, `let count = 0; export const actions = { next: () => ++count };`);
+    const registry = createServerActionRegistry({ rootDir });
+
+    await expect(registry.invoke("counter", "next")).resolves.toBe(1);
+    await expect(registry.invoke("counter", "next")).resolves.toBe(2);
+
+    await writeFile(actionPath, `let count = 100; export const actions = { next: () => ++count };`);
+
+    await expect(registry.invoke("counter", "next")).resolves.toBe(101);
+  });
+
+  it("skips recompiling a server module on repeated loads while it is unchanged", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "demo", "server.ts");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(actionPath, `export const actions = { ping: () => "ok" };`);
+
+    const { compileExtensionModule } = await import("../src/main/extension-module-compiler");
+    const compile = vi.fn(compileExtensionModule);
+    const loader = createServerModuleLoader({ compile });
+
+    await loader.load(actionPath, rootDir);
+    await loader.load(actionPath, rootDir);
+    expect(compile).toHaveBeenCalledTimes(1);
+
+    await writeFile(actionPath, `export const actions = { ping: () => "changed" };`);
+
+    await loader.load(actionPath, rootDir);
+    expect(compile).toHaveBeenCalledTimes(2);
   });
 
   it("loads TypeScript extension server action files that agents are expected to create", async () => {

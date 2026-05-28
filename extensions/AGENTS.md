@@ -272,6 +272,13 @@ The `context` is `{ rootDir, db, notify }`:
 - `db` is the shared SQL store (see "Storage").
 - `notify({ title, body })` shows a native system notification.
 
+### Module-scope state in server.ts is not durable
+
+The host keeps one `server.ts` module instance alive across calls, so a module-scope variable does carry its value between `invoke`s and between background ticks - a `let previous = ...` at the top of `server.ts` will hold the last run's value while the code is unchanged.
+But that instance is replaced with fresh, reset state whenever you edit the extension's code (a hot reload) and whenever the app restarts.
+So module scope is fine for a cheap in-memory cache that is safe to lose, but anything that must survive a reload or restart - settings, accumulated history, a baseline you cannot recompute - has to live in `db` (see "Storage").
+When in doubt, persist to `db`: it is the only place state is guaranteed to outlive a code edit or restart.
+
 ## Storage
 
 Extensions share one local SQLite database, exposed as a small SQL interface.
@@ -333,8 +340,10 @@ Choosing the right mechanism is the main performance decision:
   It runs in the main process on a single owned timer, clamped to a 60s floor; pick the slowest cadence that meets the need, since each run wakes the machine.
 - Never start your own `setInterval`, `setTimeout` loops, or recursive polling inside a widget or server action - the host owns all timing.
 - Keep both server actions and background `run` functions cheap and non-blocking.
-  An action should read and return quickly; never `await` a fixed delay to build a measurement window.
-  For rate-derived metrics such as CPU percent, store the previous reading (in a table or module scope) and diff against it on the next run, instead of opening a fresh sampling window each call.
+  An action should read and return quickly; do not `await` a fixed delay inside an action to build a measurement window.
+- For rate-derived metrics such as CPU percent, persist the previous cumulative reading in `db` and diff the new reading against it on the next view refresh or background run; the gap between refreshes is your sampling window.
+  Prefer `db` over a module-scope variable here: module state is dropped on every code edit and restart (see "Module-scope state in server.ts is not durable"), and a baseline lost mid-session makes the next reading collapse to a meaningless 0 or 100 until it warms back up.
+  Whenever there is no stored baseline yet - the first call, or just after a reset - write the baseline and report a warming-up state rather than a misleading 0 or 100.
 - Guard long work with an in-flight flag and keep stored history bounded.
 
 ## Tests
