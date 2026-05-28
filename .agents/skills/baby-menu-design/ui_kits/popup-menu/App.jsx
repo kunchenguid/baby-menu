@@ -89,15 +89,20 @@ function App() {
             <WidgetHost widgets={widgets} />
           </div>
 
-          {run && <RunStrip run={run} />}
-          <SessionBar
-            session={session}
-            onSave={save}
-            onRollback={rollback}
-            onDismiss={dismissSession}
-          />
+          {run ? (
+            <RunStrip run={run} />
+          ) : (
+            <>
+              <SessionBar
+                session={session}
+                onSave={save}
+                onRollback={rollback}
+                onDismiss={dismissSession}
+              />
 
-          <Composer running={!!run && !run.done} onSend={send} />
+              <Composer running={false} onSend={send} />
+            </>
+          )}
         </div>
       </div>
     </div>
