@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/renderer/App";
+import { SettingsView } from "../src/renderer/settings/SettingsView";
 import type { BabyMenuApi, BabyMenuSettings } from "../src/shared/contracts";
 
 function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
@@ -153,5 +154,30 @@ describe("settings view", () => {
     fireEvent.click(codex);
     expect(screen.queryByText(/will reset the current conversation/i)).toBeNull();
     expect(api.settings.setAgent).not.toHaveBeenCalled();
+  });
+
+  it("renders a discovered extension settings section below app preferences", async () => {
+    installBabyMenuApi();
+    window.babyMenu!.widgets.list = vi.fn(async () => [
+      { id: "calendar.widget", extensionId: "calendar", moduleUrl: "/@fs/calendar/widget.tsx" },
+    ]);
+
+    render(
+      <SettingsView
+        runtimeImporter={async () => ({
+          calendarSettings: {
+            extensionId: "calendar",
+            title: "CALENDAR",
+            render: () => <span>which calendar</span>,
+          },
+        })}
+      />,
+    );
+
+    // App preference still renders first.
+    expect(await screen.findByText("launch at system start")).toBeTruthy();
+    // The extension's section title (host-drawn frame) and body both appear.
+    expect(await screen.findByText("CALENDAR")).toBeTruthy();
+    expect(screen.getByText("which calendar")).toBeTruthy();
   });
 });

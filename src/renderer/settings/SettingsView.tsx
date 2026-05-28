@@ -10,14 +10,26 @@ import {
   Switch,
   cn,
 } from "../../ui";
-import type { BabyMenuAgentOption } from "../../shared/contracts";
+import type { BabyMenuAgentOption, BabyMenuSettingsSection } from "../../shared/contracts";
+import { importRuntimeModule, type RuntimeModuleImporter } from "../extension-modules";
+import { loadRuntimeSettingsSections } from "./settings-sections";
 
-export function SettingsView() {
+type SettingsViewProps = {
+  // Explicit sections short-circuit runtime discovery (used by tests and any
+  // future host-provided sections). When omitted, sections are discovered from
+  // the active extension workspace, mirroring WidgetHost.
+  sections?: BabyMenuSettingsSection[];
+  runtimeImporter?: RuntimeModuleImporter;
+};
+
+export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = {}) {
   const [openAtLogin, setOpenAtLogin] = useState(false);
   const [agents, setAgents] = useState<BabyMenuAgentOption[]>([]);
   const [agentName, setAgentName] = useState("");
   const [agentSwitchDisabledReason, setAgentSwitchDisabledReason] = useState<string | undefined>();
   const [pendingAgent, setPendingAgent] = useState<BabyMenuAgentOption | null>(null);
+  const runtimeSections = useRuntimeSettingsSections({ enabled: sections === undefined, importer: runtimeImporter });
+  const visibleSections = sections ?? runtimeSections;
 
   useEffect(() => {
     let cancelled = false;
@@ -49,8 +61,8 @@ export function SettingsView() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-6">
+      <section className="flex flex-col gap-3">
         <span className="text-xxs uppercase tracking-caps text-ink-label">preferences</span>
         <div className="flex items-center justify-between gap-4">
           <span className="flex flex-col gap-0.5">
@@ -59,9 +71,9 @@ export function SettingsView() {
           </span>
           <Switch checked={openAtLogin} onCheckedChange={(next) => void toggle(next)} aria-label="launch at system start" />
         </div>
-      </div>
+      </section>
 
-      <div className="flex flex-col gap-2" role="radiogroup" aria-label="agent">
+      <section className="flex flex-col gap-2" role="radiogroup" aria-label="agent">
         <span className="text-xxs uppercase tracking-caps text-ink-label">agent</span>
         {agents.map((agent) => {
           const active = agent.name === agentName;
@@ -91,7 +103,7 @@ export function SettingsView() {
             </button>
           );
         })}
-      </div>
+      </section>
 
       <Dialog open={pendingAgent !== null} onOpenChange={(open) => !open && setPendingAgent(null)}>
         <DialogContent className="max-w-sm">
@@ -110,6 +122,39 @@ export function SettingsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {visibleSections.map((section) => (
+        <section key={section.extensionId} className="flex flex-col gap-3">
+          <span className="text-xxs uppercase tracking-caps text-ink-label">{section.title}</span>
+          <div>{section.render()}</div>
+        </section>
+      ))}
     </div>
   );
+}
+
+// Loads extension settings sections once per settings open. The settings view is
+// remounted each time it is opened, so this re-discovers sections on every open -
+// enough hot-reload granularity without an extra polling timer on the page.
+function useRuntimeSettingsSections({
+  enabled,
+  importer = importRuntimeModule,
+}: {
+  enabled: boolean;
+  importer?: RuntimeModuleImporter;
+}) {
+  const [sections, setSections] = useState<BabyMenuSettingsSection[]>([]);
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    void loadRuntimeSettingsSections(importer).then((loaded) => {
+      if (!cancelled) setSections(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, importer]);
+
+  return sections;
 }

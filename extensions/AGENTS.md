@@ -230,6 +230,34 @@ Starter empty states may use `text-2xl` or `text-3xl` for a single display line 
 Use readable body copy at `text-base`, and keep examples or hints small but legible.
 Example prompts should be complete pasteable user asks, not one-word labels.
 
+## Settings Sections
+
+An extension may contribute its own section to the Baby Menu settings page so the user can configure it (account, thresholds, units, which calendar, refresh cadence) without editing code.
+Export a `BabyMenuSettingsSection` from `widget.tsx` alongside the widget - it is discovered from the same module, so no new file convention and no preload changes are needed.
+
+```tsx
+import { Button, Field, Input, Switch } from "@babymenu/ui";
+
+export const calendarSettings = {
+  extensionId: "calendar", // must match the extension directory id; used as the section key and sort order
+  title: "CALENDAR",        // terse tracked-caps label, like a widget title
+  render: () => (
+    <div className="flex flex-col gap-3">
+      <Field label="account">
+        <Input placeholder="you@example.com" />
+      </Field>
+      <Switch aria-label="show all-day events" />
+    </div>
+  ),
+};
+```
+
+The section is renderer-only, exactly like a widget: the host draws the section frame (title, dividers, spacing) and you own only the body.
+Build the form from `@babymenu/ui` (`Field`, `Input`, `Switch`, `Select`, `Button`) so it matches the app shell for free.
+Read and write configuration through the existing bridges - `window.babyMenu.db` for normal values - using an extension-prefixed table (for example `calendar_settings`); there is no separate settings store.
+Do not put tokens or secrets in `db`; keep credential work in `server.ts`.
+The running widget picks up changed settings by re-reading on its next view refresh, so persist settings to `db` and read them in the widget rather than wiring a custom change event.
+
 ## Server Actions
 
 Put privileged filesystem, shell, network, credential, and token work in `server.ts`.

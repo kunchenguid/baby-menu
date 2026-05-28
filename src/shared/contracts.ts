@@ -124,6 +124,20 @@ export type BabyMenuWidget = {
   render: () => ReactNode;
 };
 
+// A configuration surface an extension contributes to the Settings page,
+// exported from `widget.tsx` alongside its widget. Renderer-only, like a widget:
+// the host draws the section frame (title, dividers, spacing) and the extension
+// owns only the body. It reads and writes its own configuration through the
+// existing bridges (`window.babyMenu.db`), so no per-extension IPC is added.
+export type BabyMenuSettingsSection = {
+  // Matches the extension id; used as the section key and for stable sort order.
+  extensionId: string;
+  // Terse section label, e.g. "CALENDAR".
+  title: string;
+  // Body only; the host draws the section frame around it.
+  render: () => ReactNode;
+};
+
 export type RefreshableBabyMenuWidget = BabyMenuWidget &
   (
     | {

@@ -3,9 +3,10 @@ import { RefreshCw } from "lucide-react";
 import type { RefreshableBabyMenuWidget } from "../../shared/contracts";
 import { helloWorldWidget } from "../../../extensions/hello-world/widget";
 import { Button } from "../../ui";
+import { importRuntimeModule, loadExtensionModules, type RuntimeModuleImporter } from "../extension-modules";
 import { useViewRefresh } from "./useViewRefresh";
 
-export type RuntimeWidgetImporter = (moduleUrl: string) => Promise<unknown>;
+export type RuntimeWidgetImporter = RuntimeModuleImporter;
 
 const DEFAULT_RUNTIME_REFRESH_INTERVAL_MS = 1000;
 
@@ -70,7 +71,7 @@ export function WidgetHost({ widgets, runtimeImporter, runtimeRefreshIntervalMs 
 
 function useRuntimeWidgets({
   enabled,
-  importer = importRuntimeWidgetModule,
+  importer = importRuntimeModule,
   refreshIntervalMs = DEFAULT_RUNTIME_REFRESH_INTERVAL_MS,
 }: {
   enabled: boolean;
@@ -105,33 +106,9 @@ function useRuntimeWidgets({
   return widgets;
 }
 
-export async function loadRuntimeWidgets(importer: RuntimeWidgetImporter = importRuntimeWidgetModule) {
-  const descriptors = await window.babyMenu?.widgets.list();
-  if (!descriptors?.length) return [];
-
-  const widgetGroups = await Promise.all(
-    descriptors.map(async (descriptor) => {
-      try {
-        if (descriptor.cssUrl) ensureWidgetStylesheet(descriptor.cssUrl);
-        return widgetsFromModule(await importer(descriptor.moduleUrl));
-      } catch {
-        return [];
-      }
-    }),
-  );
-  return widgetGroups.flat();
-}
-
-// Injects a compiled widget's Tailwind stylesheet (packaged mode only). Dev mode
-// descriptors carry no cssUrl because utilities come from the global stylesheet.
-function ensureWidgetStylesheet(href: string) {
-  if (typeof document === "undefined") return;
-  if (document.querySelector(`link[data-baby-menu-widget-css="${CSS.escape(href)}"]`)) return;
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = href;
-  link.dataset.babyMenuWidgetCss = href;
-  document.head.appendChild(link);
+export async function loadRuntimeWidgets(importer: RuntimeWidgetImporter = importRuntimeModule) {
+  const modules = await loadExtensionModules(importer);
+  return modules.flatMap(widgetsFromModule);
 }
 
 export function widgetsFromModule(module: unknown): RefreshableBabyMenuWidget[] {
@@ -153,8 +130,4 @@ function isRefreshableBabyMenuWidget(value: unknown): value is RefreshableBabyMe
     !hasInvalidRefresh &&
     !hasInvalidInterval
   );
-}
-
-function importRuntimeWidgetModule(moduleUrl: string): Promise<unknown> {
-  return import(/* @vite-ignore */ moduleUrl) as Promise<unknown>;
 }
