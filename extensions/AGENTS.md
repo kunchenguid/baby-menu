@@ -68,6 +68,83 @@ Available components:
 `@babymenu/ui` is the only extra import a widget may add beyond `react` and local files.
 Overlays such as `Dialog`, `Select`, and `Tooltip` are already sized to fit the tray popover; do not reposition them.
 
+Common API patterns:
+
+- `DataTable` takes `columns`, `rows`, optional `getRowKey`, and optional `empty` content.
+- `DataTable` columns use `{ key, header, align?, render? }`; omit `render` only when the row has a value at `row[column.key]`.
+- `Badge` supports `tone="neutral" | "live" | "warn" | "danger"`.
+- `StatusDot` supports `tone="live" | "warn" | "danger" | "muted"` and should sit next to a short status label.
+- `Progress` takes `value={0..100}` and optional `tone="live" | "warn" | "danger"`.
+- `Sparkline` takes `data={number[]}` and optional `width`, `height`, `tone="live" | "ink"`, and `area`.
+- `Select` and `Dialog` follow Radix composition: root, trigger, content, then item/body/footer pieces.
+
+```tsx
+import {
+  Badge,
+  Button,
+  DataTable,
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+  DialogTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sparkline,
+  StatusDot,
+} from "@babymenu/ui";
+
+type Row = { name: string; status: "live" | "warn"; load: number };
+
+const rows: Row[] = [
+  { name: "api", status: "live", load: 41 },
+  { name: "queue", status: "warn", load: 88 },
+];
+
+export function render() {
+  return (
+    <div className="flex flex-col gap-3">
+      <DataTable
+        rows={rows}
+        getRowKey={(row) => row.name}
+        columns={[
+          { key: "name", header: "service" },
+          {
+            key: "status",
+            header: "state",
+            render: (row) => <Badge tone={row.status}>{row.status}</Badge>,
+          },
+          { key: "load", header: "load", align: "right", render: (row) => `${row.load}%` },
+        ]}
+      />
+      <div className="flex items-center justify-between text-xs text-ink-muted">
+        <span className="flex items-center gap-1.5"><StatusDot tone="live" /> healthy</span>
+        <Sparkline data={[12, 18, 14, 31, 29, 41]} area />
+      </div>
+      <Select defaultValue="hour">
+        <SelectTrigger><SelectValue placeholder="window" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="hour">last hour</SelectItem>
+          <SelectItem value="day">last day</SelectItem>
+        </SelectContent>
+      </Select>
+      <Dialog>
+        <DialogTrigger asChild><Button>details</Button></DialogTrigger>
+        <DialogContent>
+          <DialogTitle>service details</DialogTitle>
+          <DialogBody>Keep dialog copy short enough for the tray window.</DialogBody>
+          <DialogFooter><Button>close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+```
+
 ### Style with Tailwind tokens
 
 Widgets are styled with Tailwind utility classes, and the per-widget stylesheet is compiled for you - you never configure Tailwind.
