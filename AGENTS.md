@@ -122,7 +122,7 @@ Do not write generated extension files, compiled modules, preferences, logs, sna
 - For privileged work, explicitly say that filesystem, shell, network, credential, and token access belongs in extension-owned server actions behind `window.babyMenu.capabilities.invoke`.
 - Renderer widgets should receive normalized data over `window.babyMenu` and should not add new preload methods for each capability.
 - If a real data source may be unavailable, define the mock fallback and require the UI to label it as mock data.
-- Define normalized TypeScript shapes in the recipe so the agent knows what data the main process should return to the renderer.
+- Define normalized TypeScript shapes in the recipe so the agent knows what data extension server actions should return to widgets.
 - Include parser guidance for command or API output, including timeout behavior, stale-data behavior, and user-visible errors.
 - Never include or ask for committed secrets, tokens, cookie values, or local credential dumps.
 - Standalone recipe HTML should use daisyUI from CDN and the `wireframe` theme.
