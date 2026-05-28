@@ -133,4 +133,25 @@ describe("settings view", () => {
     await waitFor(() => expect(screen.queryByText(/will reset/i)).toBeNull());
     expect(api.settings.setAgent).not.toHaveBeenCalled();
   });
+
+  it("disables agent switching with a visible reason when switching is blocked", async () => {
+    const api = installBabyMenuApi({
+      agentName: "claude",
+      agentSwitchDisabledReason: "Save or Rollback the current agent changes before switching agents.",
+      agents: [
+        { name: "claude", label: "Claude Code", available: true },
+        { name: "codex", label: "Codex", available: true },
+      ],
+    });
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "open settings" }));
+
+    const codex = await screen.findByRole("radio", { name: /Codex/ });
+
+    expect((codex as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Save or Rollback the current agent changes before switching agents.")).toBeTruthy();
+    fireEvent.click(codex);
+    expect(screen.queryByText(/will reset the current conversation/i)).toBeNull();
+    expect(api.settings.setAgent).not.toHaveBeenCalled();
+  });
 });

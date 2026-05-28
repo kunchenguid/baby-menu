@@ -48,6 +48,7 @@ export type BabyMenuSettings = {
   openAtLogin: boolean;
   /** Name of the active embedded agent. */
   agentName: string;
+  agentSwitchDisabledReason?: string;
   /** Selectable agents; unavailable ones are shown disabled with an install hint. */
   agents: BabyMenuAgentOption[];
 };

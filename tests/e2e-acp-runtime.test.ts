@@ -156,6 +156,60 @@ describe("BabyMenuAgentRuntime ACP e2e", () => {
   );
 
   it.skipIf(process.platform === "win32")(
+    "blocks agent switching while generated changes are pending review",
+    async () => {
+      const repo = await createRepo();
+      tempDirs.push(repo);
+      const logDir = await mkdtemp(join(tmpdir(), "baby-menu-acp-logs-"));
+      tempDirs.push(logDir);
+      const mockLogPath = join(logDir, "mock-acp.jsonl");
+
+      const runtime = new BabyMenuAgentRuntime(repo, {
+        agentName: "mock-target",
+        registryOverrides: {
+          "mock-target": buildMockCommand(mockLogPath),
+          "next-agent": buildMockCommand(mockLogPath),
+        },
+      });
+
+      await runtime.send("Add a line before switching");
+
+      await expect(runtime.setAgent("next-agent")).rejects.toThrow("Save or Rollback the current agent changes before switching agents.");
+      expect(runtime.currentAgent).toBe("mock-target");
+      expect(await runtime.rollback()).toMatchObject({ ok: true });
+      expect(await readFile(join(repo, "README.md"), "utf8")).toBe("# fixture\n");
+    },
+    30_000,
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "blocks agent switching while a turn is running",
+    async () => {
+      const repo = await createRepo();
+      tempDirs.push(repo);
+      const logDir = await mkdtemp(join(tmpdir(), "baby-menu-acp-logs-"));
+      tempDirs.push(logDir);
+      const mockLogPath = join(logDir, "mock-acp.jsonl");
+
+      const runtime = new BabyMenuAgentRuntime(repo, {
+        agentName: "mock-target",
+        registryOverrides: {
+          "mock-target": buildSlowMockCommand(mockLogPath),
+          "next-agent": buildMockCommand(mockLogPath),
+        },
+      });
+
+      const turn = runtime.send("Keep the agent busy");
+
+      await expect(runtime.setAgent("next-agent")).rejects.toThrow("Agent is running. Wait for it to finish before switching agents.");
+      expect(runtime.currentAgent).toBe("mock-target");
+      await turn;
+      expect(await runtime.rollback()).toMatchObject({ ok: true });
+    },
+    30_000,
+  );
+
+  it.skipIf(process.platform === "win32")(
     "blocks ACP startup when the repo is dirty so rollback remains safe",
     async () => {
       const repo = await createRepo();

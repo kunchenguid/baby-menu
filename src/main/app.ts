@@ -168,6 +168,7 @@ export async function startBabyMenuApp(): Promise<void> {
     return {
       openAtLogin: current.openAtLogin,
       agentName: agentRuntime.currentAgent,
+      agentSwitchDisabledReason: agentRuntime.agentSwitchDisabledReason,
       agents: toAgentOptions(agentCatalog, commandExists),
     };
   }
@@ -179,8 +180,8 @@ export async function startBabyMenuApp(): Promise<void> {
       return buildSettings();
     },
     async setAgent(agentName: string) {
-      await preferences.setAgent(agentName);
       await agentRuntime.setAgent(agentName);
+      await preferences.setAgent(agentName);
       return buildSettings();
     },
   };

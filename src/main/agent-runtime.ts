@@ -282,6 +282,14 @@ export class BabyMenuAgentRuntime {
     return this.agentName;
   }
 
+  get agentSwitchDisabledReason(): string | undefined {
+    if (this.activeTurn) return "Agent is running. Wait for it to finish before switching agents.";
+    if (this.activeSession?.canSave || this.activeSession?.canRollback) {
+      return "Save or Rollback the current agent changes before switching agents.";
+    }
+    return undefined;
+  }
+
   /**
    * Switches the embedded agent and resets the live conversation. Closing the
    * runtime with discardPersistentState drops the persisted "baby-menu-agent-chat"
@@ -290,6 +298,9 @@ export class BabyMenuAgentRuntime {
   async setAgent(name: string): Promise<void> {
     const next = name.trim();
     if (!next || next === this.agentName) return;
+
+    const disabledReason = this.agentSwitchDisabledReason;
+    if (disabledReason) throw new Error(disabledReason);
 
     if (this.runtime && this.handle) {
       const runtime = this.runtime;
@@ -399,12 +410,16 @@ export class BabyMenuAgentRuntime {
 
   async save(message?: string) {
     if (!this.activeSession) return { ok: false, reason: "No active agent change session" };
-    return this.activeSession.save(message);
+    const result = await this.activeSession.save(message);
+    if (result.ok) this.activeSession = null;
+    return result;
   }
 
   async rollback() {
     if (!this.activeSession) return { ok: false, reason: "No active agent change session" };
-    return this.activeSession.rollback();
+    const result = await this.activeSession.rollback();
+    if (result.ok) this.activeSession = null;
+    return result;
   }
 
   async close() {

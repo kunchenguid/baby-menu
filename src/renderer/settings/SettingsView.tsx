@@ -16,6 +16,7 @@ export function SettingsView() {
   const [openAtLogin, setOpenAtLogin] = useState(false);
   const [agents, setAgents] = useState<BabyMenuAgentOption[]>([]);
   const [agentName, setAgentName] = useState("");
+  const [agentSwitchDisabledReason, setAgentSwitchDisabledReason] = useState<string | undefined>();
   const [pendingAgent, setPendingAgent] = useState<BabyMenuAgentOption | null>(null);
 
   useEffect(() => {
@@ -25,6 +26,7 @@ export function SettingsView() {
       setOpenAtLogin(settings.openAtLogin);
       setAgents(settings.agents);
       setAgentName(settings.agentName);
+      setAgentSwitchDisabledReason(settings.agentSwitchDisabledReason);
     });
     return () => {
       cancelled = true;
@@ -42,6 +44,7 @@ export function SettingsView() {
     const result = await window.babyMenu.settings.setAgent(pendingAgent.name);
     setAgentName(result.agentName);
     setAgents(result.agents);
+    setAgentSwitchDisabledReason(result.agentSwitchDisabledReason);
     setPendingAgent(null);
   }
 
@@ -62,13 +65,14 @@ export function SettingsView() {
         <span className="text-xxs uppercase tracking-caps text-ink-label">agent</span>
         {agents.map((agent) => {
           const active = agent.name === agentName;
+          const switchBlocked = Boolean(agentSwitchDisabledReason && !active);
           return (
             <button
               key={agent.name}
               type="button"
               role="radio"
               aria-checked={active}
-              disabled={!agent.available || active}
+              disabled={!agent.available || active || switchBlocked}
               onClick={() => setPendingAgent(agent)}
               className={cn(
                 "flex items-center justify-between gap-3 rounded-sm border px-3 py-2 text-left outline-none transition-colors",
@@ -81,6 +85,7 @@ export function SettingsView() {
                 {!agent.available && agent.installHint ? (
                   <span className="text-xs text-ink-soft">{agent.installHint}</span>
                 ) : null}
+                {agent.available && switchBlocked ? <span className="text-xs text-ink-soft">{agentSwitchDisabledReason}</span> : null}
               </span>
               {active ? <StatusDot tone="live" /> : null}
             </button>
