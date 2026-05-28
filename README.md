@@ -39,7 +39,8 @@ add a CPU temp widget that shows current temperature and fan status
 Baby Menu writes the extension under `~/.baby-menu/extensions`, mounts the widget live, and shows Keep / Undo controls for the turn.
 Use Keep to keep it, or Undo to throw it away.
 The packaged app opens at login by default.
-Open settings from the popover header to turn `open at login` off or back on.
+Use the popover header to open settings or fully quit the app.
+Settings lets you turn `open at login` off or back on.
 
 ## Install Details
 
@@ -73,6 +74,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
    ┌─────────────────────┐
    │  macOS tray popover │   (React renderer, 360px wide)
    │ + Menu / Settings   │
+   │ + Quit              │
    └──────────┬──────────┘
               │  send()
               ▼
@@ -111,7 +113,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | --------------------------- | ----------------------------------------------------------- |
 | `src/main/`                 | Electron lifecycle, tray, popover, IPC, git, agent runtime  |
 | `src/preload/index.ts`      | The stable `window.babyMenu` bridge                         |
-| `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, and settings            |
+| `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, settings, and app controls |
 | `src/ui/`                   | Shared `@babymenu/ui` design system for shell and widgets    |
 | `src/shared/contracts.ts`   | `BabyMenuApi`, `BabyMenuWidget`, `GitSessionSnapshot`, etc. |
 | `extensions/<id>/`          | Tracked extensions (`widget.tsx`, `server.ts`)              |

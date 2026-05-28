@@ -32,7 +32,7 @@ Three processes, kept deliberately separate:
 
 1. **Main** (`src/main/`) - app lifecycle, tray, popover window, IPC, git, agent runtime. Never call agent or git from the renderer directly.
 2. **Preload** (`src/preload/index.ts`) - the stable bridge. Exposes `window.babyMenu` via `contextBridge`. Do not add one-off preload methods for each widget.
-3. **Renderer** (`src/renderer/`) - React UI: `AgentChat`, `WidgetHost`, and `SettingsView`. Widgets should be hot reloadable and should not require an Electron restart for each new capability. The app shell and extension widgets share one design system, `@babymenu/ui` (`src/ui/`); see "Design system" below.
+3. **Renderer** (`src/renderer/`) - React UI: `AgentChat`, `WidgetHost`, `SettingsView`, and app-shell controls such as Quit. Widgets should be hot reloadable and should not require an Electron restart for each new capability. The app shell and extension widgets share one design system, `@babymenu/ui` (`src/ui/`); see "Design system" below.
 4. **Extension server actions** - privileged filesystem, shell, network, credential, and token work should live behind extension-owned server actions invoked through the stable generic capability bridge.
    Renderer widgets call these actions with `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
    Server actions live in the active extension workspace under `<extension-id>/server.ts` and export an `actions` object.
