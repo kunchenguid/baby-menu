@@ -23,15 +23,11 @@ export function useViewRefresh(options: ViewRefreshOptions) {
     let disposed = false;
     let visibilityEventSeen = false;
 
-    if (!options.viewRefreshIntervalMs) {
-      refreshNow();
-      return undefined;
-    }
-
     const intervalMs = options.viewRefreshIntervalMs;
     let timer: number | undefined;
 
     const start = () => {
+      if (!intervalMs) return;
       if (timer !== undefined) return;
       timer = window.setInterval(refreshNow, intervalMs);
     };

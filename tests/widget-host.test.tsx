@@ -91,6 +91,20 @@ describe("useViewRefresh", () => {
     act(() => vi.advanceTimersByTime(2000));
     expect(refreshView).toHaveBeenCalledTimes(3);
   });
+
+  it("refreshes a widget without an interval each time the popover is shown", () => {
+    const popover = installPopoverVisibility();
+    const refreshView = vi.fn();
+
+    renderHook(() => useViewRefresh({ id: "quota", refreshView }));
+    expect(refreshView).toHaveBeenCalledTimes(1);
+
+    act(() => popover.emit(false));
+    expect(refreshView).toHaveBeenCalledTimes(1);
+
+    act(() => popover.emit(true));
+    expect(refreshView).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("WidgetHost", () => {
