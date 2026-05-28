@@ -29,7 +29,7 @@ mac:
   identity: null
   hardenedRuntime: false
   gatekeeperAssess: false
-  x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/{@esbuild/**,esbuild/**}
+  x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/{@esbuild/**,esbuild/**,@tailwindcss/oxide-*/**,lightningcss-*/**,lightningcss/**}
 
 dmg:
   artifactName: Baby-Menu-${version}-universal.dmg
