@@ -187,6 +187,7 @@ export function createServerModuleLoader(options: CreateServerModuleLoaderOption
   const compile = options.compile ?? compileExtensionModule;
   const importModule = options.importModule ?? ((moduleUrl: string) => import(moduleUrl));
   const cache = new Map<string, ServerModuleCacheEntry>();
+  let reloadGeneration = 0;
 
   return {
     async load(filePath, rootDir) {
@@ -204,7 +205,7 @@ export function createServerModuleLoader(options: CreateServerModuleLoaderOption
         entryFile: normalizedPath,
         cacheRoot: options.cacheDir ?? join(rootDir, ".cache", "baby-menu", "server-actions"),
       });
-      const module = (await importModule(compiled.moduleUrl)) as ServerActionModule;
+      const module = (await importModule(withReloadGeneration(compiled.moduleUrl, ++reloadGeneration))) as ServerActionModule;
       const extensionId = normalizeExtensionId(module.extensionId ?? module.id) ?? inferredId;
       const result: ServerModuleLoad = { extensionId, module };
 
@@ -222,6 +223,12 @@ export function createServerModuleLoader(options: CreateServerModuleLoaderOption
       }
     },
   };
+}
+
+function withReloadGeneration(moduleUrl: string, generation: number): string {
+  const url = new URL(moduleUrl);
+  url.searchParams.set("babyMenuServerActionReload", String(generation));
+  return url.href;
 }
 
 // A cheap fingerprint of a module graph: the size and mtime of every source file. A real

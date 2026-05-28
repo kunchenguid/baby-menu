@@ -84,6 +84,26 @@ describe("server action registry", () => {
     await expect(registry.invoke("counter", "next")).resolves.toBe(101);
   });
 
+  it("loads a fresh module when changed source reverts to previously imported contents", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "counter", "server.mjs");
+    const firstSource = `let count = 0; export const actions = { next: () => ++count };`;
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(actionPath, firstSource);
+    const registry = createServerActionRegistry({ rootDir });
+
+    await expect(registry.invoke("counter", "next")).resolves.toBe(1);
+    await expect(registry.invoke("counter", "next")).resolves.toBe(2);
+
+    await writeFile(actionPath, `let count = 100; export const actions = { next: () => ++count };`);
+    await expect(registry.invoke("counter", "next")).resolves.toBe(101);
+
+    await writeFile(actionPath, firstSource);
+
+    await expect(registry.invoke("counter", "next")).resolves.toBe(1);
+  });
+
   it("skips recompiling a server module on repeated loads while it is unchanged", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
     tempDirs.push(rootDir);
