@@ -23,12 +23,12 @@ If the user invokes this skill without any other guidance, ask them what they wa
 
 ## Hard rules
 
-1. Baby Menu is a **macOS tray popover**, 360px wide, dynamic-height. Never design for a full browser window.
+1. Baby Menu is a **macOS tray popover**, 504px wide, dynamic-height. Never design for a full browser window.
 2. **The agent's work is not a chat.** No transcript, no bubbles, no history. Use the `RunStrip` pattern: one live affordance (pulsing mint dot + current step + timer), replaced by a `SessionBar` when done.
 3. **No build-mode toggle.** On the main idle surface, the composer is one slim row pinned to the bottom of the popover. It auto-grows to a second line when the user types more. During an active agent run, `RunStrip` replaces the composer; the settings view also replaces it while open.
 4. **Never expose git, files, or commits to the user.** The SessionBar reads "Added a CPU temperature widget", not "3 files committed · b8d3a2c". Buttons are **Keep** and **Undo**, not Save and Rollback.
 5. **No emoji as UI.** No gradients. Status is color + word (rarely needed — usually only on the SessionBar's leading dot).
-6. **Type and ASCII glyphs are the iconography.** `›` `+` `·` `↵` `⌘` `●`. Lucide is used when ASCII won't carry the meaning, including `RefreshCw` for widget refresh and `Power` for quitting the app; use 14px in compact controls and 16px in roomier controls.
+6. **Type and ASCII glyphs are the iconography.** `›` `+` `·` `↵` `⌘` `●`. Lucide is used when ASCII won't carry the meaning, including `Settings` for settings and `Power` for quitting the app; use 14px in compact controls and 16px in roomier controls.
 7. **JetBrains Mono everywhere** inside the popover surface. Inter Tight only for long prose outside the surface.
 8. **Mint is the only signal color** and is used ONLY as a dot, glow, single word, or 1px progress fill — never as a button fill, never as a background of more than 10% alpha.
 9. Production `@babymenu/ui` buttons use compact `rounded-sm` corners. Primary is **inverse white** (`--ink-100` on near-black). Default is transparent with a 1px hairline border. Destructive is coral outline. Reserve pill buttons for prototype/app-shell affordances where the design brief calls for them.

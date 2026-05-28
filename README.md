@@ -96,7 +96,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 
 ```
    ┌─────────────────────┐
-   │  macOS tray popover │   (React renderer, 360px wide)
+   │  macOS tray popover │   (React renderer, 504px wide)
    │ + Menu / Settings   │
    │ + Quit              │
    └──────────┬──────────┘
@@ -166,7 +166,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 
 ```sh
 pnpm dev          # run Electron + renderer dev server with a gitignored extensions-dev/ sandbox
-pnpm dev:reset    # wipe extensions-dev/ and start fresh
+pnpm dev:reset    # wipe extensions-dev/ and agent session cache, then start fresh
 pnpm build        # build main + preload + renderer into out/
 pnpm package:mac  # build and create an ad-hoc-signed .app in release/mac-universal/
 pnpm dist:mac     # build the .app and create a universal DMG in release/
@@ -177,6 +177,7 @@ pnpm lint         # tsc --noEmit (same as typecheck)
 ```
 
 Use `pnpm dev` for source iteration in a throwaway sandbox - the agent edits the gitignored `extensions-dev/` copy and your tracked tree stays clean.
+Use `pnpm dev:reset` when recipe or extension guidance changes; it also clears `.cache/baby-menu/acp-sessions` so the embedded agent re-reads the fresh copied specs instead of continuing from prior conversation state.
 Source/dev mode never touches macOS login items, including Electron's `setLoginItemSettings` API.
 Use `pnpm package:mac` when you want to test the actual packaged app from `release/mac-universal/Baby Menu.app`.
 

@@ -6,7 +6,7 @@ Embedded agents launched from baby-menu should work from the active extension wo
 ## Commands
 
 - `pnpm dev` - runs `scripts/dev.mjs`, prepares a gitignored `extensions-dev/` workspace by copying `extensions/AGENTS.md` and `extensions/recipes/`, and runs `electron-vite dev` from the current checkout. The app itself sees current uncommitted changes, while the embedded agent is launched inside `extensions-dev/`.
-- `pnpm dev:reset` - removes `extensions-dev/`, recreates it with the latest `extensions/AGENTS.md` and `extensions/recipes/`, and starts dev mode.
+- `pnpm dev:reset` - removes `extensions-dev/` and `.cache/baby-menu/acp-sessions`, recreates the dev workspace with the latest `extensions/AGENTS.md` and `extensions/recipes/`, and starts dev mode.
 - `pnpm build` - build main, preload, and renderer bundles into `out/`.
 - `pnpm package:mac` - builds the app, packages `release/mac-universal/Baby Menu.app`, and ad-hoc signs it for local testing.
 - `pnpm dist:mac` - runs `package:mac` and creates `release/Baby-Menu-<version>-universal.dmg`.

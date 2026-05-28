@@ -82,7 +82,7 @@ The personality is "competent log". A calm CLI tool that happens to have a face.
 - `Added a CPU temperature widget`
 - `keep it, or undo`
 - `Finish this change first`
-- `ask the agent`
+- `talk to the baby`
 - `last sync 12:04`
 - `claude · weekly`
 - `designing the widget`
@@ -100,9 +100,9 @@ The personality is "competent log". A calm CLI tool that happens to have a face.
 ### Capitalization & punctuation
 
 - Wordmark: `baby_menu` (lowercase, underscore).
-- Module / widget keys: ALL CAPS, tracked `0.18em`. `CLAUDE · WEEKLY`, `BATTERY`, `NOW PLAYING`.
+- Module / widget keys: ALL CAPS, tracked `0.18em`. `CLAUDE · WEEKLY`, `CPU`, `NOW PLAYING`.
 - Button labels: Sentence case, no period. `Keep`, `Undo`, `Dismiss`. Special-case: tiny labels like `send` stay lowercase as a typographic detail (it reads as a command, not a button).
-- Placeholders: lowercase imperative, no period, no `...` ellipsis. `ask the agent`.
+- Placeholders: lowercase imperative, no period, no `...` ellipsis. `talk to the baby`.
 - Error states: declarative, no exclamation. `Finish this change first.` `Refresh timed out.`
 - The word "agent" stays lowercase except at the start of a sentence.
 
@@ -114,13 +114,13 @@ Until assistant response text is available, the subtitle reads `Working...`.
 Do not surface tool names, usage updates, command names, or synthetic progress labels in the RunStrip subtitle.
 When assistant response text appears there, it should be plain user-facing copy:
 
-- `Built the battery widget`
+- `Built the Claude quota widget`
 - `Added the calendar widget`
 
 When the agent finishes, the SessionBar summarizes the result in one phrase, past-tense:
 
 - `Added a CPU temperature widget`
-- `Added a battery widget`
+- `Added a memory widget`
 - `Updated the now-playing widget`
 
 The user should be able to read this and immediately know whether to **Keep** it or **Undo** it without thinking about engineering at all.
@@ -183,7 +183,7 @@ The macOS popover assumes the OS provides its own under-window blur. Inside the 
 
 Motion is **snappy, short, and ease-out.**
 
-- `--motion-fast` **80ms** — hover, refresh-button color shift, dot pulse start.
+- `--motion-fast` **80ms** — hover, compact-control color shift, dot pulse start.
 - `--motion-base` **160ms** — segmented-control toggle, button press, focus ring fade.
 - `--motion-slow` **280ms** — popover entry/exit (translate + scale), RunStrip appear, progress fill changes.
 - **Caret blink**: 1100ms `steps(2, start)` — the composer caret blinks like a real terminal cursor.
@@ -196,7 +196,7 @@ Easings: `--ease` `cubic-bezier(0.22, 0.61, 0.36, 1)` for entry; `--ease-in-out`
 ### Interaction states
 
 - **Hover** on text-button: background fades to `--bg-elevated`, border to `--ink-600`, text to `--ink-100` over 160ms.
-- **Hover** on refresh icon or text-link affordance: color shifts to `--signal-live`.
+- **Hover** on compact icon controls or text-link affordances: color shifts to `--signal-live`.
 - **Hover** on quit: keep the button neutral at rest, then shift icon/text to `--signal-error` / `text-signal-danger` on hover without using a danger fill.
 - **Press** (`:active`): background drops to `--bg-pressed`. No translate, no shrink — keep the surface still.
 - **Focus** (keyboard): `--focus-ring` 1px solid mint + 4px mint glow. Same rule for everything.
@@ -206,7 +206,7 @@ Easings: `--ease` `cubic-bezier(0.22, 0.61, 0.36, 1)` for entry; `--ease-in-out`
 
 ### Layout rules
 
-- Width is fixed at **360px** in the live popover. Do not design responsive popover widths unless the runtime sizing code changes.
+- Width is fixed at **504px** in the live popover. Do not design responsive popover widths unless the runtime sizing code changes.
 - **Height is auto.** The popover grows to fit. Plan layouts for any height between 220px and 720px. Once the popover reaches its max height, the popover body scrolls; the header and active agent-control surface stay pinned.
 - The **composer** is pinned to the bottom on the main menu and idle agent surface; it is hidden while the settings view is open and replaced by the RunStrip while an agent run is in flight.
 - The **SessionBar** is pinned just above the composer **only when** the agent has just added or undone something and is waiting for the user to decide.
@@ -217,7 +217,7 @@ Easings: `--ease` `cubic-bezier(0.22, 0.61, 0.36, 1)` for entry; `--ease-in-out`
 
 A widget is a vertical stack inside the popover body, separated from its neighbors by a `1px dashed` divider — *not* a contained card. Top to bottom:
 
-1. **Head row** — tracked-caps `key` (e.g. `CLAUDE · WEEKLY`) on the left, compact Lucide `RefreshCw` icon on the right when refresh is available.
+1. **Head row** — tracked-caps `key` (e.g. `CLAUDE · WEEKLY`) on the left. The host does not render a generic manual refresh button.
 2. **Value row** — the big number (weight 300, 28–36px, tabular numerals, tight tracking) with the unit at small. Optional status word on the right.
 3. **Progress** — a 1px line at `--ink-800` with a `--signal-live` fill plus a 3×5px head at the tip, like a tiny scanline. Optional.
 4. **Foot row** - 11px ink-faint meta on the left (timestamp), an uppercase source tag on the right (`OAUTH`, `CLI`, etc).
@@ -231,7 +231,7 @@ Widgets do **not** have backgrounds, borders, shadows, or padding-as-containers.
 Type is the iconography. The system leans on **ASCII glyphs** and **tracked-caps words** instead of a drawn icon set.
 
 1. **ASCII first.** `›` is the prompt and the menu-affordance pointer. `+` is add. `·` is separator. `↵` and `⌘` appear in shortcut hints. `●` is a status dot. These read crisp at any size because they are real characters in the body font (JetBrains Mono).
-2. **Lucide for compact controls.** Use [Lucide](https://lucide.dev) when ASCII won't carry a meaning, including `RefreshCw` for widget refresh, `Settings` for settings, and `Power` for quitting the app. Use **14×14** in compact controls and **16×16** in roomier controls, color `currentColor`. Lucide is the closest visual match - slightly soft, geometric, monoline - and is bundled with the live codebase.
+2. **Lucide for compact controls.** Use [Lucide](https://lucide.dev) when ASCII won't carry a meaning, including `Settings` for settings and `Power` for quitting the app. Use **14×14** in compact controls and **16×16** in roomier controls, color `currentColor`. Lucide is the closest visual match - slightly soft, geometric, monoline - and is bundled with the live codebase.
 3. **No emoji as UI.** No `🟢 / ✅ / ⚠️ / 🚫`. Status is the mint dot + word.
 4. **No custom hand-drawn SVG.** The tray glyph is the wordmark's `b` rendered as a template PNG by `src/main/tray.ts`.
 

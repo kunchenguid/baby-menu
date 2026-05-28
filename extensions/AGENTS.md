@@ -72,14 +72,15 @@ Available components:
 - `cn(...)` merges Tailwind class strings safely.
 
 `@babymenu/ui` is the only extra import a widget module may add beyond `react` and local files.
-Overlays such as `Dialog`, `Select`, and `Tooltip` are already sized to fit the tray popover; do not reposition them.
+Overlays such as `Dialog` and `Select` are already sized to fit the tray popover; do not reposition them.
+`Tooltip` is a small positioned hint rather than a full popover overlay.
 
 Common API patterns:
 
 - `DataTable` takes `columns`, `rows`, optional `getRowKey`, and optional `empty` content.
 - `DataTable` columns use `{ key, header, align?, render? }`; omit `render` only when the row has a value at `row[column.key]`.
 - `Badge` supports `tone="neutral" | "live" | "warn" | "danger"`.
-- `StatusDot` supports `tone="live" | "warn" | "danger" | "muted"` and should sit next to a short status label.
+- `StatusDot` supports `tone="live" | "warn" | "danger" | "muted"` and optional `pulse`; it should sit next to a short status label.
 - `Progress` takes `value={0..100}` and optional `tone="live" | "warn" | "danger"`.
 - `Sparkline` takes `data={number[]}` and optional `width`, `height`, `tone="live" | "ink"`, and `area`.
 - `Select` and `Dialog` follow Radix composition: root, trigger, content, then item/body/footer pieces.
@@ -89,7 +90,7 @@ Common API patterns:
 - `Switch` uses Radix switch props such as `checked`, `defaultChecked`, `onCheckedChange`, and `disabled`.
 - `Tabs` follow Radix composition: `Tabs defaultValue`, `TabsList`, matching `TabsTrigger value`, and `TabsContent value`.
 - `DropdownMenu` follows Radix composition: root, `DropdownMenuTrigger`, `DropdownMenuContent`, then `DropdownMenuItem` rows.
-- `Tooltip` wraps one trigger child and takes `content`, optional `side`, and optional `className`; do not mount a separate provider.
+- `Tooltip` wraps one trigger child and takes `content`, optional `side`, optional `className`, and optional `defaultOpen`; do not mount a separate provider.
 
 ```tsx
 import {
