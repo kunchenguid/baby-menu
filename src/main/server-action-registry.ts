@@ -1,9 +1,9 @@
 import type { Dirent } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import type { BabyMenuBackgroundTask, BabyMenuCapabilityDescriptor, BabyMenuServerContext } from "../shared/contracts";
 import { createExtensionDatabase, type ExtensionDatabase } from "./extension-database";
-import { compileExtensionModule, rewriteExtensionModuleImports } from "./extension-module-compiler";
+import { compileExtensionModule, rewriteExtensionModuleImports, type CompiledExtensionModule } from "./extension-module-compiler";
 
 export type ServerActionContext = BabyMenuServerContext & {
   db: ExtensionDatabase;
@@ -222,22 +222,30 @@ export function createServerModuleLoader(options: CreateServerModuleLoaderOption
 
   async function loadFreshServerModule(normalizedPath: string, rootDir: string): Promise<ServerModuleCacheEntry> {
     const inferredId = inferExtensionId(normalizedPath);
-    const compiled = await compile({
-      kind: "server",
-      extensionId: inferredId,
-      extensionDir: dirname(normalizedPath),
-      entryFile: normalizedPath,
-      cacheRoot: options.cacheDir ?? join(rootDir, ".cache", "baby-menu", "server-actions"),
-    });
-    const module = (await importModule(withReloadGeneration(compiled.moduleUrl, ++reloadGeneration))) as ServerActionModule;
-    const extensionId = normalizeExtensionId(module.extensionId ?? module.id) ?? inferredId;
-    const result: ServerModuleLoad = { extensionId, module };
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const generation = ++reloadGeneration;
+      const compiled = await compile({
+        kind: "server",
+        extensionId: inferredId,
+        extensionDir: dirname(normalizedPath),
+        entryFile: normalizedPath,
+        cacheRoot: options.cacheDir ?? join(rootDir, ".cache", "baby-menu", "server-actions"),
+      });
+      await prepareServerModuleGraph(compiled, dirname(normalizedPath), generation);
+      const module = (await importModule(withReloadGeneration(compiled.moduleUrl, generation))) as ServerActionModule;
+      const signature = await sourceSignature(compiled.sourceFiles);
+      if (signature !== compiled.sourceSignature) continue;
+      const extensionId = normalizeExtensionId(module.extensionId ?? module.id) ?? inferredId;
+      const result: ServerModuleLoad = { extensionId, module };
 
-    return {
-      signature: await sourceSignature(compiled.sourceFiles),
-      sourceFiles: compiled.sourceFiles,
-      result,
-    };
+      return {
+        signature,
+        sourceFiles: compiled.sourceFiles,
+        result,
+      };
+    }
+
+    throw new Error(`Server action source changed while loading ${relative(process.cwd(), normalizedPath)}`);
   }
 }
 
@@ -245,6 +253,43 @@ function withReloadGeneration(moduleUrl: string, generation: number): string {
   const url = new URL(moduleUrl);
   url.searchParams.set("babyMenuServerActionReload", String(generation));
   return url.href;
+}
+
+async function prepareServerModuleGraph(compiled: CompiledExtensionModule, extensionDir: string, generation: number): Promise<void> {
+  await Promise.all(
+    compiled.sourceFiles.map(async (sourceFile) => {
+      const outputPath = join(compiled.outputDir, replaceExtension(relative(extensionDir, sourceFile), ".mjs"));
+      const source = await readFile(outputPath, "utf8");
+      const rewritten = rewriteCompiledLocalImports(source, generation);
+      if (rewritten !== source) await writeFile(outputPath, rewritten);
+    }),
+  );
+}
+
+const COMPILED_STATIC_IMPORT_PATTERN = /(\b(?:import|export)\b[\s\S]*?\bfrom\s*["'])([^"']+)(["'])/g;
+const COMPILED_SIDE_EFFECT_IMPORT_PATTERN = /(\bimport\s*["'])([^"']+)(["'])/g;
+
+function rewriteCompiledLocalImports(source: string, generation: number): string {
+  return source
+    .replace(COMPILED_STATIC_IMPORT_PATTERN, (_match, prefix: string, specifier: string, suffix: string) => {
+      return `${prefix}${withLocalReloadGeneration(specifier, generation)}${suffix}`;
+    })
+    .replace(COMPILED_SIDE_EFFECT_IMPORT_PATTERN, (_match, prefix: string, specifier: string, suffix: string) => {
+      return `${prefix}${withLocalReloadGeneration(specifier, generation)}${suffix}`;
+    });
+}
+
+function withLocalReloadGeneration(specifier: string, generation: number): string {
+  if (!specifier.startsWith("./") && !specifier.startsWith("../")) return specifier;
+  const [path, fragment = ""] = specifier.split("#", 2);
+  const [pathname, query = ""] = path.split("?", 2);
+  const params = new URLSearchParams(query);
+  params.set("babyMenuServerActionReload", String(generation));
+  return `${pathname}?${params.toString()}${fragment ? `#${fragment}` : ""}`;
+}
+
+function replaceExtension(filePath: string, extension: string): string {
+  return filePath.slice(0, filePath.length - extname(filePath).length) + extension;
 }
 
 // A cheap fingerprint of a module graph: the size and mtime of every source file. A real

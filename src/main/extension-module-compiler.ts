@@ -1,6 +1,6 @@
 import { builtinModules } from "node:module";
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
@@ -23,11 +23,13 @@ export type CompiledExtensionModule = {
   // Absolute paths of every source file in the compiled module graph (entry plus local
   // imports). Callers use these to detect edits cheaply via mtime/size before recompiling.
   sourceFiles: string[];
+  sourceSignature: string;
 };
 
 type SourceModule = {
   filePath: string;
   source: string;
+  signature: string;
 };
 
 type ResolvedLocalImport = {
@@ -59,6 +61,7 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
   const outputDir = join(options.cacheRoot, options.extensionId, hash);
   const outputPath = compiledOutputPath(outputDir, extensionDir, entryFile);
   const sourceFiles = graph.map((module) => module.filePath);
+  const sourceSignature = graph.map((module) => module.signature).join("|");
 
   if (await pathExists(outputPath)) {
     return {
@@ -67,6 +70,7 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
       outputPath,
       moduleUrl: pathToFileURL(outputPath).href,
       sourceFiles,
+      sourceSignature,
     };
   }
 
@@ -91,6 +95,7 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
     outputPath,
     moduleUrl: pathToFileURL(outputPath).href,
     sourceFiles,
+    sourceSignature,
   };
 }
 
@@ -144,8 +149,8 @@ async function collectModuleGraph(options: {
     if (modules.has(normalizedPath)) return;
     assertInsideExtension(options.extensionDir, normalizedPath, options.extensionId);
 
-    const source = await readFile(normalizedPath, "utf8");
-    modules.set(normalizedPath, { filePath: normalizedPath, source });
+    const { source, signature } = await readStableSource(normalizedPath);
+    modules.set(normalizedPath, { filePath: normalizedPath, source, signature });
 
     const dependencies = await Promise.all(
       importSpecifierMatches(source, { includeTypeOnly: false }).map(async (match) => {
@@ -161,6 +166,18 @@ async function collectModuleGraph(options: {
 
   await visit(options.entryFile);
   return [...modules.values()].sort((left, right) => left.filePath.localeCompare(right.filePath));
+}
+
+async function readStableSource(filePath: string): Promise<{ source: string; signature: string }> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const before = await stat(filePath);
+    const source = await readFile(filePath, "utf8");
+    const after = await stat(filePath);
+    if (before.size === after.size && before.mtimeMs === after.mtimeMs) {
+      return { source, signature: `${filePath}:${after.size}:${after.mtimeMs}` };
+    }
+  }
+  throw new Error(`Source changed while reading ${filePath}`);
 }
 
 async function transpileAndRewriteModule(options: {

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -105,6 +105,28 @@ describe("server action registry", () => {
     await expect(registry.invoke("counter", "next")).resolves.toBe(1);
   });
 
+  it("loads fresh local dependency modules when changed helper source reverts to previously imported contents", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "counter", "server.ts");
+    const helperPath = join(rootDir, "extensions", "counter", "helper.ts");
+    const firstHelperSource = `let count = 0; export function next() { return ++count; }`;
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(actionPath, `import { next } from "./helper"; export const actions = { next };`);
+    await writeFile(helperPath, firstHelperSource);
+    const registry = createServerActionRegistry({ rootDir });
+
+    await expect(registry.invoke("counter", "next")).resolves.toBe(1);
+    await expect(registry.invoke("counter", "next")).resolves.toBe(2);
+
+    await writeFile(helperPath, `let count = 100; export function next() { return ++count; }`);
+    await expect(registry.invoke("counter", "next")).resolves.toBe(101);
+
+    await writeFile(helperPath, firstHelperSource);
+
+    await expect(registry.invoke("counter", "next")).resolves.toBe(1);
+  });
+
   it("skips recompiling a server module on repeated loads while it is unchanged", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
     tempDirs.push(rootDir);
@@ -133,14 +155,20 @@ describe("server action registry", () => {
     await mkdir(dirname(actionPath), { recursive: true });
     await writeFile(actionPath, `export const actions = { ping: () => "ok" };`);
 
-    const moduleUrl = pathToFileURL(join(rootDir, "compiled", "server.mjs")).href;
-    const compile = vi.fn(async () => ({
-      hash: "hash",
-      outputDir: dirname(join(rootDir, "compiled", "server.mjs")),
-      outputPath: join(rootDir, "compiled", "server.mjs"),
-      moduleUrl,
-      sourceFiles: [actionPath],
-    }));
+    const outputPath = join(rootDir, "compiled", "server.mjs");
+    const moduleUrl = pathToFileURL(outputPath).href;
+    const compile = vi.fn(async () => {
+      await mkdir(dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, `export const actions = { ping: () => "compiled" };`);
+      return {
+        hash: "hash",
+        outputDir: dirname(outputPath),
+        outputPath,
+        moduleUrl,
+        sourceFiles: [actionPath],
+        sourceSignature: await testSourceSignature(actionPath),
+      };
+    });
     const importModule = vi.fn(async () => ({ actions: { ping: () => "ok" } }));
     const loader = createServerModuleLoader({ compile, importModule });
 
@@ -150,6 +178,54 @@ describe("server action registry", () => {
     expect(compile).toHaveBeenCalledTimes(1);
     expect(importModule).toHaveBeenCalledTimes(1);
   });
+
+  it("does not cache a compiled server module when source changes before the cache signature is recorded", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "demo", "server.ts");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(actionPath, `export const actions = { ping: () => "old" };`);
+
+    let compileCount = 0;
+    const outputPath = join(rootDir, "compiled", "server.mjs");
+    const moduleUrl = pathToFileURL(outputPath).href;
+    const compile = vi.fn(async () => {
+      compileCount += 1;
+      const sourceSignature = await testSourceSignature(actionPath);
+      if (compileCount === 1) {
+        await writeFile(actionPath, `export const actions = { ping: () => "new" };`);
+      }
+      await mkdir(dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, `export const actions = { ping: () => "compiled" };`);
+      return {
+        hash: `hash-${compileCount}`,
+        outputDir: dirname(outputPath),
+        outputPath,
+        moduleUrl,
+        sourceFiles: [actionPath],
+        sourceSignature,
+      };
+    });
+    const importModule = vi
+      .fn()
+      .mockResolvedValueOnce({ actions: { ping: () => "old" } })
+      .mockResolvedValueOnce({ actions: { ping: () => "new" } });
+    const loader = createServerModuleLoader({ compile, importModule });
+
+    const first = await loader.load(actionPath, rootDir);
+    const second = await loader.load(actionPath, rootDir);
+    const firstActions = first.module.actions as { ping: (input: unknown, context: { rootDir: string }) => string };
+    const secondActions = second.module.actions as { ping: (input: unknown, context: { rootDir: string }) => string };
+
+    expect(firstActions.ping(undefined, { rootDir })).toBe("new");
+    expect(secondActions.ping(undefined, { rootDir })).toBe("new");
+    expect(compile).toHaveBeenCalledTimes(2);
+  });
+
+  async function testSourceSignature(filePath: string): Promise<string> {
+    const stats = await stat(filePath);
+    return `${filePath}:${stats.size}:${stats.mtimeMs}`;
+  }
 
   it("loads TypeScript extension server action files that agents are expected to create", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
