@@ -52,6 +52,7 @@ type CreateBackgroundTaskSourceOptions = {
   rootDir: string;
   actionRoots?: string[];
   cacheDir?: string;
+  onError?: (extensionId: string, error: unknown) => void;
 };
 
 const DEFAULT_ACTION_ROOTS = ["extensions"];
@@ -107,11 +108,22 @@ export function createBackgroundTaskSource(options: CreateBackgroundTaskSourceOp
       ).flat();
 
       const loaded = await Promise.all(
-        files.map(async (filePath) => loadBackgroundTaskFile(filePath, options.rootDir, ++importVersion, options.cacheDir)),
+        files.map(async (filePath) => {
+          try {
+            return await loadBackgroundTaskFile(filePath, options.rootDir, ++importVersion, options.cacheDir);
+          } catch (error) {
+            (options.onError ?? defaultBackgroundTaskDiscoveryError)(inferExtensionId(filePath), error);
+            return null;
+          }
+        }),
       );
       return loaded.filter((task): task is DiscoveredBackgroundTask => task !== null);
     },
   };
+}
+
+function defaultBackgroundTaskDiscoveryError(extensionId: string, error: unknown): void {
+  console.error(`[baby-menu] background task "${extensionId}" could not be loaded`, error);
 }
 
 function resolveActionRoot(rootDir: string, actionRoot: string): string {

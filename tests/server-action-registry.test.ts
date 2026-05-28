@@ -136,6 +136,23 @@ describe("server action registry", () => {
     expect(tasks[0]?.run).toBeTypeOf("function");
   });
 
+  it("keeps discovering valid background tasks when one server module fails to load", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-bg-"));
+    tempDirs.push(rootDir);
+    const validTask = join(rootDir, "extensions", "pulse", "server.ts");
+    const brokenTask = join(rootDir, "extensions", "broken", "server.ts");
+    await mkdir(dirname(validTask), { recursive: true });
+    await mkdir(dirname(brokenTask), { recursive: true });
+    await writeFile(validTask, `export const background = { intervalMs: 90000, run: async () => undefined };`);
+    await writeFile(brokenTask, `import slugify from "slugify"; export const background = { intervalMs: 90000, run: slugify };`);
+
+    const onError = vi.fn();
+    const source = createBackgroundTaskSource({ rootDir, onError });
+
+    await expect(source.list()).resolves.toMatchObject([{ extensionId: "pulse", intervalMs: 90000 }]);
+    expect(onError).toHaveBeenCalledWith("broken", expect.any(Error));
+  });
+
   it("ignores background exports with a missing or invalid interval", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-bg-"));
     tempDirs.push(rootDir);
