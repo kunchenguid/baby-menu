@@ -40,7 +40,7 @@ Baby Menu writes the extension under `~/.baby-menu/extensions`, mounts the widge
 Use Keep to keep it, or Undo to throw it away.
 The packaged app opens at login by default.
 Use the popover header to open settings or fully quit the app.
-Settings lets you turn `open at login` off or back on.
+Settings lets you turn `launch at system start` off or back on.
 
 ## Install Details
 
