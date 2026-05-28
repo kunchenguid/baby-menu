@@ -20,7 +20,8 @@ Use `pnpm` (declared `packageManager: pnpm@11.1.1`). Renderer dev server is pinn
 ## Dev mode helpers
 
 - `BABY_MENU_KEEP_POPOVER_OPEN=1` disables the blur-to-hide behavior so the popover stays open while devtools / external windows have focus.
-- `BABY_MENU_AGENT=<agent-name>` selects the ACP agent. E2E tests pass `acpx-mock` via `registryOverrides`.
+- `BABY_MENU_AGENT=<agent-name>` overrides agent auto-detection when no saved Settings choice exists. E2E tests pass `acpx-mock` via `registryOverrides`.
+- `BABY_MENU_AGENT_TIMEOUT_MS=<ms>` overrides the embedded-agent request timeout.
 - `process.env.VITEST` is checked in `src/main/app.ts` so importing the main entry from tests does not auto-start the Electron app.
 
 ## Architecture
@@ -42,11 +43,12 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 
 `src/main/` module index:
 
-- `app.ts` - Electron lifecycle, popover window creation, packaged path setup, extension seeding, preferences, protocols, tray, and IPC. `package.json#main` points here via `out/main/index.js`.
+- `app.ts` - Electron lifecycle, popover window creation, packaged path setup, extension seeding, preferences, selectable-agent catalog wiring, protocols, tray, and IPC. `package.json#main` points here via `out/main/index.js`.
 - `app-paths.ts` - resolves source paths versus packaged `~/.baby-menu` paths.
 - `tray.ts` - macOS tray icon and click handling (`createBabyMenuTray`).
 - `popover.ts` - popover `BrowserWindow` options (`createPopoverOptions`), bounds math (`calculatePopoverBounds`), and renderer URL/file loading (`loadPopoverRenderer`).
 - `ipc.ts` - registers all `ipcMain` handlers exposed via the preload bridge; the single place new generic IPC routes are added.
+- `agent-catalog.ts` - defines built-in agents, merges custom `agents.json`, computes Settings availability, and builds `acpx` registry overrides.
 - `agent-runtime.ts` - `BabyMenuAgentRuntime` wrapping `acpx/runtime`; gates every `send()` through a change session.
 - `agent-turn-log.ts` - structured per-turn transcript log used by the renderer and tests.
 - `git-change-session.ts` - the tracked-source Save/Rollback safety boundary (see below).
@@ -56,7 +58,7 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 - `widget-tailwind-css.ts` - compiles a widget's authored Tailwind utilities against the `@babymenu/ui` `@theme` (single source of truth, `src/ui/theme.css`) for packaged loading.
 - `widget-module-registry.ts` - discovers widget modules, returning a renderer `/@fs` URL in dev and, in packaged mode, a compiled `baby-menu-widget://` module URL plus a sibling compiled `cssUrl`.
 - `widget-protocol.ts` - registers custom protocols for compiled widget modules, the per-widget `.css`, and the renderer host shims (`react`, `react/jsx-runtime`, and `@babymenu/ui` re-exported from the host global).
-- `preferences.ts` - stores app preferences under the active app data root and applies login-item settings only when login items are allowed, keeping source/dev mode as a no-op for macOS login items.
+- `preferences.ts` - stores app preferences, including the selected agent, under the active app data root and applies login-item settings only when login items are allowed, keeping source/dev mode as a no-op for macOS login items.
 - `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs.
 - `recipe-loader.ts` - discovers and parses `recipes/*.html` from the active extension workspace.
 - `server-action-registry.ts` - dynamically loads extension server actions and background task declarations from the active extension workspace.
@@ -92,7 +94,8 @@ Keep credential and token work in extension server actions.
 
 ### Agent runtime + change sessions
 
-`BabyMenuAgentRuntime` (`src/main/agent-runtime.ts`) wraps `acpx/runtime`. It allows only one active `send()` call at a time; overlapping sends return an "already running" assistant response before any change session begins. Every accepted `send()` call:
+`BabyMenuAgentRuntime` (`src/main/agent-runtime.ts`) wraps `acpx/runtime`. It allows only one active `send()` call at a time; overlapping sends return an "already running" assistant response before any change session begins. The active agent comes from the persisted Settings choice, then `BABY_MENU_AGENT`, then catalog auto-detection. The catalog defaults to Claude Code, Pi, and Codex, and may be extended by `agents.json` under the active app data root (`~/.baby-menu/agents.json` when packaged, repo-root `agents.json` in source mode). Switching agents through Settings is blocked while an agent turn is running or while a change session can still be saved or rolled back; a successful switch closes the current persistent session with `discardPersistentState` so the next turn starts a fresh conversation.
+Every accepted `send()` call:
 
 1. Resolves the active extension workspace from runtime paths. Source mode honors `BABY_MENU_EXTENSIONS_DIR` or defaults to `extensions/`; packaged mode uses `~/.baby-menu/extensions` after seeding bundled templates. Dev/source Tailwind utility generation scans only `extensions/` and `extensions-dev/` unless `src/ui/styles.css` or `src/ui/styles.dev.css` is given an additional `@source` path, so custom overrides outside those directories may load widget modules without their utility CSS.
 2. Uses `DevExtensionChangeSession` for snapshot workspaces such as `extensions-dev/` and packaged `~/.baby-menu/extensions`, so Save keeps generated files and Rollback restores the pre-turn contents.

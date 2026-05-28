@@ -48,6 +48,7 @@ export type BabyMenuSettings = {
   openAtLogin: boolean;
   /** Name of the active embedded agent. */
   agentName: string;
+  /** Present when the current runtime state prevents switching agents. */
   agentSwitchDisabledReason?: string;
   /** Selectable agents; unavailable ones are shown disabled with an install hint. */
   agents: BabyMenuAgentOption[];
@@ -184,6 +185,7 @@ export type BabyMenuApi = {
   settings: {
     get: () => Promise<BabyMenuSettings>;
     setOpenAtLogin: (openAtLogin: boolean) => Promise<BabyMenuSettings>;
+    /** Switches the embedded agent; callers should confirm because this resets the current conversation. */
     setAgent: (agentName: string) => Promise<BabyMenuSettings>;
   };
   app: {

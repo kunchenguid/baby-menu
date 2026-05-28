@@ -41,12 +41,35 @@ Use Keep to keep it, or Undo to throw it away.
 Extensions can keep local state in Baby Menu's shared SQLite store and can register background tasks for work that must continue while the popover is closed.
 The packaged app opens at login by default.
 Use the popover header to open settings or fully quit the app.
-Settings lets you turn `launch at system start` off or back on.
+Settings lets you turn `launch at system start` off or back on, choose the embedded agent, and see unavailable agents with install hints.
+Switching agents resets the current conversation after confirmation.
 
 ## Install Details
 
-The packaged app stores mutable extensions, the local extension database, caches, agent sessions, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets and extension state.
-Set `BABY_MENU_AGENT=<name>` in the launch environment to choose an agent explicitly.
+The packaged app stores mutable extensions, the local extension database, caches, agent sessions, custom agent catalog, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets and extension state.
+Baby Menu detects supported agents from the catalog in order: Claude Code (`claude`), Pi (`npx`), then Codex (`codex`).
+Use Settings to persist an agent choice across launches.
+Set `BABY_MENU_AGENT=<name>` in the launch environment to override auto-detection before a preference is saved.
+Add `~/.baby-menu/agents.json` to override or append catalog entries; source mode reads `agents.json` from the repo root.
+Each entry is an object with `name`, optional `label`, optional `command`, optional `installHint`, and optional `launchCommand`.
+Agents with `launchCommand` are registered as custom `acpx` overrides and are shown as available.
+
+```json
+[
+  {
+    "name": "gemini",
+    "label": "Gemini",
+    "command": "gemini",
+    "installHint": "Install the Gemini CLI, then restart Baby Menu."
+  },
+  {
+    "name": "local-mock",
+    "label": "Local Mock",
+    "command": "node",
+    "launchCommand": "node ./agents/local-mock.js"
+  }
+]
+```
 
 Update with Homebrew:
 
@@ -132,7 +155,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | Var                              | Effect                                                       |
 | -------------------------------- | ------------------------------------------------------------ |
 | `BABY_MENU_KEEP_POPOVER_OPEN=1`  | Disables blur-to-hide so devtools / external windows stay up |
-| `BABY_MENU_AGENT=<name>`         | Selects the ACP agent (e2e tests use `acpx-mock`)            |
+| `BABY_MENU_AGENT=<name>`         | Overrides agent auto-detection when no saved Settings choice exists |
+| `BABY_MENU_AGENT_TIMEOUT_MS=<ms>` | Overrides the embedded-agent request timeout                 |
 | `BABY_MENU_EXTENSIONS_DIR=<dir>` | Overrides the active extension workspace in source/dev runs. Dev Tailwind scans only `extensions/` and `extensions-dev/`, so overrides outside those paths need matching `@source` coverage for widget utilities. |
 
 ## Development

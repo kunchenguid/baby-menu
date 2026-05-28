@@ -15,6 +15,8 @@ When the user sends a request, the composer momentarily becomes a `RunStrip`: a 
 The popover surface is dynamic-height.
 On the main menu, the composer is pinned to the bottom; everything above it stacks and grows.
 The header keeps compact settings and quit controls together; quit stays neutral at rest and shifts to danger coral only on hover.
+Settings replaces the menu body and composer, and includes both the `open at login` preference and the embedded-agent picker.
+Agent options are radio-like rows: available inactive agents can be selected, unavailable agents are disabled with install hints, and switching agents requires confirmation because it resets the current conversation.
 
 ---
 
