@@ -38,4 +38,4 @@ A clickable recreation of the redesigned Baby Menu tray popover in the Monochrom
 | `menu/MenuSurface.tsx` + `menu/WidgetHost.tsx` | `WidgetHost.jsx` | Recipes pill row removed — recipes are an agent-side concept, not user UI. |
 | `styles.css` | `popup.css` + `colors_and_type.css` | |
 
-`AgentChatMessage[]` from `src/shared/contracts.ts` is not used in this design — there is no transcript. `GitSessionSnapshot` still maps to the SessionBar's internal `session.kind` field, but its `head`, `commit`, and similar git-shaped fields are never rendered. The agent should pass a plain-language `summary` string (e.g. `"Added a CPU temperature widget"`) alongside the snapshot for the UI to display.
+`AgentChatMessage[]` from `src/shared/contracts.ts` is not used in this design — there is no transcript. The live `AgentChatResult` returns `assistantText` plus an optional `GitSessionSnapshot`; `useAgentRuntime` derives the SessionBar notice from that text and from `canSave` / `canRollback`. Git-shaped fields such as `head` and `commit` are never rendered.
