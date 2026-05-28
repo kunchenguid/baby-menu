@@ -142,7 +142,7 @@ The palette is **near-black + white-at-alpha + one mint signal**. Inspect `src/u
 - **Mono** — `JetBrains Mono`, 300 / 400 / 500 / 600. Used for *everything* in the popover surface — body, labels, values, buttons, error messages. Weight 300 is reserved for big numbers; 400 for body; 500 for buttons and titles.
 - **Prose** — `Inter Tight`, 300 / 400 / 500. Used ONLY in long-form explanatory copy (e.g. this README, preview-card notes). Never inside the popover surface itself. Opt in via `.prose`.
 
-Scale stays compact but readable: `--fs-xxs` / `text-xxs` **11px**, `xs` **12px**, `sm` **13px**, `base` **14px**, `md` **16px**, with hero values **28–36px**. Tabular numerals are on by default (`font-feature-settings: "tnum"`) so columns of values align.
+Scale stays compact but readable: `--fs-xxs` / `text-xxs` **11px**, `xs` **12px**, `sm` **13px**, `base` **14px**, `md` **16px**, with hero values **28–36px**. Tabular numerals are on by default (`font-feature-settings: "tnum"`) so columns of values align. The app-shell CSS still uses a few 10px legacy meta treatments for dense widget keys, foot rows, run timers, and SessionBar hints; do not use those as the default widget type scale.
 
 ### Spacing
 

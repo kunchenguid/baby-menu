@@ -19,7 +19,7 @@ You ask for a feature in plain English, the agent writes an extension and it hot
 
 - **Personal self-evolving software** - this is a glimpse into a future where every piece of software is personal and self-evolving towards your exact needs.
 - **Ask, don't configure** - tweak the menu using natural language, not configuration.
-- **Worry-free** - every agent turn can be kept or rolled back.
+- **Worry-free** - every agent turn can be kept or undone.
 
 ## Quick Start
 
@@ -72,7 +72,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 ```
    ┌─────────────────────┐
    │  macOS tray popover │   (React renderer, 360px wide)
-   │     + AgentChat     │
+   │ + Menu / Settings   │
    └──────────┬──────────┘
               │  send()
               ▼
