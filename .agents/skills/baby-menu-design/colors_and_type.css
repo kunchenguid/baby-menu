@@ -133,7 +133,7 @@
   --radius-md:  6px;
   --radius-lg:  8px;        /* card / module                       */
   --radius-xl:  10px;       /* popover outer                       */
-  --radius-pill: 999px;     /* the *only* rounded affordance       */
+  --radius-pill: 999px;     /* prototype/app-shell pill controls   */
 
   /* Shadows are quiet -- darkness, not depth. The popover floats   */
   /* over the desktop with one deep void cast, never a stack.       */

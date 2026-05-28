@@ -160,6 +160,8 @@ Widgets are styled with Tailwind utility classes, and the per-widget stylesheet 
 Prefer Baby Menu token utilities for color, type, radius, and surfaces so widgets match the host app.
 Default Tailwind palette colors such as `bg-red-500` and `text-blue-300` are unavailable, but arbitrary Tailwind values can still compile.
 Use arbitrary color values only when a widget genuinely needs them, and keep them rare.
+Keep class names statically visible in the widget source so the dev stylesheet and packaged per-widget compiler can discover them.
+Avoid constructing Tailwind class fragments dynamically; choose complete class strings from a small map instead.
 
 Use these token utilities:
 
