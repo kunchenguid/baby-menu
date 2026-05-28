@@ -133,9 +133,6 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
   );
 }
 
-// Loads extension settings sections once per settings open. The settings view is
-// remounted each time it is opened, so this re-discovers sections on every open -
-// enough hot-reload granularity without an extra polling timer on the page.
 function useRuntimeSettingsSections({
   enabled,
   importer = importRuntimeModule,
@@ -148,11 +145,22 @@ function useRuntimeSettingsSections({
   useEffect(() => {
     if (!enabled) return undefined;
     let cancelled = false;
-    void loadRuntimeSettingsSections(importer).then((loaded) => {
-      if (!cancelled) setSections(loaded);
+    let loadVersion = 0;
+    const load = () => {
+      const currentLoad = ++loadVersion;
+      void loadRuntimeSettingsSections(importer).then((loaded) => {
+        if (!cancelled && currentLoad === loadVersion) setSections(loaded);
+      });
+    };
+
+    load();
+    const unsubscribe = window.babyMenu?.popover.onVisibility(({ visible }) => {
+      if (visible) load();
     });
+
     return () => {
       cancelled = true;
+      unsubscribe?.();
     };
   }, [enabled, importer]);
 

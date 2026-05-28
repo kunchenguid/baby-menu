@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/renderer/App";
 import { SettingsView } from "../src/renderer/settings/SettingsView";
-import type { BabyMenuApi, BabyMenuSettings } from "../src/shared/contracts";
+import type { BabyMenuApi, BabyMenuSettings, PopoverVisibilityState } from "../src/shared/contracts";
 
 function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
   const base: BabyMenuSettings = {
@@ -179,5 +179,35 @@ describe("settings view", () => {
     // The extension's section title (host-drawn frame) and body both appear.
     expect(await screen.findByText("CALENDAR")).toBeTruthy();
     expect(screen.getByText("which calendar")).toBeTruthy();
+  });
+
+  it("rediscovers extension settings sections when the popover reopens", async () => {
+    const api = installBabyMenuApi();
+    const visibilityListeners: Array<(state: PopoverVisibilityState) => void> = [];
+    api.popover.onVisibility = vi.fn((listener) => {
+      visibilityListeners.push(listener);
+      return () => undefined;
+    });
+    window.babyMenu!.widgets.list = vi.fn(async () => [
+      { id: "calendar.widget", extensionId: "calendar", moduleUrl: "/@fs/calendar/widget.tsx" },
+    ]);
+    let sectionLabel = "before reopen";
+    const runtimeImporter = vi.fn(async () => ({
+      calendarSettings: {
+        extensionId: "calendar",
+        title: "CALENDAR",
+        render: () => <span>{sectionLabel}</span>,
+      },
+    }));
+
+    render(<SettingsView runtimeImporter={runtimeImporter} />);
+    expect(await screen.findByText("before reopen")).toBeTruthy();
+
+    sectionLabel = "after reopen";
+    visibilityListeners.forEach((listener) => listener({ visible: false }));
+    visibilityListeners.forEach((listener) => listener({ visible: true }));
+
+    expect(await screen.findByText("after reopen")).toBeTruthy();
+    expect(runtimeImporter).toHaveBeenCalledTimes(2);
   });
 });
