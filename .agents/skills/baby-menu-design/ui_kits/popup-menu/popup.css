@@ -346,7 +346,7 @@ body {
   font-weight: var(--weight-med);
   letter-spacing: 0.02em;
   padding: 4px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   appearance: none;
   -webkit-appearance: none;
