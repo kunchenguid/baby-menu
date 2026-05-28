@@ -70,7 +70,7 @@
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>OAuth Usage API Details</h2>
-        <p>Credential locations to check from the main process only:</p>
+        <p>Credential locations to check from <code>claude-code-quota/server.ts</code> only:</p>
         <ul>
           <li><code>~/.claude/.credentials.json</code></li>
           <li>Future app-local credential cache under Electron user data, not committed to the repo.</li>
@@ -110,7 +110,7 @@ anthropic-beta: oauth-2025-04-20</code></pre>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Claude CLI Probe Details</h2>
-        <p>Run privileged CLI work in the Electron main process. Do not expose Node APIs to the renderer.</p>
+        <p>Run privileged CLI work in <code>claude-code-quota/server.ts</code> behind <code>window.babyMenu.capabilities.invoke</code>. Do not expose Node APIs to the renderer.</p>
         <p>Command strategy:</p>
         <ul>
           <li>Check whether <code>claude</code> exists on <code>PATH</code>.</li>

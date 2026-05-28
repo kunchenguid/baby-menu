@@ -70,7 +70,7 @@
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>OAuth Usage API Details</h2>
-        <p>Credential locations to check from the main process only:</p>
+        <p>Credential locations to check from <code>codex-quota/server.ts</code> only:</p>
         <ul>
           <li><code>$CODEX_HOME/auth.json</code> if <code>CODEX_HOME</code> is set.</li>
           <li><code>~/.codex/auth.json</code> otherwise.</li>
@@ -104,7 +104,7 @@ Authorization: Bearer &lt;access_token&gt;</code></pre>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Codex CLI RPC Details</h2>
-        <p>Run privileged CLI work in the Electron main process. Do not expose Node APIs to the renderer.</p>
+        <p>Run privileged CLI work in <code>codex-quota/server.ts</code> behind <code>window.babyMenu.capabilities.invoke</code>. Do not expose Node APIs to the renderer.</p>
         <p>Command:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>codex -s read-only -a untrusted app-server</code></pre>
         <p>JSON-RPC flow over stdin/stdout:</p>
