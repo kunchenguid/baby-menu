@@ -4,7 +4,7 @@ const { useState, useEffect, useRef } = React;
 // ─── App ──────────────────────────────────────────────────────────
 // Top-level shell. Owns popover open/closed, widgets, the active
 // Run, and the change session (renamed internally — the user never
-// sees git). No more mode toggle: the composer is always there.
+// sees git). No more mode toggle: the composer stays on the main agent surface.
 function App() {
   const [open, setOpen] = useState(true);
   const [widgets, setWidgets] = useState(DEFAULT_WIDGETS);
