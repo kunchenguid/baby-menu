@@ -83,6 +83,7 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 Keep `typescript` in runtime dependencies unless that compiler path changes.
 `tailwindcss`, `@tailwindcss/postcss`, and `postcss` are externalized for the same reason: `widget-tailwind-css.ts` runs Tailwind in the main process to compile per-widget CSS in packaged mode.
 Keep them in runtime dependencies, and keep the single pinned `postcss` (`pnpm-workspace.yaml` `overrides`) so the Tailwind plugin and the processor share one version.
+Universal macOS packages must run on both Intel and Apple Silicon Macs, so `pnpm-workspace.yaml` keeps Darwin `x64` and `arm64` native prebuilt dependencies installed, and `electron-builder.yml` `x64ArchFiles` must preserve architecture-specific native package files during the universal merge.
 The renderer build adds `@tailwindcss/vite` and aliases `@babymenu/ui` to `src/ui/index.ts` so dev-mode widgets resolve the design system directly.
 
 ### Design system (`@babymenu/ui`)

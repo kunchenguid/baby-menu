@@ -30,7 +30,8 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 - Use TDD for bug fixes and new features.
 - Tests live in `tests/` at the repo root.
 - Run `pnpm typecheck`, `pnpm test`, and `pnpm build` before pushing.
-- Run `pnpm package:mac` when changing packaging, runtime paths, extension compilation, or release behavior.
+- Run `pnpm package:mac` when changing packaging, runtime paths, extension compilation, native dependencies, or release behavior.
+- Keep universal macOS packaging compatible with both Intel and Apple Silicon Macs; native prebuilt packages must be installed for `x64` and `arm64` and preserved in `electron-builder.yml` `x64ArchFiles` when electron-builder merges the app.
 - Keep `pnpm-lock.yaml` changes with dependency changes.
 - Do not commit generated build output, release artifacts, runtime caches, or dev extension workspaces.
 - Do not hand-edit release-please metadata such as `CHANGELOG.md` or `.release-please-manifest.json`.
