@@ -10,7 +10,7 @@ A clickable recreation of the redesigned Baby Menu tray popover in the Monochrom
 | `popup.css` | All layout + component CSS for the kit. Imports tokens from `../../colors_and_type.css`. |
 | `MenuBar.jsx` | Fake macOS menu bar with the tray button. |
 | `App.jsx` | Top-level shell. Owns popover open state, widgets, the active Run, and the session. |
-| `Composer.jsx` | Slim 1-line prompt with `›` prefix, blinking caret, auto-grow on multi-line typing. Always pinned to bottom. |
+| `Composer.jsx` | Slim 1-line prompt with `›` prefix, blinking caret, auto-grow on multi-line typing. Pinned on the main idle surface; replaced by `RunStrip` during a run and hidden in settings. |
 | `RunStrip.jsx` | Single live affordance — pulsing mint dot, agent's task + current step, elapsed timer. No log history. |
 | `SessionBar.jsx` | Human-language summary from the agent (`Added a CPU temperature widget`) with **Keep** / **Undo** actions. |
 | `WidgetHost.jsx` | Widget shell + three sample widgets (claude · weekly, battery, now playing). |

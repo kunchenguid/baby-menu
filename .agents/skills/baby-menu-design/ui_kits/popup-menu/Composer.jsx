@@ -2,9 +2,9 @@
 const { useState, useRef, useEffect } = React;
 
 // ─── Composer ─────────────────────────────────────────────────────
-// Persistent slim bar pinned to the bottom of the popover. Auto-grows
-// to a second line as the user keeps typing, but never reserves extra
-// vertical space ahead of time. Submitting fires a single Run.
+// Slim bar pinned on the main idle surface. Auto-grows to a second line
+// as the user keeps typing, but never reserves extra vertical space ahead
+// of time. Submitting fires a single Run, which temporarily replaces it.
 function Composer({ running, onSend }) {
   const [draft, setDraft] = useState("");
   const ref = useRef(null);
