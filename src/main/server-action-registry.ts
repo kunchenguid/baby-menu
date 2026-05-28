@@ -187,6 +187,7 @@ export function createServerModuleLoader(options: CreateServerModuleLoaderOption
   const compile = options.compile ?? compileExtensionModule;
   const importModule = options.importModule ?? ((moduleUrl: string) => import(moduleUrl));
   const cache = new Map<string, ServerModuleCacheEntry>();
+  const inFlight = new Map<string, Promise<ServerModuleLoad>>();
   let reloadGeneration = 0;
 
   return {
@@ -197,24 +198,19 @@ export function createServerModuleLoader(options: CreateServerModuleLoaderOption
         return cached.result;
       }
 
-      const inferredId = inferExtensionId(normalizedPath);
-      const compiled = await compile({
-        kind: "server",
-        extensionId: inferredId,
-        extensionDir: dirname(normalizedPath),
-        entryFile: normalizedPath,
-        cacheRoot: options.cacheDir ?? join(rootDir, ".cache", "baby-menu", "server-actions"),
-      });
-      const module = (await importModule(withReloadGeneration(compiled.moduleUrl, ++reloadGeneration))) as ServerActionModule;
-      const extensionId = normalizeExtensionId(module.extensionId ?? module.id) ?? inferredId;
-      const result: ServerModuleLoad = { extensionId, module };
+      const pending = inFlight.get(normalizedPath);
+      if (pending) return pending;
 
-      cache.set(normalizedPath, {
-        signature: await sourceSignature(compiled.sourceFiles),
-        sourceFiles: compiled.sourceFiles,
-        result,
-      });
-      return result;
+      const load = loadFreshServerModule(normalizedPath, rootDir)
+        .then((entry) => {
+          cache.set(normalizedPath, entry);
+          return entry.result;
+        })
+        .finally(() => {
+          inFlight.delete(normalizedPath);
+        });
+      inFlight.set(normalizedPath, load);
+      return load;
     },
     prune(activePaths) {
       const active = new Set([...activePaths].map((filePath) => resolve(filePath)));
@@ -223,6 +219,26 @@ export function createServerModuleLoader(options: CreateServerModuleLoaderOption
       }
     },
   };
+
+  async function loadFreshServerModule(normalizedPath: string, rootDir: string): Promise<ServerModuleCacheEntry> {
+    const inferredId = inferExtensionId(normalizedPath);
+    const compiled = await compile({
+      kind: "server",
+      extensionId: inferredId,
+      extensionDir: dirname(normalizedPath),
+      entryFile: normalizedPath,
+      cacheRoot: options.cacheDir ?? join(rootDir, ".cache", "baby-menu", "server-actions"),
+    });
+    const module = (await importModule(withReloadGeneration(compiled.moduleUrl, ++reloadGeneration))) as ServerActionModule;
+    const extensionId = normalizeExtensionId(module.extensionId ?? module.id) ?? inferredId;
+    const result: ServerModuleLoad = { extensionId, module };
+
+    return {
+      signature: await sourceSignature(compiled.sourceFiles),
+      sourceFiles: compiled.sourceFiles,
+      result,
+    };
+  }
 }
 
 function withReloadGeneration(moduleUrl: string, generation: number): string {

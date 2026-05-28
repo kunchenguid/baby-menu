@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createBackgroundTaskSource,
@@ -123,6 +124,31 @@ describe("server action registry", () => {
 
     await loader.load(actionPath, rootDir);
     expect(compile).toHaveBeenCalledTimes(2);
+  });
+
+  it("coalesces concurrent loads of the same uncached server module", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "demo", "server.ts");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(actionPath, `export const actions = { ping: () => "ok" };`);
+
+    const moduleUrl = pathToFileURL(join(rootDir, "compiled", "server.mjs")).href;
+    const compile = vi.fn(async () => ({
+      hash: "hash",
+      outputDir: dirname(join(rootDir, "compiled", "server.mjs")),
+      outputPath: join(rootDir, "compiled", "server.mjs"),
+      moduleUrl,
+      sourceFiles: [actionPath],
+    }));
+    const importModule = vi.fn(async () => ({ actions: { ping: () => "ok" } }));
+    const loader = createServerModuleLoader({ compile, importModule });
+
+    const [first, second] = await Promise.all([loader.load(actionPath, rootDir), loader.load(actionPath, rootDir)]);
+
+    expect(first.module).toBe(second.module);
+    expect(compile).toHaveBeenCalledTimes(1);
+    expect(importModule).toHaveBeenCalledTimes(1);
   });
 
   it("loads TypeScript extension server action files that agents are expected to create", async () => {
