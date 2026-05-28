@@ -240,7 +240,7 @@ Do not add preload methods or per-extension IPC channels.
 Each action receives `(input, context)`.
 The `context` is `{ rootDir, db, notify }`:
 
-- `rootDir` is the active extension workspace root.
+- `rootDir` is Baby Menu's app-data root, used for host-owned runtime state such as caches and local storage.
 - `db` is the shared SQL store (see "Storage").
 - `notify({ title, body })` shows a native system notification.
 

@@ -35,6 +35,8 @@ describe("extension layout", () => {
     expect(instructions).toContain("Do not modify files outside this directory");
     expect(instructions).toContain("recipes/*.html");
     expect(instructions).toContain("Read the matching recipe before implementing");
+    expect(instructions).toContain("rootDir` is Baby Menu's app-data root");
+    expect(instructions).not.toContain("rootDir` is the active extension workspace root");
   });
 
   it("exposes runtime widget design guidance to extension agents", async () => {

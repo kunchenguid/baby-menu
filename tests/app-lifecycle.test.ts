@@ -189,7 +189,7 @@ describe("startBabyMenuApp", () => {
     expect(browserWindowInstance.setBounds).toHaveBeenLastCalledWith({ x: 8, y: 42, width: 360, height: 333 });
   });
 
-  it("starts the background scheduler and forwards task-run events to the renderer", async () => {
+  it("starts the background scheduler and only forwards task-run events to visible renderer", async () => {
     const { createBackgroundTaskScheduler } = await import("../src/main/background-task-scheduler");
     const appModule = await import("../src/main/app");
 
@@ -200,6 +200,12 @@ describe("startBabyMenuApp", () => {
     const schedulerOptions = (createBackgroundTaskScheduler as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
     expect(schedulerOptions.watchDir).toBe("/repo/extensions");
 
+    browserWindowInstance.webContents.send.mockClear();
+    browserWindowInstance.isVisible.mockReturnValue(false);
+    schedulerOptions.onTaskRun("cpu-usage");
+    expect(browserWindowInstance.webContents.send).not.toHaveBeenCalled();
+
+    browserWindowInstance.isVisible.mockReturnValue(true);
     schedulerOptions.onTaskRun("cpu-usage");
     expect(browserWindowInstance.webContents.send).toHaveBeenCalledWith("baby-menu:background:update", {
       extensionId: "cpu-usage",

@@ -190,7 +190,10 @@ export async function startBabyMenuApp(): Promise<void> {
     }),
     context: { rootDir: paths.appDataRoot, db: database, notify },
     watchDir: paths.extensionsDir,
-    onTaskRun: (extensionId) => sendToPopover("baby-menu:background:update", { extensionId }),
+    onTaskRun: (extensionId) => {
+      if (!popoverWindow?.isVisible()) return;
+      sendToPopover("baby-menu:background:update", { extensionId });
+    },
   });
   void backgroundTasks.start();
 
