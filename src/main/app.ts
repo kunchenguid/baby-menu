@@ -146,6 +146,7 @@ export async function startBabyMenuApp(): Promise<void> {
     widgetModules,
     { setContentHeight: setPopoverContentHeight },
     preferences,
+    undefined,
     { recipesDir: paths.recipesDir },
   );
   activeTray = createBabyMenuTray(

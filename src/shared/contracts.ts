@@ -100,6 +100,9 @@ export type BabyMenuApi = {
     get: () => Promise<BabyMenuSettings>;
     setOpenAtLogin: (openAtLogin: boolean) => Promise<BabyMenuSettings>;
   };
+  app: {
+    quit: () => Promise<{ ok: boolean }>;
+  };
 };
 
 declare global {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Settings, X } from "lucide-react";
+import { Power, Settings, X } from "lucide-react";
 import { Button } from "../ui";
 import { AgentChat } from "./agent/AgentChat";
 import { MenuSurface } from "./menu/MenuSurface";
@@ -26,6 +26,10 @@ export function App() {
     setView("menu");
   }
 
+  function quitApp() {
+    void window.babyMenu?.app.quit();
+  }
+
   return (
     <main
       ref={shellRef}
@@ -46,9 +50,20 @@ export function App() {
             <X className="size-4" />
           </Button>
         ) : (
-          <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="open settings" onClick={openSettings}>
-            <Settings className="size-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="open settings" onClick={openSettings}>
+              <Settings className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-7 px-0 hover:text-signal-danger"
+              aria-label="quit baby_menu"
+              onClick={quitApp}
+            >
+              <Power className="size-4" />
+            </Button>
+          </div>
         )}
       </header>
       {view === "settings" ? (

@@ -38,6 +38,9 @@ function installBabyMenuAgentMock() {
       get: vi.fn(async () => ({ openAtLogin: false })),
       setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin })),
     },
+    app: {
+      quit: vi.fn(async () => ({ ok: true })),
+    },
   };
 
   return {

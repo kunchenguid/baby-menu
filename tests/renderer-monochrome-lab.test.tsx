@@ -40,6 +40,9 @@ function installBabyMenuApi(overrides: Partial<BabyMenuApi> = {}) {
       get: vi.fn(async () => ({ openAtLogin: false })),
       setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin })),
     },
+    app: {
+      quit: vi.fn(async () => ({ ok: true })),
+    },
   };
 
   const api: BabyMenuApi = {
@@ -48,6 +51,7 @@ function installBabyMenuApi(overrides: Partial<BabyMenuApi> = {}) {
     widgets: overrides.widgets ?? baseApi.widgets,
     popover: overrides.popover ?? baseApi.popover,
     settings: overrides.settings ?? baseApi.settings,
+    app: overrides.app ?? baseApi.app,
   };
 
   window.babyMenu = api;

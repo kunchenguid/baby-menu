@@ -38,6 +38,9 @@ describe("preload capabilities bridge", () => {
 
     await api.settings.setOpenAtLogin(true);
     expect(invoke).toHaveBeenCalledWith("baby-menu:settings:set-open-at-login", true);
+
+    await api.app.quit();
+    expect(invoke).toHaveBeenCalledWith("baby-menu:app:quit");
   });
 
   it("exposes agent status events from the main process", async () => {

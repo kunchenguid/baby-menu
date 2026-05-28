@@ -32,6 +32,9 @@ const api: BabyMenuApi = {
     get: () => ipcRenderer.invoke("baby-menu:settings:get"),
     setOpenAtLogin: (openAtLogin: boolean) => ipcRenderer.invoke("baby-menu:settings:set-open-at-login", openAtLogin),
   },
+  app: {
+    quit: () => ipcRenderer.invoke("baby-menu:app:quit"),
+  },
 };
 
 contextBridge.exposeInMainWorld("babyMenu", api);

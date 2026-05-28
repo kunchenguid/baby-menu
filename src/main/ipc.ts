@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { app as electronApp, ipcMain } from "electron";
 import { pathToFileURL } from "node:url";
 import type { AgentChatResult, BabyMenuSettings, GitActionResult, RecipeMetadata } from "../shared/contracts";
 import { getExtensionsDir, getRecipesDir } from "../shared/paths";
@@ -20,6 +20,10 @@ type SettingsController = {
   setOpenAtLogin: (openAtLogin: boolean) => Promise<BabyMenuSettings> | BabyMenuSettings;
 };
 
+type AppController = {
+  quit: () => void | Promise<void>;
+};
+
 type IpcRuntimeOptions = {
   recipesDir?: string;
 };
@@ -34,6 +38,7 @@ export function registerIpcHandlers(
     get: () => ({ openAtLogin: false }),
     setOpenAtLogin: (openAtLogin) => ({ openAtLogin }),
   },
+  appController: AppController = { quit: () => electronApp.quit() },
   runtimeOptions: IpcRuntimeOptions = {},
 ) {
   const recipesDir = runtimeOptions.recipesDir ?? getRecipesDir(rootDir);
@@ -79,5 +84,10 @@ export function registerIpcHandlers(
 
   ipcMain.handle("baby-menu:settings:set-open-at-login", async (_event, openAtLogin: boolean) => {
     return settings.setOpenAtLogin(openAtLogin);
+  });
+
+  ipcMain.handle("baby-menu:app:quit", async () => {
+    await appController.quit();
+    return { ok: true };
   });
 }

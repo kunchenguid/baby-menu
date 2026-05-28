@@ -35,7 +35,7 @@ describe("capabilities IPC", () => {
       rollback: vi.fn(),
     };
 
-    registerIpcHandlers(rootDir, agentRuntime, undefined, undefined, undefined, undefined, { recipesDir });
+    registerIpcHandlers(rootDir, agentRuntime, undefined, undefined, undefined, undefined, undefined, { recipesDir });
 
     await expect(handlers.get("baby-menu:recipes:list")?.({})).resolves.toEqual([
       {
@@ -154,6 +154,21 @@ describe("capabilities IPC", () => {
     registerIpcHandlers("/repo", agentRuntime);
 
     await expect(handlers.get("baby-menu:popover:set-content-height")?.({}, 333)).resolves.toEqual({ ok: true });
+  });
+
+  it("registers an app quit channel", async () => {
+    const { registerIpcHandlers } = await import("../src/main/ipc");
+    const agentRuntime = {
+      send: vi.fn(),
+      save: vi.fn(),
+      rollback: vi.fn(),
+    };
+    const appController = { quit: vi.fn() };
+
+    registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, undefined, appController);
+
+    await expect(handlers.get("baby-menu:app:quit")?.({})).resolves.toEqual({ ok: true });
+    expect(appController.quit).toHaveBeenCalledOnce();
   });
 
   it("registers settings channels for open-at-login", async () => {
