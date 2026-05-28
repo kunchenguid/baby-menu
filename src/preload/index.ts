@@ -46,6 +46,7 @@ const api: BabyMenuApi = {
   },
   popover: {
     setContentHeight: (height: number) => ipcRenderer.invoke("baby-menu:popover:set-content-height", height),
+    getVisibility: () => ipcRenderer.invoke("baby-menu:popover:get-visibility"),
     onVisibility: (listener: (state: PopoverVisibilityState) => void) => {
       const handler = (_event: unknown, state: PopoverVisibilityState) => listener(state);
       ipcRenderer.on("baby-menu:popover:visibility", handler);

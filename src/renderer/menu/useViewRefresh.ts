@@ -20,8 +20,13 @@ export function useViewRefresh(options: ViewRefreshOptions) {
   };
 
   useEffect(() => {
-    refreshNow();
-    if (!options.viewRefreshIntervalMs) return undefined;
+    let disposed = false;
+    let visibilityEventSeen = false;
+
+    if (!options.viewRefreshIntervalMs) {
+      refreshNow();
+      return undefined;
+    }
 
     const intervalMs = options.viewRefreshIntervalMs;
     let timer: number | undefined;
@@ -36,20 +41,39 @@ export function useViewRefresh(options: ViewRefreshOptions) {
       timer = undefined;
     };
 
-    start();
+    const show = () => {
+      refreshNow();
+      start();
+    };
 
-    // Assume visible on mount: the host first renders as the popover is being
-    // shown, so the only transition we must react to first is a hide.
     const unsubscribe = window.babyMenu?.popover.onVisibility(({ visible }) => {
+      visibilityEventSeen = true;
       if (visible) {
-        refreshNow();
-        start();
+        show();
       } else {
         stop();
       }
     });
 
+    const getVisibility = window.babyMenu?.popover.getVisibility;
+    const initialize = async () => {
+      const visibility = await getVisibility?.();
+      if (disposed || visibilityEventSeen) return;
+      if (visibility?.visible === false) {
+        stop();
+      } else {
+        show();
+      }
+    };
+
+    if (getVisibility) {
+      void initialize();
+    } else {
+      show();
+    }
+
     return () => {
+      disposed = true;
       stop();
       unsubscribe?.();
     };

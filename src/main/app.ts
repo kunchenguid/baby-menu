@@ -168,7 +168,7 @@ export async function startBabyMenuApp(): Promise<void> {
     agentRuntime,
     serverActions,
     widgetModules,
-    { setContentHeight: setPopoverContentHeight },
+    { setContentHeight: setPopoverContentHeight, getVisibility: () => ({ visible: popoverWindow?.isVisible() ?? false }) },
     preferences,
     undefined,
     { recipesDir: paths.recipesDir, database },

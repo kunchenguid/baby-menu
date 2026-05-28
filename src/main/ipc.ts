@@ -1,6 +1,13 @@
 import { app as electronApp, ipcMain } from "electron";
 import { pathToFileURL } from "node:url";
-import type { AgentChatResult, BabyMenuSettings, GitActionResult, RecipeMetadata, SqlParams } from "../shared/contracts";
+import type {
+  AgentChatResult,
+  BabyMenuSettings,
+  GitActionResult,
+  PopoverVisibilityState,
+  RecipeMetadata,
+  SqlParams,
+} from "../shared/contracts";
 import { getExtensionsDir, getRecipesDir } from "../shared/paths";
 import { BabyMenuAgentRuntime, type BabyMenuAgentRuntimeSendOptions } from "./agent-runtime";
 import { createExtensionDatabase, type ExtensionDatabase } from "./extension-database";
@@ -14,6 +21,7 @@ type AgentRuntimeFacade = Pick<BabyMenuAgentRuntime, "save" | "rollback"> & {
 
 type PopoverController = {
   setContentHeight: (height: number) => void | Promise<void>;
+  getVisibility: () => PopoverVisibilityState | Promise<PopoverVisibilityState>;
 };
 
 type SettingsController = {
@@ -35,7 +43,7 @@ export function registerIpcHandlers(
   agentRuntime: AgentRuntimeFacade = new BabyMenuAgentRuntime(rootDir),
   serverActions: ServerActionRegistry = createServerActionRegistry({ rootDir, actionRoots: [getExtensionsDir(rootDir)] }),
   widgetModules: WidgetModuleRegistry = createWidgetModuleRegistry(rootDir),
-  popover: PopoverController = { setContentHeight: () => undefined },
+  popover: PopoverController = { setContentHeight: () => undefined, getVisibility: () => ({ visible: false }) },
   settings: SettingsController = {
     get: () => ({ openAtLogin: false }),
     setOpenAtLogin: (openAtLogin) => ({ openAtLogin }),
@@ -95,6 +103,10 @@ export function registerIpcHandlers(
   ipcMain.handle("baby-menu:popover:set-content-height", async (_event, height: number) => {
     await popover.setContentHeight(height);
     return { ok: true };
+  });
+
+  ipcMain.handle("baby-menu:popover:get-visibility", async () => {
+    return popover.getVisibility();
   });
 
   ipcMain.handle("baby-menu:settings:get", async () => {

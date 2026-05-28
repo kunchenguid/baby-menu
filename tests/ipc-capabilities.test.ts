@@ -130,7 +130,7 @@ describe("capabilities IPC", () => {
     const agentRuntime = { send: vi.fn(), save: vi.fn(), rollback: vi.fn() };
     const database = createExtensionDatabase(":memory:");
 
-    registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, undefined, { database });
+    registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, undefined, undefined, { database });
 
     await handlers.get("baby-menu:db:exec")?.({}, "CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT)");
     await expect(handlers.get("baby-menu:db:run")?.({}, "INSERT INTO notes (body) VALUES (?)", ["hi"])).resolves.toEqual({
@@ -162,17 +162,23 @@ describe("capabilities IPC", () => {
     expect(widgetModules.list).toHaveBeenCalledOnce();
   });
 
-  it("registers a popover content-height channel", async () => {
+  it("registers popover state channels", async () => {
     const { registerIpcHandlers } = await import("../src/main/ipc");
     const agentRuntime = {
       send: vi.fn(),
       save: vi.fn(),
       rollback: vi.fn(),
     };
+    const popover = {
+      setContentHeight: vi.fn(),
+      getVisibility: vi.fn(() => ({ visible: false })),
+    };
 
-    registerIpcHandlers("/repo", agentRuntime);
+    registerIpcHandlers("/repo", agentRuntime, undefined, undefined, popover);
 
     await expect(handlers.get("baby-menu:popover:set-content-height")?.({}, 333)).resolves.toEqual({ ok: true });
+    expect(popover.setContentHeight).toHaveBeenCalledWith(333);
+    await expect(handlers.get("baby-menu:popover:get-visibility")?.({})).resolves.toEqual({ visible: false });
   });
 
   it("registers an app quit channel", async () => {

@@ -166,6 +166,7 @@ export type BabyMenuApi = {
   };
   popover: {
     setContentHeight: (height: number) => Promise<{ ok: boolean }>;
+    getVisibility: () => Promise<PopoverVisibilityState>;
     onVisibility: (listener: (state: PopoverVisibilityState) => void) => () => void;
   };
   settings: {

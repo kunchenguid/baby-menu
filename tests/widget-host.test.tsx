@@ -7,11 +7,13 @@ import { useViewRefresh } from "../src/renderer/menu/useViewRefresh";
 
 type VisibilityListener = (state: PopoverVisibilityState) => void;
 
-function installPopoverVisibility() {
+function installPopoverVisibility(initialVisible?: boolean) {
   let listener: VisibilityListener | null = null;
   window.babyMenu = {
     popover: {
       setContentHeight: vi.fn(async () => ({ ok: true })),
+      getVisibility:
+        initialVisible === undefined ? undefined : vi.fn(async () => ({ visible: initialVisible })),
       onVisibility: vi.fn((cb: VisibilityListener) => {
         listener = cb;
         return () => {
@@ -70,6 +72,24 @@ describe("useViewRefresh", () => {
     expect(refreshView).toHaveBeenCalledTimes(2); // refreshes immediately on show
     act(() => vi.advanceTimersByTime(2000));
     expect(refreshView).toHaveBeenCalledTimes(4); // interval resumed
+  });
+
+  it("does not start the interval when mounted while the popover is hidden", async () => {
+    vi.useFakeTimers();
+    const popover = installPopoverVisibility(false);
+    const refreshView = vi.fn();
+
+    renderHook(() => useViewRefresh({ id: "quota", viewRefreshIntervalMs: 1000, refreshView }));
+    await act(async () => {});
+    act(() => vi.advanceTimersByTime(5000));
+
+    expect(refreshView).not.toHaveBeenCalled();
+
+    act(() => popover.emit(true));
+
+    expect(refreshView).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(2000));
+    expect(refreshView).toHaveBeenCalledTimes(3);
   });
 });
 

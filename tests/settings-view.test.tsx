@@ -18,7 +18,11 @@ function installBabyMenuApi(): BabyMenuApi {
     },
     widgets: { list: vi.fn(async () => []) },
     background: { onUpdate: vi.fn(() => () => undefined) },
-    popover: { setContentHeight: vi.fn(async () => ({ ok: true })), onVisibility: vi.fn(() => () => undefined) },
+    popover: {
+      setContentHeight: vi.fn(async () => ({ ok: true })),
+      getVisibility: vi.fn(async () => ({ visible: true })),
+      onVisibility: vi.fn(() => () => undefined),
+    },
     settings: {
       get: vi.fn(async () => ({ openAtLogin: false })),
       setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin })),

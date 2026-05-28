@@ -45,6 +45,9 @@ describe("preload capabilities bridge", () => {
     await api.popover.setContentHeight(333);
     expect(invoke).toHaveBeenCalledWith("baby-menu:popover:set-content-height", 333);
 
+    await api.popover.getVisibility();
+    expect(invoke).toHaveBeenCalledWith("baby-menu:popover:get-visibility");
+
     await api.settings.get();
     expect(invoke).toHaveBeenCalledWith("baby-menu:settings:get");
 
