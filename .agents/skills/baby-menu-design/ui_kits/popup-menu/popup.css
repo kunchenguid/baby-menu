@@ -78,7 +78,7 @@ body {
   bottom: 22px; left: 22px;
   color: rgba(255,255,255,0.30);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   pointer-events: none;
 }
@@ -138,8 +138,6 @@ body {
 .widget-host {
   display: flex;
   flex-direction: column;
-  max-height: 360px;
-  overflow-y: auto;
   margin: 0 -4px;
   padding: 0 4px;
 }
@@ -161,7 +159,7 @@ body {
 }
 .widget .key {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: var(--weight-reg);
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -223,7 +221,7 @@ body {
 
 .widget .foot {
   display: flex; justify-content: space-between; align-items: center;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink-faint);
   font-feature-settings: "tnum";
 }
@@ -256,7 +254,7 @@ body {
 }
 .empty .top { font-size: 12px; color: var(--ink-200); }
 .empty p { font-size: 11px; color: var(--ink-soft); margin: 0; }
-.empty .ex { font-size: 10px; color: var(--ink-faint); }
+.empty .ex { font-size: 11px; color: var(--ink-faint); }
 .empty .ex strong { color: var(--ink-200); font-weight: var(--weight-med); }
 
 /* ─── RunStrip ─────────────────────────────────────────────── */
@@ -294,7 +292,7 @@ body {
   animation: stepFade var(--motion-slow) var(--ease);
 }
 .runstrip .timer {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink-faint);
   font-feature-settings: "tnum";
 }
@@ -336,7 +334,7 @@ body {
   text-overflow: ellipsis;
 }
 .sessionbar .sb-hint {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink-soft);
   font-weight: var(--weight-reg);
 }
@@ -424,7 +422,7 @@ body {
 
 .composer .send {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: var(--weight-med);
   letter-spacing: 0.18em;
   text-transform: uppercase;

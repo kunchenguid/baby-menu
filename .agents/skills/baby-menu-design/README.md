@@ -62,12 +62,12 @@ Baby Menu copy is **terse, lowercase, second-person, present-tense**. It sounds 
 ### Voice rules
 
 - **Lowercase by default.** UI strings stay lowercase unless they're a proper noun, an identifier, or a button label (which is sentence-case-with-no-period). The wordmark is `baby_menu`.
-- **Tracked-caps for keys.** Anything that classifies — widget key (`CLAUDE · WEEKLY`), source (`OAUTH`, `CLI`, `WEB`, `MOCK`), occasional status word — is rendered uppercase with `0.18em` letter-spacing at 10–11px. This is the workhorse heading of the entire system.
+- **Tracked-caps for keys.** Anything that classifies - widget key (`CLAUDE · WEEKLY`), source (`OAUTH`, `CLI`, `WEB`, `MOCK`), occasional status word - is rendered uppercase with `0.18em` letter-spacing at 11px minimum. This is the workhorse heading of the entire system.
 - **Address the user as "you"; address the agent as "the agent"** (never "I", "we", or "Claude").
 - **No emoji.** Status is a 5px glowing mint dot + one tracked-caps word. Never `🟢` or `✅`.
 - **Use ASCII glyphs as iconography.** `›` for prompt, `⟳` for refresh, `+` for add, `·` for separator, `↵` `⌘` for shortcuts. Lucide (16px, stroke 1.5) is the fallback when an ASCII glyph won't read.
 - **Plain dashes, not em dashes.** (From `AGENTS.md`. Honor it in copy.)
-- **Numbers are confident, units are quiet.** `72%` is 32px / weight 300; `last sync 12:04` is 10px / 48% ink.
+- **Numbers are confident, units are quiet.** `72%` is 32px / weight 300; `last sync 12:04` is 11px / 48% ink.
 
 ### Tone
 
@@ -156,7 +156,7 @@ There are no background images, no full-bleed photography, no illustrations. Ima
 
 ### Borders, radius, dividers
 
-- **Outer popover** radius: **10px** (`--radius-xl`). Sharper than most macOS native windows — this is intentional terminal posture.
+- **Outer popover** radius: **10px** (`--radius-xl`). Sharper than most macOS native windows - this is intentional terminal posture.
 - **Modules / cards** inside preview surfaces: **8px** (`--radius-lg`).
 - **Inputs**: **4px** (`--radius-sm`).
 - **Buttons**: full pill (`999px`). The only rounded affordance.
@@ -211,7 +211,7 @@ A widget is a vertical stack inside the popover body, separated from its neighbo
 1. **Head row** — tracked-caps `key` (e.g. `CLAUDE · WEEKLY`) on the left, refresh glyph on the right.
 2. **Value row** — the big number (weight 300, 28–36px, tabular numerals, tight tracking) with the unit at small. Optional status word on the right.
 3. **Progress** — a 1px line at `--ink-800` with a `--signal-live` fill plus a 3×5px head at the tip, like a tiny scanline. Optional.
-4. **Foot row** — 10px ink-faint meta on the left (timestamp), an uppercase source tag on the right (`OAUTH`, `CLI`, etc).
+4. **Foot row** - 11px ink-faint meta on the left (timestamp), an uppercase source tag on the right (`OAUTH`, `CLI`, etc).
 
 Widgets do **not** have backgrounds, borders, shadows, or padding-as-containers. They use the popover canvas directly and rely on dividers for separation.
 
