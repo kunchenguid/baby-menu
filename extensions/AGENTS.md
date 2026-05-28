@@ -77,6 +77,13 @@ Common API patterns:
 - `Progress` takes `value={0..100}` and optional `tone="live" | "warn" | "danger"`.
 - `Sparkline` takes `data={number[]}` and optional `width`, `height`, `tone="live" | "ink"`, and `area`.
 - `Select` and `Dialog` follow Radix composition: root, trigger, content, then item/body/footer pieces.
+- `Button` supports `variant="default" | "primary" | "ghost" | "danger"`, `size="sm" | "md"`, and defaults to `type="button"`.
+- `Field` takes `label`, optional `hint`, and exactly one control child; it wires the label to the child `id` or generates one.
+- `Input` and `Textarea` accept normal HTML control props and are already styled for the popover.
+- `Switch` uses Radix switch props such as `checked`, `defaultChecked`, `onCheckedChange`, and `disabled`.
+- `Tabs` follow Radix composition: `Tabs defaultValue`, `TabsList`, matching `TabsTrigger value`, and `TabsContent value`.
+- `DropdownMenu` follows Radix composition: root, `DropdownMenuTrigger`, `DropdownMenuContent`, then `DropdownMenuItem` rows.
+- `Tooltip` wraps one trigger child and takes `content`, optional `side`, and optional `className`; do not mount a separate provider.
 
 ```tsx
 import {
