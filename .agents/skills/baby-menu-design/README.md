@@ -146,7 +146,10 @@ Scale stays compact but readable: `--fs-xxs` / `text-xxs` **11px**, `xs` **12px*
 
 ### Spacing
 
-A 2px base scale: `2 / 4 / 6 / 8 / 12 / 16 / 20 / 24 / 32`. The popover lives on a 12–14px outer padding. Widgets are separated by `1px dashed` dividers, not gutters, so the surface reads as a continuous log rather than separate cards.
+The app-shell and prototype token files use a 2px base scale: `2 / 4 / 6 / 8 / 12 / 16 / 20 / 24 / 32`.
+Widget authors using the shared Tailwind path should use normal Tailwind spacing utilities with the Baby Menu color and type tokens, not custom `--space-*` values.
+The popover lives on a 12–14px outer padding.
+Widgets are separated by `1px dashed` dividers, not gutters, so the surface reads as a continuous log rather than separate cards.
 
 ### Background
 

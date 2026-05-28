@@ -30,7 +30,7 @@ brew install --cask kunchenguid/tap/baby-menu
 open -a "Baby Menu"
 ```
 
-Click the tray icon, then ask for a widget in the popover chat such as:
+Click the tray icon, then ask for a widget in the composer such as:
 
 ```text
 add a CPU temp widget that shows current temperature and fan status
