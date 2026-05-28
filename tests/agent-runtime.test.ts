@@ -300,3 +300,59 @@ describe("agent runtime defaults", () => {
     expect(runtimeInternals.collectTurnOutput).toHaveBeenCalledOnce();
   });
 });
+
+describe("agent runtime switching", () => {
+  function buildRuntime() {
+    const runtime = new BabyMenuAgentRuntime("/repo", { agentName: "claude" });
+    const internals = runtime as unknown as {
+      runtime: { close: ReturnType<typeof vi.fn> } | null;
+      handle: object | null;
+      activeSession: object | null;
+    };
+    return { runtime, internals };
+  }
+
+  it("reports the configured agent as the current agent", () => {
+    const { runtime } = buildRuntime();
+    expect(runtime.currentAgent).toBe("claude");
+  });
+
+  it("ignores a switch to the same or empty agent", async () => {
+    const { runtime, internals } = buildRuntime();
+    const close = vi.fn(async () => undefined);
+    internals.runtime = { close };
+    internals.handle = {};
+
+    await runtime.setAgent("claude");
+    await runtime.setAgent("   ");
+
+    expect(close).not.toHaveBeenCalled();
+    expect(runtime.currentAgent).toBe("claude");
+  });
+
+  it("switches agent and resets the live session with discarded state", async () => {
+    const { runtime, internals } = buildRuntime();
+    const close = vi.fn(async () => undefined);
+    internals.runtime = { close };
+    internals.handle = { sessionKey: "baby-menu-agent-chat" };
+    internals.activeSession = { startedClean: true };
+
+    await runtime.setAgent("codex");
+
+    expect(close).toHaveBeenCalledWith({
+      handle: { sessionKey: "baby-menu-agent-chat" },
+      reason: "agent-switch",
+      discardPersistentState: true,
+    });
+    expect(runtime.currentAgent).toBe("codex");
+    expect(internals.runtime).toBeNull();
+    expect(internals.handle).toBeNull();
+    expect(internals.activeSession).toBeNull();
+  });
+
+  it("switches agent even when no runtime is active yet", async () => {
+    const { runtime } = buildRuntime();
+    await runtime.setAgent("codex");
+    expect(runtime.currentAgent).toBe("codex");
+  });
+});

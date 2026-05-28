@@ -73,4 +73,22 @@ describe("preferences service", () => {
     expect(appFacade.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: false });
     await expect(readFile(join(userDataDir, "preferences.json"), "utf8")).resolves.toContain('"openAtLogin": false');
   });
+
+  it("has no agent preference until the user picks one", async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), "baby-menu-prefs-"));
+    tempDirs.push(userDataDir);
+    const service = createPreferencesService({ userDataDir, app: { setLoginItemSettings: vi.fn() } });
+
+    await expect(service.get()).resolves.not.toHaveProperty("agentName");
+  });
+
+  it("persists the chosen agent without disturbing the login preference", async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), "baby-menu-prefs-"));
+    tempDirs.push(userDataDir);
+    const service = createPreferencesService({ userDataDir, app: { setLoginItemSettings: vi.fn() }, defaultOpenAtLogin: false });
+
+    await expect(service.setAgent("codex")).resolves.toEqual({ openAtLogin: false, agentName: "codex" });
+    await expect(service.get()).resolves.toEqual({ openAtLogin: false, agentName: "codex" });
+    await expect(readFile(join(userDataDir, "preferences.json"), "utf8")).resolves.toContain('"agentName": "codex"');
+  });
 });

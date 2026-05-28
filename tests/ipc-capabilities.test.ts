@@ -204,14 +204,17 @@ describe("capabilities IPC", () => {
       rollback: vi.fn(),
     };
     const settings = {
-      get: vi.fn(async () => ({ openAtLogin: false })),
-      setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin })),
+      get: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
+      setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin, agentName: "claude", agents: [] })),
+      setAgent: vi.fn(async (agentName: string) => ({ openAtLogin: false, agentName, agents: [] })),
     };
 
     registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, settings);
 
-    await expect(handlers.get("baby-menu:settings:get")?.({})).resolves.toEqual({ openAtLogin: false });
-    await expect(handlers.get("baby-menu:settings:set-open-at-login")?.({}, true)).resolves.toEqual({ openAtLogin: true });
+    await expect(handlers.get("baby-menu:settings:get")?.({})).resolves.toEqual({ openAtLogin: false, agentName: "claude", agents: [] });
+    await expect(handlers.get("baby-menu:settings:set-open-at-login")?.({}, true)).resolves.toEqual({ openAtLogin: true, agentName: "claude", agents: [] });
     expect(settings.setOpenAtLogin).toHaveBeenCalledWith(true);
+    await expect(handlers.get("baby-menu:settings:set-agent")?.({}, "codex")).resolves.toEqual({ openAtLogin: false, agentName: "codex", agents: [] });
+    expect(settings.setAgent).toHaveBeenCalledWith("codex");
   });
 });

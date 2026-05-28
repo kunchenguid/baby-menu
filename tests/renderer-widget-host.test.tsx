@@ -34,8 +34,9 @@ function installBabyMenuApi(widgets: BabyMenuApi["widgets"]) {
       onVisibility: vi.fn(() => () => undefined),
     },
     settings: {
-      get: vi.fn(async () => ({ openAtLogin: false })),
-      setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin })),
+      get: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
+      setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin, agentName: "claude", agents: [] })),
+      setAgent: vi.fn(async (agentName: string) => ({ openAtLogin: false, agentName, agents: [] })),
     },
     app: {
       quit: vi.fn(async () => ({ ok: true })),

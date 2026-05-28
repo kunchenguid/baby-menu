@@ -56,6 +56,7 @@ const api: BabyMenuApi = {
   settings: {
     get: () => ipcRenderer.invoke("baby-menu:settings:get"),
     setOpenAtLogin: (openAtLogin: boolean) => ipcRenderer.invoke("baby-menu:settings:set-open-at-login", openAtLogin),
+    setAgent: (agentName: string) => ipcRenderer.invoke("baby-menu:settings:set-agent", agentName),
   },
   app: {
     quit: () => ipcRenderer.invoke("baby-menu:app:quit"),

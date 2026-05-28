@@ -27,6 +27,7 @@ type PopoverController = {
 type SettingsController = {
   get: () => Promise<BabyMenuSettings> | BabyMenuSettings;
   setOpenAtLogin: (openAtLogin: boolean) => Promise<BabyMenuSettings> | BabyMenuSettings;
+  setAgent: (agentName: string) => Promise<BabyMenuSettings> | BabyMenuSettings;
 };
 
 type AppController = {
@@ -45,8 +46,9 @@ export function registerIpcHandlers(
   widgetModules: WidgetModuleRegistry = createWidgetModuleRegistry(rootDir),
   popover: PopoverController = { setContentHeight: () => undefined, getVisibility: () => ({ visible: false }) },
   settings: SettingsController = {
-    get: () => ({ openAtLogin: false }),
-    setOpenAtLogin: (openAtLogin) => ({ openAtLogin }),
+    get: () => ({ openAtLogin: false, agentName: "", agents: [] }),
+    setOpenAtLogin: (openAtLogin) => ({ openAtLogin, agentName: "", agents: [] }),
+    setAgent: (agentName) => ({ openAtLogin: false, agentName, agents: [] }),
   },
   appController: AppController = { quit: () => electronApp.quit() },
   runtimeOptions: IpcRuntimeOptions = {},
@@ -115,6 +117,10 @@ export function registerIpcHandlers(
 
   ipcMain.handle("baby-menu:settings:set-open-at-login", async (_event, openAtLogin: boolean) => {
     return settings.setOpenAtLogin(openAtLogin);
+  });
+
+  ipcMain.handle("baby-menu:settings:set-agent", async (_event, agentName: string) => {
+    return settings.setAgent(agentName);
   });
 
   ipcMain.handle("baby-menu:app:quit", async () => {

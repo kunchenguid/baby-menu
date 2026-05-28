@@ -13,6 +13,7 @@ import {
 } from "acpx/runtime";
 import type { AgentChatResult, GitActionResult, GitSessionSnapshot } from "../shared/contracts";
 import type { AgentRuntimeStatus } from "../shared/contracts";
+import { type AgentDefinition, resolveAgentCatalog } from "./agent-catalog";
 import { getAgentStateDir, getDevExtensionSnapshotDir, getExtensionsDir } from "../shared/paths";
 import { AgentTurnLogRecorder } from "./agent-turn-log";
 import { DevExtensionChangeSession } from "./dev-extension-change-session";
@@ -40,13 +41,9 @@ type ResolveDefaultAgentNameOptions = {
   env?: Partial<Pick<NodeJS.ProcessEnv, "BABY_MENU_AGENT" | "PATH">>;
   commandExists?: (command: string) => boolean;
   allowFallbackWhenMissing?: boolean;
+  catalog?: readonly AgentDefinition[];
 };
 
-const PREFERRED_AGENTS = [
-  { name: "claude", command: "claude" },
-  { name: "pi", command: "npx" },
-  { name: "codex", command: "codex" },
-] as const;
 const DEFAULT_AGENT_TIMEOUT_MS = 300_000;
 
 type AgentChangeSession = {
@@ -68,7 +65,7 @@ export class AgentTimeoutError extends Error {
   }
 }
 
-function commandExists(command: string): boolean {
+export function commandExists(command: string): boolean {
   const lookupCommand = process.platform === "win32" ? "where" : "sh";
   const lookupArgs = process.platform === "win32" ? [command] : ["-c", "command -v \"$1\"", "sh", command];
   return spawnSync(lookupCommand, lookupArgs, { stdio: "ignore" }).status === 0;
@@ -78,10 +75,12 @@ export function resolveDefaultAgentName(options: ResolveDefaultAgentNameOptions 
   const configuredAgent = options.env?.BABY_MENU_AGENT ?? process.env.BABY_MENU_AGENT;
   if (configuredAgent?.trim()) return configuredAgent.trim();
 
+  const catalog = options.catalog ?? resolveAgentCatalog();
+  if (catalog.length === 0) return null;
   const hasCommand = options.commandExists ?? commandExists;
-  const detected = PREFERRED_AGENTS.find((agent) => hasCommand(agent.command))?.name;
+  const detected = catalog.find((agent) => (agent.launchCommand ? true : hasCommand(agent.command)))?.name;
   if (detected) return detected;
-  return options.allowFallbackWhenMissing === false ? null : PREFERRED_AGENTS[0].name;
+  return options.allowFallbackWhenMissing === false ? null : catalog[0].name;
 }
 
 export function resolveAgentTimeoutMs(env: Partial<Pick<NodeJS.ProcessEnv, "BABY_MENU_AGENT_TIMEOUT_MS">> = process.env) {
@@ -257,7 +256,7 @@ export class BabyMenuAgentRuntime {
   private handle: AcpRuntimeHandle | null = null;
   private activeSession: AgentChangeSession | null = null;
   private activeTurn = false;
-  private readonly agentName: string;
+  private agentName: string;
   private readonly registryOverrides: Record<string, string> | undefined;
   private readonly requestTimeoutMs: number;
   private readonly paths: BabyMenuAgentRuntimePaths | undefined;
@@ -269,7 +268,7 @@ export class BabyMenuAgentRuntime {
     this.agentName =
       typeof options === "string"
         ? options
-        : options.agentName ?? resolveDefaultAgentName() ?? PREFERRED_AGENTS[0].name;
+        : options.agentName ?? resolveDefaultAgentName() ?? resolveAgentCatalog()[0].name;
     this.registryOverrides = typeof options === "string" ? undefined : options.registryOverrides;
     this.requestTimeoutMs = typeof options === "string" ? resolveAgentTimeoutMs() : options.requestTimeoutMs ?? resolveAgentTimeoutMs();
     this.paths = typeof options === "string" ? undefined : options.paths;
@@ -277,6 +276,32 @@ export class BabyMenuAgentRuntime {
 
   get session(): AgentChangeSession | null {
     return this.activeSession;
+  }
+
+  get currentAgent(): string {
+    return this.agentName;
+  }
+
+  /**
+   * Switches the embedded agent and resets the live conversation. Closing the
+   * runtime with discardPersistentState drops the persisted "baby-menu-agent-chat"
+   * session so the next send() starts the new agent with a fresh conversation.
+   */
+  async setAgent(name: string): Promise<void> {
+    const next = name.trim();
+    if (!next || next === this.agentName) return;
+
+    if (this.runtime && this.handle) {
+      const runtime = this.runtime;
+      const handle = this.handle;
+      await runtime
+        .close({ handle, reason: "agent-switch", discardPersistentState: true })
+        .catch(() => undefined);
+    }
+    this.runtime = null;
+    this.handle = null;
+    this.activeSession = null;
+    this.agentName = next;
   }
 
   async send(prompt: string, options: BabyMenuAgentRuntimeSendOptions = {}): Promise<AgentChatResult> {

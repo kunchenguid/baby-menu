@@ -3,6 +3,8 @@ import { dirname, join } from "node:path";
 
 export type BabyMenuPreferences = {
   openAtLogin: boolean;
+  /** Persisted embedded-agent choice; absent until the user picks one. */
+  agentName?: string;
 };
 
 type LoginItemApp = {
@@ -12,6 +14,7 @@ type LoginItemApp = {
 export type PreferencesService = {
   get: () => Promise<BabyMenuPreferences>;
   setOpenAtLogin: (openAtLogin: boolean) => Promise<BabyMenuPreferences>;
+  setAgent: (agentName: string) => Promise<BabyMenuPreferences>;
   apply: () => Promise<BabyMenuPreferences>;
 };
 
@@ -31,7 +34,11 @@ export function createPreferencesService({
   const filePath = join(userDataDir, "preferences.json");
 
   function normalizePreferences(preferences: BabyMenuPreferences): BabyMenuPreferences {
-    return { openAtLogin: allowOpenAtLogin && preferences.openAtLogin };
+    const agentName = preferences.agentName?.trim();
+    return {
+      openAtLogin: allowOpenAtLogin && preferences.openAtLogin,
+      ...(agentName ? { agentName } : {}),
+    };
   }
 
   function applyLoginItemSettings(preferences: BabyMenuPreferences): void {
@@ -42,7 +49,7 @@ export function createPreferencesService({
   async function readPreferences(): Promise<BabyMenuPreferences> {
     try {
       const parsed = JSON.parse(await readFile(filePath, "utf8")) as Partial<BabyMenuPreferences>;
-      return normalizePreferences({ openAtLogin: parsed.openAtLogin ?? defaultOpenAtLogin });
+      return normalizePreferences({ openAtLogin: parsed.openAtLogin ?? defaultOpenAtLogin, agentName: parsed.agentName });
     } catch {
       return normalizePreferences({ openAtLogin: defaultOpenAtLogin });
     }
@@ -57,9 +64,14 @@ export function createPreferencesService({
   return {
     get: readPreferences,
     async setOpenAtLogin(openAtLogin) {
-      const preferences = await writePreferences(normalizePreferences({ openAtLogin }));
+      const current = await readPreferences();
+      const preferences = await writePreferences(normalizePreferences({ ...current, openAtLogin }));
       applyLoginItemSettings(preferences);
       return preferences;
+    },
+    async setAgent(agentName) {
+      const current = await readPreferences();
+      return writePreferences(normalizePreferences({ ...current, agentName }));
     },
     async apply() {
       const preferences = await readPreferences();

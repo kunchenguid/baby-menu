@@ -37,8 +37,19 @@ export type AgentRuntimeStatus = {
   eventType: "text_delta";
 };
 
+export type BabyMenuAgentOption = {
+  name: string;
+  label: string;
+  available: boolean;
+  installHint?: string;
+};
+
 export type BabyMenuSettings = {
   openAtLogin: boolean;
+  /** Name of the active embedded agent. */
+  agentName: string;
+  /** Selectable agents; unavailable ones are shown disabled with an install hint. */
+  agents: BabyMenuAgentOption[];
 };
 
 // SQL bind parameters: positional (an array) or named (an object keyed by the
@@ -172,6 +183,7 @@ export type BabyMenuApi = {
   settings: {
     get: () => Promise<BabyMenuSettings>;
     setOpenAtLogin: (openAtLogin: boolean) => Promise<BabyMenuSettings>;
+    setAgent: (agentName: string) => Promise<BabyMenuSettings>;
   };
   app: {
     /** Fully quits the Electron app from the popover shell. */

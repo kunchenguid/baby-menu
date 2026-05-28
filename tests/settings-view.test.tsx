@@ -2,9 +2,16 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/renderer/App";
-import type { BabyMenuApi } from "../src/shared/contracts";
+import type { BabyMenuApi, BabyMenuSettings } from "../src/shared/contracts";
 
-function installBabyMenuApi(): BabyMenuApi {
+function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
+  const base: BabyMenuSettings = {
+    openAtLogin: false,
+    agentName: "claude",
+    agents: [{ name: "claude", label: "Claude Code", available: true }],
+    ...settings,
+  };
+  let current = base;
   const api: BabyMenuApi = {
     recipes: { list: vi.fn(async () => []) },
     git: { save: vi.fn(async () => ({ ok: true })), rollback: vi.fn(async () => ({ ok: true })) },
@@ -24,8 +31,15 @@ function installBabyMenuApi(): BabyMenuApi {
       onVisibility: vi.fn(() => () => undefined),
     },
     settings: {
-      get: vi.fn(async () => ({ openAtLogin: false })),
-      setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin })),
+      get: vi.fn(async () => current),
+      setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => {
+        current = { ...current, openAtLogin };
+        return current;
+      }),
+      setAgent: vi.fn(async (agentName: string) => {
+        current = { ...current, agentName };
+        return current;
+      }),
     },
     app: { quit: vi.fn(async () => ({ ok: true })) },
   };
@@ -63,5 +77,60 @@ describe("settings view", () => {
     fireEvent.click(screen.getByRole("button", { name: "close settings" }));
     expect(await screen.findByPlaceholderText("ask the agent")).toBeTruthy();
     expect(screen.queryByText("launch at system start")).toBeNull();
+  });
+
+  it("shows unavailable agents disabled with an install hint", async () => {
+    installBabyMenuApi({
+      agentName: "claude",
+      agents: [
+        { name: "claude", label: "Claude Code", available: true },
+        { name: "codex", label: "Codex", available: false, installHint: "Install the Codex CLI." },
+      ],
+    });
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "open settings" }));
+
+    const codex = await screen.findByRole("radio", { name: /Codex/ });
+    expect((codex as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Install the Codex CLI.")).toBeTruthy();
+  });
+
+  it("confirms before switching agents and calls setAgent on confirm", async () => {
+    const api = installBabyMenuApi({
+      agentName: "claude",
+      agents: [
+        { name: "claude", label: "Claude Code", available: true },
+        { name: "codex", label: "Codex", available: true },
+      ],
+    });
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "open settings" }));
+
+    fireEvent.click(await screen.findByRole("radio", { name: /Codex/ }));
+
+    // Confirmation must make the conversation-reset consequence clear.
+    expect(await screen.findByText(/will reset the current conversation/i)).toBeTruthy();
+    expect(api.settings.setAgent).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /switch and reset/i }));
+    await waitFor(() => expect(api.settings.setAgent).toHaveBeenCalledWith("codex"));
+  });
+
+  it("does not switch agents when the confirmation is cancelled", async () => {
+    const api = installBabyMenuApi({
+      agentName: "claude",
+      agents: [
+        { name: "claude", label: "Claude Code", available: true },
+        { name: "codex", label: "Codex", available: true },
+      ],
+    });
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "open settings" }));
+
+    fireEvent.click(await screen.findByRole("radio", { name: /Codex/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /cancel/i }));
+
+    await waitFor(() => expect(screen.queryByText(/will reset/i)).toBeNull());
+    expect(api.settings.setAgent).not.toHaveBeenCalled();
   });
 });

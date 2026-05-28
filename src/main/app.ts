@@ -1,8 +1,15 @@
 import { app, BrowserWindow, screen, type Rectangle } from "electron";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { BabyMenuSettings } from "../shared/contracts";
 import { getRepoRoot } from "../shared/paths";
-import { BabyMenuAgentRuntime } from "./agent-runtime";
+import {
+  agentRegistryOverrides,
+  loadAgentConfigFile,
+  resolveAgentCatalog,
+  toAgentOptions,
+} from "./agent-catalog";
+import { BabyMenuAgentRuntime, commandExists } from "./agent-runtime";
 import { resolveBabyMenuRuntimePaths } from "./app-paths";
 import { seedExtensionWorkspace } from "./extension-seeder";
 import { registerIpcHandlers } from "./ipc";
@@ -137,9 +144,15 @@ export async function startBabyMenuApp(): Promise<void> {
     defaultOpenAtLogin: paths.isPackaged,
     allowOpenAtLogin: paths.isPackaged,
   });
-  await preferences.apply();
+  const persistedPreferences = await preferences.apply();
+
+  const agentConfig = await loadAgentConfigFile(join(paths.appDataRoot, "agents.json"));
+  const agentCatalog = resolveAgentCatalog({ config: agentConfig });
+  const registryOverrides = agentRegistryOverrides(agentCatalog);
 
   const agentRuntime = new BabyMenuAgentRuntime(paths.appDataRoot, {
+    agentName: persistedPreferences.agentName,
+    registryOverrides: Object.keys(registryOverrides).length > 0 ? registryOverrides : undefined,
     paths: {
       extensionsDir: paths.extensionsDir,
       agentStateDir: paths.agentStateDir,
@@ -149,6 +162,29 @@ export async function startBabyMenuApp(): Promise<void> {
   });
   const database = createExtensionDatabase(paths.databasePath);
   const notify = createNotifier();
+
+  async function buildSettings(): Promise<BabyMenuSettings> {
+    const current = await preferences.get();
+    return {
+      openAtLogin: current.openAtLogin,
+      agentName: agentRuntime.currentAgent,
+      agents: toAgentOptions(agentCatalog, commandExists),
+    };
+  }
+
+  const settingsController = {
+    get: buildSettings,
+    async setOpenAtLogin(openAtLogin: boolean) {
+      await preferences.setOpenAtLogin(openAtLogin);
+      return buildSettings();
+    },
+    async setAgent(agentName: string) {
+      await preferences.setAgent(agentName);
+      await agentRuntime.setAgent(agentName);
+      return buildSettings();
+    },
+  };
+
   const serverActions = createServerActionRegistry({
     rootDir: paths.appDataRoot,
     actionRoots: [paths.extensionsDir],
@@ -169,7 +205,7 @@ export async function startBabyMenuApp(): Promise<void> {
     serverActions,
     widgetModules,
     { setContentHeight: setPopoverContentHeight, getVisibility: () => ({ visible: popoverWindow?.isVisible() ?? false }) },
-    preferences,
+    settingsController,
     undefined,
     { recipesDir: paths.recipesDir, database },
   );
