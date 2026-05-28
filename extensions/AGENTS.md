@@ -274,8 +274,8 @@ The `context` is `{ rootDir, db, notify }`:
 
 ### Module-scope state in server.ts is not durable
 
-The host keeps one `server.ts` module instance alive across calls, so a module-scope variable does carry its value between `invoke`s and between background ticks - a `let previous = ...` at the top of `server.ts` will hold the last run's value while the code is unchanged.
-But that instance is replaced with fresh, reset state whenever you edit the extension's code (a hot reload) and whenever the app restarts.
+The host keeps one `server.ts` module instance alive across calls, so a module-scope variable does carry its value between `invoke`s and between background ticks - a `let previous = ...` at the top of `server.ts` will hold the last run's value while `server.ts` and its local helper imports are unchanged.
+But that instance is replaced with fresh, reset state whenever you edit the extension's code, including local helper files, and whenever the app restarts.
 So module scope is fine for a cheap in-memory cache that is safe to lose, but anything that must survive a reload or restart - settings, accumulated history, a baseline you cannot recompute - has to live in `db` (see "Storage").
 When in doubt, persist to `db`: it is the only place state is guaranteed to outlive a code edit or restart.
 

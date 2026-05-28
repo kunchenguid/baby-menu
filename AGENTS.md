@@ -61,7 +61,7 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 - `preferences.ts` - stores app preferences, including the selected agent, under the active app data root and applies login-item settings only when login items are allowed, keeping source/dev mode as a no-op for macOS login items.
 - `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs.
 - `recipe-loader.ts` - discovers and parses `recipes/*.html` from the active extension workspace.
-- `server-action-registry.ts` - dynamically loads extension server actions and background task declarations from the active extension workspace.
+- `server-action-registry.ts` - discovers extension server actions and background task declarations from the active extension workspace, caches unchanged compiled server modules, and reloads them when the entry or local helper source changes.
 - `background-task-scheduler.ts` - runs discovered extension background tasks on host-owned timers, hot-reloads changed tasks, and enforces the 60-second minimum interval.
 - `extension-database.ts` - owns the shared local SQLite database exposed to extension server actions, background tasks, and widgets through the bridge.
 - `notifier.ts` - backs `context.notify` for server actions and background tasks with native notifications.
@@ -117,11 +117,13 @@ Do not write generated extension files, the local extension database, compiled m
 
 - Recipes are HTML files in `recipes/` inside the active extension workspace. `recipe-loader.ts` discovers `*.html`, sorts them, and extracts the title from `<title>` or first `<h1>`. They are intentionally HTML so the embedded agent can read them from its cwd and use embedded interactive demos.
 - Extensions live in the active extension workspace under `<extension-id>/` and may include `widget.tsx`, `server.ts`, and local helper files.
-- Packaged widgets, settings sections, and server actions are compiled into `~/.baby-menu/cache` and loaded through custom protocols or cached modules; dev mode keeps Vite `/@fs` loading.
+- Packaged widgets, settings sections, and server actions are compiled into `~/.baby-menu/cache` and loaded through custom protocols or cached modules; dev mode keeps Vite `/@fs` loading for renderer modules.
 - Widgets conform to `BabyMenuWidget` / `RefreshableBabyMenuWidget`. The `WidgetHost` owns visible-widget refresh timing via `useViewRefresh`, using the main-process popover visibility signal - widgets should not start their own polling.
 - Settings sections conform to `BabyMenuSettingsSection`, are exported from `widget.tsx`, and own only the section body; `SettingsView` owns the frame and rediscovers sections when settings refresh or the popover reopens.
 - New widgets and capabilities should be built as self-contained extensions behind the stable `window.babyMenu` bridge.
 - Extension server actions and background tasks are discovered dynamically from the active extension workspace, so new or changed capabilities can be picked up without changing preload.
+- Server action modules keep one module instance while `server.ts` and its local imports are unchanged, so module-scope state can survive repeated `invoke` calls and background ticks.
+- That state is reset on code edits and app restarts; durable extension state belongs in the shared SQLite store, not module scope.
 - Use `viewRefreshIntervalMs` / `refreshView` for live data that only matters while the popover is visible, and use background tasks only for work that must keep running while the popover is closed.
 - Extension data that should persist locally belongs in the shared SQLite store, exposed as `context.db` server-side and `window.babyMenu.db` renderer-side; keep heavy queries out of widgets.
 - The embedded agent should be steered toward editing its active extension workspace. The Electron core in `src/main/`, `src/preload/`, and shared IPC wiring is meant to be boring infrastructure.
