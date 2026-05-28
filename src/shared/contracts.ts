@@ -37,6 +37,13 @@ export type AgentRuntimeStatus = {
   eventType: "text_delta";
 };
 
+// The turn currently executing in the main process. `startedAt` is an epoch ms
+// timestamp so the renderer can render the elapsed timer after a remount.
+export type AgentActiveTurn = {
+  title: string;
+  startedAt: number;
+};
+
 export type BabyMenuAgentOption = {
   name: string;
   label: string;
@@ -164,10 +171,20 @@ export type BabyMenuApi = {
   git: {
     save: (message?: string) => Promise<GitActionResult>;
     rollback: () => Promise<GitActionResult>;
+    // Snapshot of the outstanding agent change session, or null when none is open
+    // OR a turn is still running. Lets the renderer re-hydrate a pending
+    // Keep/Rollback prompt after a reload, since that prompt is otherwise ephemeral
+    // renderer state. Returns null mid-turn so the prompt never appears before the
+    // build finishes; pair with agent.getActiveTurn to restore the run strip.
+    status: () => Promise<GitSessionSnapshot | null>;
   };
   agent: {
     send: (prompt: string) => Promise<AgentChatResult>;
     onStatus: (listener: (status: AgentRuntimeStatus) => void) => () => void;
+    // The turn currently running in the main process, or null. Lets the renderer
+    // restore the in-progress run strip after the popover view is remounted (e.g.
+    // returning from Settings) instead of losing it or showing a premature prompt.
+    getActiveTurn: () => Promise<AgentActiveTurn | null>;
   };
   capabilities: {
     list: () => Promise<BabyMenuCapabilityDescriptor[]>;

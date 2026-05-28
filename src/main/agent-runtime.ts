@@ -11,7 +11,7 @@ import {
   type AcpRuntimeTurn,
   type AcpxRuntime,
 } from "acpx/runtime";
-import type { AgentChatResult, GitActionResult, GitSessionSnapshot } from "../shared/contracts";
+import type { AgentActiveTurn, AgentChatResult, GitActionResult, GitSessionSnapshot } from "../shared/contracts";
 import type { AgentRuntimeStatus } from "../shared/contracts";
 import { type AgentDefinition, resolveAgentCatalog } from "./agent-catalog";
 import { getAgentStateDir, getDevExtensionSnapshotDir, getExtensionsDir } from "../shared/paths";
@@ -256,6 +256,7 @@ export class BabyMenuAgentRuntime {
   private handle: AcpRuntimeHandle | null = null;
   private activeSession: AgentChangeSession | null = null;
   private activeTurn = false;
+  private activeTurnInfo: AgentActiveTurn | null = null;
   private agentName: string;
   private readonly registryOverrides: Record<string, string> | undefined;
   private readonly requestTimeoutMs: number;
@@ -276,6 +277,30 @@ export class BabyMenuAgentRuntime {
 
   get session(): AgentChangeSession | null {
     return this.activeSession;
+  }
+
+  /**
+   * Snapshot of the outstanding change session for the renderer to re-hydrate a
+   * pending Keep/Rollback prompt after a reload. Returns null when no session is
+   * open OR a turn is still running. The change session is created at the start of
+   * a turn (so it is "saveable" the whole time the build runs); returning null
+   * mid-turn keeps the renderer from showing a Keep/Rollback prompt before the
+   * build has actually finished. Use currentTurn() to restore the run strip then.
+   */
+  currentSessionSnapshot(): GitSessionSnapshot | null {
+    if (this.activeTurn) return null;
+    if (!this.activeSession) return null;
+    if (!this.activeSession.canSave && !this.activeSession.canRollback) return null;
+    return this.activeSession.snapshot("Review the generated changes, then Save or Rollback.");
+  }
+
+  /**
+   * The turn currently running in the main process, or null. Lets the renderer
+   * restore the in-progress run strip after the popover view is remounted (e.g.
+   * returning from Settings) instead of losing it or surfacing a premature prompt.
+   */
+  currentTurn(): AgentActiveTurn | null {
+    return this.activeTurnInfo;
   }
 
   get currentAgent(): string {
@@ -323,11 +348,13 @@ export class BabyMenuAgentRuntime {
     }
 
     this.activeTurn = true;
+    this.activeTurnInfo = { title: prompt.trim(), startedAt: Date.now() };
 
     try {
       return await this.runSend(prompt, options);
     } finally {
       this.activeTurn = false;
+      this.activeTurnInfo = null;
     }
   }
 

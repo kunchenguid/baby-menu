@@ -75,6 +75,11 @@ export function resetDevWorkspace({
   const rootDir = gitRoot(cwd, execFileSyncFn);
   const devExtensionsDir = resolveDevExtensionsDir(rootDir, env);
   rmSyncFn(devExtensionsDir, { recursive: true, force: true });
+  // Also clear the embedded agent's persistent conversation. Otherwise the agent
+  // keeps its prior context across a reset and rebuilds widgets from memory
+  // instead of re-reading updated recipes/AGENTS.md. Mirrors getAgentStateDir in
+  // src/shared/paths.ts (.cache/baby-menu/acp-sessions).
+  rmSyncFn(join(rootDir, ".cache", "baby-menu", "acp-sessions"), { recursive: true, force: true });
 
   return runDev({
     cwd: rootDir,

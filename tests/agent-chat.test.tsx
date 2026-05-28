@@ -3,9 +3,12 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentChat } from "../src/renderer/agent/AgentChat";
-import type { AgentChatResult, AgentRuntimeStatus } from "../src/shared/contracts";
+import type { AgentActiveTurn, AgentChatResult, AgentRuntimeStatus, GitSessionSnapshot } from "../src/shared/contracts";
 
-function installBabyMenuAgentMock() {
+function installBabyMenuAgentMock({
+  session = null,
+  activeTurn = null,
+}: { session?: GitSessionSnapshot | null; activeTurn?: AgentActiveTurn | null } = {}) {
   let statusListener: ((status: AgentRuntimeStatus) => void) | null = null;
   window.babyMenu = {
     recipes: {
@@ -14,6 +17,7 @@ function installBabyMenuAgentMock() {
     git: {
       save: vi.fn(),
       rollback: vi.fn(),
+      status: vi.fn(async () => session),
     },
     agent: {
       send: vi.fn(() => new Promise<AgentChatResult>(() => undefined)),
@@ -23,6 +27,7 @@ function installBabyMenuAgentMock() {
           statusListener = null;
         };
       }),
+      getActiveTurn: vi.fn(async () => activeTurn),
     },
     capabilities: {
       list: vi.fn(),
@@ -70,14 +75,14 @@ describe("AgentChat", () => {
     installBabyMenuAgentMock();
     render(<AgentChat />);
 
-    const composer = screen.getByPlaceholderText("ask the agent");
+    const composer = screen.getByPlaceholderText("talk to the baby");
     fireEvent.change(composer, { target: { value: "add a CPU temperature widget" } });
     fireEvent.submit(composer.closest("form")!);
 
     expect(await screen.findByText("› add a CPU temperature widget")).toBeTruthy();
     expect(screen.getByText("Working...")).toBeTruthy();
     expect(screen.queryByPlaceholderText("agent working")).toBeNull();
-    expect(screen.queryByPlaceholderText("ask the agent")).toBeNull();
+    expect(screen.queryByPlaceholderText("talk to the baby")).toBeNull();
     expect(screen.queryByRole("button", { name: "send" })).toBeNull();
   });
 
@@ -85,7 +90,7 @@ describe("AgentChat", () => {
     const agent = installBabyMenuAgentMock();
     render(<AgentChat />);
 
-    const composer = screen.getByPlaceholderText("ask the agent");
+    const composer = screen.getByPlaceholderText("talk to the baby");
     fireEvent.change(composer, { target: { value: "summarize my pull requests" } });
     fireEvent.submit(composer.closest("form")!);
 
@@ -98,5 +103,52 @@ describe("AgentChat", () => {
     });
 
     expect(screen.getByText("I found two pull requests")).toBeTruthy();
+  });
+
+  it("restores the in-progress run strip (not a Keep/Undo prompt) when a turn is still running on mount", async () => {
+    // Mid-build, the popover view can remount (returning from Settings). Main is
+    // the source of truth: it reports an active turn, so the run strip comes back
+    // and the Keep/Undo prompt must NOT appear yet.
+    installBabyMenuAgentMock({
+      activeTurn: { title: "add a codex widget", startedAt: Date.now() - 3_000 },
+      // git.status would return null mid-turn, but assert independently of it.
+      session: { startedClean: true, canSave: true, canRollback: true, head: null },
+    });
+    render(<AgentChat />);
+
+    expect(await screen.findByText("› add a codex widget")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+
+  it("re-hydrates a pending Keep/Undo prompt from an outstanding session on mount", async () => {
+    installBabyMenuAgentMock({
+      session: {
+        startedClean: true,
+        canSave: true,
+        canRollback: true,
+        head: null,
+        message: "Review the generated changes, then Save or Rollback.",
+      },
+    });
+    render(<AgentChat />);
+
+    expect(await screen.findByRole("button", { name: "Keep" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
+    expect(screen.getByText("Review the generated changes, then Save or Rollback.")).toBeTruthy();
+  });
+
+  it("does not show a prompt when no change session is open on mount", async () => {
+    const agent = installBabyMenuAgentMock({ session: null });
+    render(<AgentChat />);
+
+    // Let the mount-time git.status() resolve before asserting absence.
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+    expect(screen.getByPlaceholderText("talk to the baby")).toBeTruthy();
+    void agent;
   });
 });

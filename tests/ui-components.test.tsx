@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { Badge, Button, DataTable, Field, Input, Progress, Skeleton, Sparkline, StatusDot } from "../src/ui";
+import { Badge, Button, DataTable, Field, Input, Progress, Skeleton, Sparkline, StatusDot, Tooltip } from "../src/ui";
 
 describe("@babymenu/ui components", () => {
   it("renders a button with variant styling and a safe default type", () => {
@@ -20,6 +20,18 @@ describe("@babymenu/ui components", () => {
     );
     expect(container.querySelector("[data-slot='status-dot']")?.className).toContain("bg-signal-warn");
     expect(container.querySelector("[data-slot='badge']")?.textContent).toBe("live");
+  });
+
+  it("pulses a status dot when asked", () => {
+    const { container } = render(<StatusDot tone="live" pulse />);
+    const dot = container.querySelector("[data-slot='status-dot']");
+    expect(dot?.className).toContain("animate-pulse");
+  });
+
+  it("does not pulse by default", () => {
+    const { container } = render(<StatusDot tone="live" />);
+    const dot = container.querySelector("[data-slot='status-dot']");
+    expect(dot?.className).not.toContain("animate-pulse");
   });
 
   it("associates a Field label with its control", () => {
@@ -59,6 +71,21 @@ describe("@babymenu/ui components", () => {
     const { container } = render(<Sparkline data={[1, 4, 2, 8, 5]} />);
     const path = container.querySelector("path");
     expect(path?.getAttribute("d")).toMatch(/^M0/);
+  });
+
+  it("does not mark its tooltip content as a full-height overlay", async () => {
+    // The popover grows to the overlay height whenever a [data-bm-overlay] element
+    // exists. A small positioned tooltip must not opt into that, or hovering a
+    // header button stretches the popover.
+    render(
+      <Tooltip content="Open settings" defaultOpen>
+        <button type="button">gear</button>
+      </Tooltip>,
+    );
+    const tip = document.querySelector("[data-slot='tooltip-content']");
+    expect(tip).not.toBeNull();
+    expect(tip?.textContent).toContain("Open settings");
+    expect(tip?.hasAttribute("data-bm-overlay")).toBe(false);
   });
 
   it("renders a skeleton placeholder", () => {

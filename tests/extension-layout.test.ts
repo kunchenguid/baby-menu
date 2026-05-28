@@ -12,13 +12,12 @@ describe("extension layout", () => {
     expect(widget).toContain("helloWorldWidget");
     expect(widget).toContain("RefreshableBabyMenuWidget");
     expect(widget).toContain("hello world");
-    expect(widget).toContain("tell baby_menu what to build");
-    // The starter widget exemplifies the design system: kit component + token utilities.
-    expect(widget).toContain("@babymenu/ui");
-    expect(widget).toContain("StatusDot");
+    expect(widget).toContain("tell baby menu what you would like it to become");
+    // The starter widget exemplifies the design system via token utilities.
     expect(widget).toContain("text-3xl");
+    expect(widget).toContain("text-signal-live");
     expect(widget).toContain("examples");
-    expect(widget).toContain("add a battery widget that shows current charge and power source");
+    expect(widget).toContain("add a widget tracking my weekly claude code quota");
     expect(widget).not.toContain("quick asks");
     expect(widget).not.toContain("className=\"src\"");
     // Migrated off legacy inline token styles.
@@ -39,11 +38,31 @@ describe("extension layout", () => {
     expect(instructions).not.toContain("rootDir` is the active extension workspace root");
   });
 
+  it("steers extension agents to real data and to verify dependencies via web search", async () => {
+    const instructions = await readFile(resolve(import.meta.dirname, "../extensions/AGENTS.md"), "utf8");
+
+    // Real data only - no silent mock fallback (mirrors the quota recipes).
+    expect(instructions).toContain("do not fabricate or silently fall back to mock data");
+    // Encourage confirming current dependency / API details rather than guessing.
+    expect(instructions).toContain("use web search to confirm the latest information");
+  });
+
+  it("tells extension agents to colocate tests inside the extension directory", async () => {
+    const instructions = await readFile(resolve(import.meta.dirname, "../extensions/AGENTS.md"), "utf8");
+
+    expect(instructions).toContain("Colocate tests inside your extension directory");
+    expect(instructions).toContain("<extension-id>/<name>.test.ts");
+    // The old guidance steered agents into the host repo's tests/ directory, which
+    // dangles and breaks the whole suite once the dev workspace is reset.
+    expect(instructions).not.toContain("Add tests under the repo-level `tests/` directory");
+    expect(instructions).not.toContain("pnpm vitest run tests/<name>.test.ts");
+  });
+
   it("exposes runtime widget design guidance to extension agents", async () => {
     const instructions = await readFile(resolve(import.meta.dirname, "../extensions/AGENTS.md"), "utf8");
 
     expect(instructions).toContain("Monochrome Lab");
-    expect(instructions).toContain("Design for a 360px macOS tray popover");
+    expect(instructions).toContain("Design for a 504px macOS tray popover");
     // The design system is delivered as components, not a wall of CSS classes.
     expect(instructions).toContain("@babymenu/ui");
     expect(instructions).toContain("DataTable");

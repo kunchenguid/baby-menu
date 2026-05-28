@@ -7,19 +7,21 @@ export type TooltipProps = {
   children: ReactNode;
   className?: string;
   side?: TooltipPrimitive.TooltipContentProps["side"];
+  defaultOpen?: boolean;
 };
 
 // Self-contained tooltip: wraps a trigger and shows quiet help text. Provider is
-// included so widgets do not need to mount one.
-export function Tooltip({ content, children, className, side = "top" }: TooltipProps) {
+// included so widgets do not need to mount one. Unlike Dialog/Select/Dropdown,
+// the content is intentionally NOT marked data-bm-overlay: a tooltip is a small
+// positioned hint and must not make the popover grow to the full overlay height.
+export function Tooltip({ content, children, className, side = "top", defaultOpen }: TooltipProps) {
   return (
     <TooltipPrimitive.Provider delayDuration={200}>
-      <TooltipPrimitive.Root>
+      <TooltipPrimitive.Root defaultOpen={defaultOpen}>
         <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
         <TooltipPrimitive.Portal>
           <TooltipPrimitive.Content
             data-slot="tooltip-content"
-            data-bm-overlay=""
             side={side}
             sideOffset={6}
             className={cn(

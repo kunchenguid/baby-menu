@@ -58,7 +58,7 @@ function Composer({ onSend }: { onSend: (prompt: string) => void | Promise<void>
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="ask the agent"
+          placeholder="talk to the baby"
           rows={1}
         />
         <button

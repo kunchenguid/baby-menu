@@ -18,16 +18,16 @@ function createRendererWindow() {
 
 describe("calculatePopoverBounds", () => {
   it("uses the design-system tray popover width by default", () => {
-    expect(DEFAULT_POPOVER_SIZE.width).toBe(360);
-    expect(createPopoverOptions("/app/preload.js").width).toBe(360);
+    expect(DEFAULT_POPOVER_SIZE.width).toBe(504);
+    expect(createPopoverOptions("/app/preload.js").width).toBe(504);
   });
 
   it("clamps content-driven popover height to a usable range", () => {
     expect(MIN_POPOVER_HEIGHT).toBe(220);
     expect(MAX_POPOVER_HEIGHT).toBe(720);
-    expect(responsivePopoverSize(140)).toEqual({ width: 360, height: 220 });
-    expect(responsivePopoverSize(420.2)).toEqual({ width: 360, height: 421 });
-    expect(responsivePopoverSize(960)).toEqual({ width: 360, height: 720 });
+    expect(responsivePopoverSize(140)).toEqual({ width: 504, height: 220 });
+    expect(responsivePopoverSize(420.2)).toEqual({ width: 504, height: 421 });
+    expect(responsivePopoverSize(960)).toEqual({ width: 504, height: 720 });
   });
 
   it("centers the popover under a menu bar tray icon", () => {

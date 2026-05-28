@@ -30,16 +30,20 @@ const dotTone = {
   muted: "bg-ink-soft",
 } as const;
 
-export type StatusDotProps = ComponentProps<"span"> & { tone?: keyof typeof dotTone };
+export type StatusDotProps = ComponentProps<"span"> & {
+  tone?: keyof typeof dotTone;
+  // Slowly fades the dot in and out to signal a live / breathing state.
+  pulse?: boolean;
+};
 
 // The canonical Monochrome Lab signal: a small glowing dot. Pair with a terse
 // uppercase status word next to it.
-export function StatusDot({ className, tone = "live", ...props }: StatusDotProps) {
+export function StatusDot({ className, tone = "live", pulse = false, ...props }: StatusDotProps) {
   return (
     <span
       data-slot="status-dot"
       aria-hidden="true"
-      className={cn("inline-block size-1.5 rounded-full", dotTone[tone], className)}
+      className={cn("inline-block size-1.5 rounded-full", dotTone[tone], pulse && "animate-pulse", className)}
       {...props}
     />
   );

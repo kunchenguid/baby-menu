@@ -12,7 +12,7 @@ export type Size = {
 };
 
 export const DEFAULT_POPOVER_SIZE: Size = {
-  width: 360,
+  width: 504,
   height: 620,
 };
 

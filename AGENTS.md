@@ -139,7 +139,7 @@ Do not write generated extension files, the local extension database, compiled m
 - For durable local data, explicitly say whether the widget should read directly from `window.babyMenu.db`, whether a server action should use `context.db`, or whether a background task should persist data for later widget reads.
 - For ongoing work, explicitly distinguish visible-widget refresh from background tasks and require the slowest acceptable interval.
 - Renderer widgets and settings sections should receive normalized data over `window.babyMenu` and should not add new preload methods for each capability.
-- If a real data source may be unavailable, define the mock fallback and require the UI to label it as mock data.
+- If a real data source may be unavailable, require an explicit unavailable or sign-in-required result rather than a mock fallback; recipes should use real data only and must not fabricate or silently substitute mock data. Only specify labeled sample data when the user explicitly asks for examples.
 - Define normalized TypeScript shapes in the recipe so the agent knows what data extension server actions should return to widgets.
 - Include parser guidance for command or API output, including timeout behavior, stale-data behavior, and user-visible errors.
 - Never include or ask for committed secrets, tokens, cookie values, or local credential dumps.

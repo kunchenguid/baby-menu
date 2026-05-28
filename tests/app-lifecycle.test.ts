@@ -186,7 +186,7 @@ describe("startBabyMenuApp", () => {
 
     popoverController.setContentHeight(333);
 
-    expect(browserWindowInstance.setBounds).toHaveBeenLastCalledWith({ x: 8, y: 42, width: 360, height: 333 });
+    expect(browserWindowInstance.setBounds).toHaveBeenLastCalledWith({ x: 8, y: 42, width: 504, height: 333 });
   });
 
   it("starts the background scheduler and only forwards task-run events to visible renderer", async () => {

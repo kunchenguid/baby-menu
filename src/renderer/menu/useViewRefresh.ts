@@ -75,6 +75,4 @@ export function useViewRefresh(options: ViewRefreshOptions) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.id, options.viewRefreshIntervalMs]);
-
-  return { refreshNow };
 }

@@ -21,11 +21,13 @@ Keep imports package-safe: widget modules may import `react`, `react/jsx-runtime
 Server modules may import Node built-ins such as `node:fs` plus local helper files only.
 Do not add arbitrary npm package imports to extension code unless the host compiler is updated to support them.
 
+When you need current details about a dependency, CLI, local credential layout, or an external API a widget talks to - package versions, command flags, endpoints, request headers, or response shapes - use web search to confirm the latest information before relying on it. APIs and tools change; do not guess field names, versions, or endpoints from memory when a quick search can verify them.
+
 ## Recipes
 
-Recipe-backed widget specs live in `recipes/*.html` inside this extension workspace.
-Read the matching recipe before implementing a recipe-backed widget.
-Recipes are self-contained specs for the embedded agent and should be treated as input, not generated extension output.
+Common recipes live in `recipes/*.html` inside this extension workspace.
+Read the matching recipe before implementing a widget that's relevant.
+Recipes are self-contained specs for the embedded agent and should be treated as technical reference.
 
 The `hello-world` extension is only the starter state for a fresh Baby Menu install.
 The host hides `hello-world` automatically once real widgets are discovered.
@@ -40,15 +42,15 @@ Keep the widget renderer-only.
 Do not read files, spawn commands, use credentials, or perform privileged network work from the renderer.
 Do not store tokens or secrets in renderer or browser storage; Baby Menu disables Chromium keychain-backed storage on macOS.
 
-`refreshView` is for re-rendering a *visible* widget; the host pauses it while the popover is hidden and runs it once each time the popover opens.
+`refreshView` is for re-rendering a _visible_ widget; the host pauses it while the popover is hidden and runs it once each time the popover opens.
 It is not a way to keep data fresh in the background - if data must stay current while the popover is closed, use a background task (see "Background tasks").
 A widget may also read data directly with `window.babyMenu.db` and subscribe to `window.babyMenu.background.onUpdate` to re-read when a background task finishes.
 
 ## Widget Design System
 
 Baby Menu uses the Monochrome Lab direction in runtime widgets.
-Design for a 360px macOS tray popover, not a web page, dashboard, or chat transcript.
-The host owns the outer widget wrapper, title row, refresh button, dashed dividers, scrolling, and popover chrome.
+Design for a 504px macOS tray popover, not a web page, dashboard, or chat transcript.
+The host owns the outer widget wrapper, title row, dashed dividers, scrolling, and popover chrome.
 `widget.title` should be a terse tracked-caps key such as `BATTERY`, `CPU TEMP`, or `CLAUDE · WEEKLY`.
 `render()` should return only the body content that belongs below the host title row.
 
@@ -131,26 +133,41 @@ export const serviceWidget = {
             header: "state",
             render: (row) => <Badge tone={row.status}>{row.status}</Badge>,
           },
-          { key: "load", header: "load", align: "right", render: (row) => `${row.load}%` },
+          {
+            key: "load",
+            header: "load",
+            align: "right",
+            render: (row) => `${row.load}%`,
+          },
         ]}
       />
       <div className="flex items-center justify-between text-xs text-ink-muted">
-        <span className="flex items-center gap-1.5"><StatusDot tone="live" /> healthy</span>
+        <span className="flex items-center gap-1.5">
+          <StatusDot tone="live" /> healthy
+        </span>
         <Sparkline data={[12, 18, 14, 31, 29, 41]} area />
       </div>
       <Select defaultValue="hour">
-        <SelectTrigger><SelectValue placeholder="window" /></SelectTrigger>
+        <SelectTrigger>
+          <SelectValue placeholder="window" />
+        </SelectTrigger>
         <SelectContent>
           <SelectItem value="hour">last hour</SelectItem>
           <SelectItem value="day">last day</SelectItem>
         </SelectContent>
       </Select>
       <Dialog>
-        <DialogTrigger asChild><Button>details</Button></DialogTrigger>
+        <DialogTrigger asChild>
+          <Button>details</Button>
+        </DialogTrigger>
         <DialogContent>
           <DialogTitle>service details</DialogTitle>
-          <DialogBody>Keep dialog copy short enough for the tray window.</DialogBody>
-          <DialogFooter><Button>close</Button></DialogFooter>
+          <DialogBody>
+            Keep dialog copy short enough for the tray window.
+          </DialogBody>
+          <DialogFooter>
+            <Button>close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -193,6 +210,7 @@ Spacing, flex, and grid utilities are standard Tailwind.
 - Do not add gradients, emoji, large icons, card shadows, full-card accent fills, custom palettes, or new typefaces.
 - Do not wrap widget bodies in their own card background, border, or shadow.
 - Keep layouts narrow and resilient; truncate long labels and avoid horizontal scrolling.
+- Keep a value, its label, and any meter on the same axis. If a metric has two complementary readings (used vs remaining, full vs free, on vs off), pick one for a given element and make the label text, the displayed number, and any `Progress`/meter all describe it. A meter or number labeled "left"/"remaining" must show the remaining amount, not the used amount. This is about labeling correctness, not layout - it does not dictate whether you show a meter, a number, or a label.
 
 ### Example data-widget body
 
@@ -240,7 +258,7 @@ import { Button, Field, Input, Switch } from "@babymenu/ui";
 
 export const calendarSettings = {
   extensionId: "calendar", // must match the extension directory id; used as the section key and sort order
-  title: "CALENDAR",        // terse tracked-caps label, like a widget title
+  title: "CALENDAR", // terse tracked-caps label, like a widget title
   render: () => (
     <div className="flex flex-col gap-3">
       <Field label="account">
@@ -264,6 +282,8 @@ Put privileged filesystem, shell, network, credential, and token work in `server
 Export an `actions` object from `server.ts`.
 Renderer widgets call server actions through `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
 Do not add preload methods or per-extension IPC channels.
+
+Prefer real local data. When a real source is unavailable, return a clear unavailable or sign-in-required result so the widget can show that state - do not fabricate or silently fall back to mock data. Only return labeled sample data when the user explicitly asks for it.
 
 Each action receives `(input, context)`.
 The `context` is `{ rootDir, db, notify }`:
@@ -313,12 +333,18 @@ Export `background` from `server.ts` alongside `actions`:
 ```ts
 export const background = {
   intervalMs: 300_000, // 5 minutes; the host enforces a 60s minimum
-  runOnStart: true,    // run once immediately so data is warm (default true)
+  runOnStart: true, // run once immediately so data is warm (default true)
   run: async (context) => {
     const sample = await readSomething();
-    context.db.exec("CREATE TABLE IF NOT EXISTS my_ext_samples (at INTEGER, value REAL)");
-    context.db.run("INSERT INTO my_ext_samples (at, value) VALUES (?, ?)", [Date.now(), sample]);
-    if (sample > THRESHOLD) context.notify({ title: "Heads up", body: `value is ${sample}` });
+    context.db.exec(
+      "CREATE TABLE IF NOT EXISTS my_ext_samples (at INTEGER, value REAL)",
+    );
+    context.db.run("INSERT INTO my_ext_samples (at, value) VALUES (?, ?)", [
+      Date.now(),
+      sample,
+    ]);
+    if (sample > THRESHOLD)
+      context.notify({ title: "Heads up", body: `value is ${sample}` });
   },
 };
 ```
@@ -332,10 +358,10 @@ The widget reads the persisted data with `window.babyMenu.db` on open and subscr
 Baby Menu lives in the tray and stays running for the whole session, and the popover is hidden (not unmounted) on blur.
 Choosing the right mechanism is the main performance decision:
 
-- Use `viewRefreshIntervalMs` / `refreshView` for keeping a *visible* widget current, including live real-time displays.
+- Use `viewRefreshIntervalMs` / `refreshView` for keeping a _visible_ widget current, including live real-time displays.
   It pauses while the popover is hidden, so a 1-2s loop costs nothing when nobody is looking.
   A live monitor that is only interesting while you are watching it - CPU, memory, a clock - belongs here, sampled on demand through a server action, not in a background task.
-  Choose the slowest interval that still feels live, and omit it entirely for data that rarely changes (the host always offers a manual refresh button).
+  Choose the slowest interval that still feels live, and omit it entirely for data that rarely changes - the host re-runs `refreshView` each time the popover opens, so the widget is already current whenever the user looks at it.
 - Use a background task for anything that must keep running while the popover is closed.
   It runs in the main process on a single owned timer, clamped to a 60s floor; pick the slowest cadence that meets the need, since each run wakes the machine.
 - Never start your own `setInterval`, `setTimeout` loops, or recursive polling inside a widget or server action - the host owns all timing.
@@ -349,5 +375,6 @@ Choosing the right mechanism is the main performance decision:
 ## Tests
 
 Use TDD for behavior changes.
-Add tests under the repo-level `tests/` directory unless the project later adopts colocated extension tests.
-Run the smallest relevant `pnpm vitest run tests/<name>.test.ts` command first, then broader checks before finishing.
+Colocate tests inside your extension directory as `<extension-id>/<name>.test.ts` (or `.test.tsx`), next to the `widget.tsx` and `server.ts` they cover, and import the code under test with relative paths (`./server`, `./widget`).
+Do not add tests under the repo-level `tests/` directory. That directory belongs to the host app and is not wiped when this extension workspace is reset, so a test left there that imports your extension will dangle and break the entire repo test run once your extension is regenerated or removed.
+Run only your extension's tests with `pnpm vitest run <extension-id>` first, then broaden if needed before finishing.

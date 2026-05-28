@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Power, Settings, X } from "lucide-react";
-import { Button } from "../ui";
+import { Button, Tooltip } from "../ui";
 import { AgentChat } from "./agent/AgentChat";
 import { MenuSurface } from "./menu/MenuSurface";
 import { SettingsView } from "./settings/SettingsView";
@@ -46,23 +46,29 @@ export function App() {
           </span>
         )}
         {view === "settings" ? (
-          <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="close settings" onClick={closeSettings}>
-            <X className="size-4" />
-          </Button>
+          <Tooltip content="Close settings">
+            <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="close settings" onClick={closeSettings}>
+              <X className="size-4" />
+            </Button>
+          </Tooltip>
         ) : (
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="open settings" onClick={openSettings}>
-              <Settings className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-7 px-0 hover:text-signal-danger"
-              aria-label="quit baby_menu"
-              onClick={quitApp}
-            >
-              <Power className="size-4" />
-            </Button>
+            <Tooltip content="Open settings">
+              <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="open settings" onClick={openSettings}>
+                <Settings className="size-4" />
+              </Button>
+            </Tooltip>
+            <Tooltip content="Quit baby menu">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-7 px-0 hover:text-signal-danger"
+                aria-label="quit baby_menu"
+                onClick={quitApp}
+              >
+                <Power className="size-4" />
+              </Button>
+            </Tooltip>
           </div>
         )}
       </header>

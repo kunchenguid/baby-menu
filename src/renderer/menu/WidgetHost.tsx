@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import type { RefreshableBabyMenuWidget } from "../../shared/contracts";
 import { helloWorldWidget } from "../../../extensions/hello-world/widget";
-import { Button } from "../../ui";
 import { importRuntimeModule, loadExtensionModules, type RuntimeModuleImporter } from "../extension-modules";
 import { useViewRefresh } from "./useViewRefresh";
 
@@ -11,7 +9,9 @@ export type RuntimeWidgetImporter = RuntimeModuleImporter;
 const DEFAULT_RUNTIME_REFRESH_INTERVAL_MS = 1000;
 
 function WidgetCard({ widget }: { widget: RefreshableBabyMenuWidget }) {
-  const { refreshNow } = useViewRefresh({
+  // Drives automatic refresh only: once each time the popover opens, plus the
+  // optional interval while visible. There is no manual refresh control.
+  useViewRefresh({
     id: widget.id,
     viewRefreshIntervalMs: widget.viewRefreshIntervalMs,
     refreshView: widget.refreshView ?? (() => undefined),
@@ -21,15 +21,6 @@ function WidgetCard({ widget }: { widget: RefreshableBabyMenuWidget }) {
     <article className="widget">
       <header className="w-head">
         <h3 className="key">{widget.title}</h3>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="refresh -mr-1 px-1.5"
-          onClick={refreshNow}
-          aria-label={`refresh ${widget.title}`}
-        >
-          <RefreshCw className="size-3.5" />
-        </Button>
       </header>
       <div>{widget.render()}</div>
     </article>
@@ -49,16 +40,6 @@ export function WidgetHost({ widgets, runtimeImporter, runtimeRefreshIntervalMs 
     refreshIntervalMs: runtimeRefreshIntervalMs,
   });
   const visibleWidgets = widgets ?? (runtimeWidgets.length > 0 ? runtimeWidgets : [helloWorldWidget]);
-
-  if (visibleWidgets.length === 0) {
-    return (
-      <div className="empty-state">
-        <span className="top">› no widgets</span>
-        <p>ask the agent to add one.</p>
-        <span className="ex">try: battery · cpu temp · calendar</span>
-      </div>
-    );
-  }
 
   return (
     <div className="widget-host">

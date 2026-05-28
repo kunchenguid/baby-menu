@@ -1,9 +1,11 @@
 import { app as electronApp, ipcMain } from "electron";
 import { pathToFileURL } from "node:url";
 import type {
+  AgentActiveTurn,
   AgentChatResult,
   BabyMenuSettings,
   GitActionResult,
+  GitSessionSnapshot,
   PopoverVisibilityState,
   RecipeMetadata,
   SqlParams,
@@ -15,7 +17,10 @@ import { loadRecipes } from "./recipe-loader";
 import { createServerActionRegistry, type ServerActionRegistry } from "./server-action-registry";
 import { createWidgetModuleRegistry, type WidgetModuleRegistry } from "./widget-module-registry";
 
-type AgentRuntimeFacade = Pick<BabyMenuAgentRuntime, "save" | "rollback"> & {
+type AgentRuntimeFacade = Pick<
+  BabyMenuAgentRuntime,
+  "save" | "rollback" | "currentSessionSnapshot" | "currentTurn"
+> & {
   send: (prompt: string, options?: BabyMenuAgentRuntimeSendOptions) => Promise<AgentChatResult>;
 };
 
@@ -66,12 +71,20 @@ export function registerIpcHandlers(
     });
   });
 
+  ipcMain.handle("baby-menu:agent:active-turn", async (): Promise<AgentActiveTurn | null> => {
+    return agentRuntime.currentTurn();
+  });
+
   ipcMain.handle("baby-menu:git:save", async (_event, message?: string): Promise<GitActionResult> => {
     return agentRuntime.save(message);
   });
 
   ipcMain.handle("baby-menu:git:rollback", async (): Promise<GitActionResult> => {
     return agentRuntime.rollback();
+  });
+
+  ipcMain.handle("baby-menu:git:status", async (): Promise<GitSessionSnapshot | null> => {
+    return agentRuntime.currentSessionSnapshot();
   });
 
   ipcMain.handle("baby-menu:capabilities:list", async () => {

@@ -14,23 +14,10 @@
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Capability</h2>
-        <p>Add a baby-menu widget that shows Claude Code usage limits in the menu popover.</p>
-        <p>The widget should prefer real local Claude credentials and CLI output, then fall back to clearly labeled mock data only when no usable local source is available.</p>
+        <p>Source Claude Code usage limits from the local machine for a baby-menu widget.</p>
+        <p>Use real local Claude credentials and CLI output only. When no usable local source is available, return an unavailable or sign-in-required result - do not fabricate or fall back to mock data.</p>
+        <p><strong>Scope:</strong> this recipe covers only how to obtain and normalize the data. How the widget presents it - layout, states, copy, refresh controls - is left to the implementer and is intentionally not specified here.</p>
         <p>This recipe is self-contained. Do not require external source code, websites, or implementation guides to complete it.</p>
-      </section>
-
-      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
-        <h2>User-Facing Behavior</h2>
-        <ul>
-          <li>Show current session usage and weekly usage when available.</li>
-          <li>Show model-specific weekly usage for Sonnet and Opus when available.</li>
-          <li>Show reset time text for each available window.</li>
-          <li>Show account email or plan when available.</li>
-          <li>Show last refreshed time.</li>
-          <li>Show loading, success, stale, unavailable, and error states.</li>
-          <li>Refresh automatically every 5 minutes by default.</li>
-          <li>Expose a manual refresh button.</li>
-        </ul>
       </section>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
@@ -52,44 +39,55 @@
               <td>OAuth is unavailable but the <code>claude</code> CLI is installed and signed in.</td>
               <td>Current session percentage, current week percentage, reset text, account and org lines when present.</td>
             </tr>
-            <tr>
-              <td>3</td>
-              <td>Claude web API with manual cookie</td>
-              <td>The user explicitly provides a Claude <code>sessionKey</code> cookie later.</td>
-              <td>Session, weekly, model-specific usage, extra usage spend, account email.</td>
-            </tr>
-            <tr>
-              <td>4</td>
-              <td>Mock provider</td>
-              <td>No real source is configured or readable.</td>
-              <td>Static sample values labeled <strong>Mock data</strong>.</td>
-            </tr>
           </tbody>
         </table>
       </section>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>OAuth Usage API Details</h2>
-        <p>Credential locations to check from <code>claude-code-quota/server.ts</code> only:</p>
-        <ul>
-          <li><code>~/.claude/.credentials.json</code></li>
+        <p>Credential locations to check from <code>claude-code-quota/server.ts</code> only, in this fallback order:</p>
+        <ol>
+          <li><code>~/.claude/.credentials.json</code> - present on Linux and any setup where Claude Code wrote a file-based credential.</li>
+          <li><strong>macOS login Keychain</strong> - a generic-password item with service name <code>Claude Code-credentials</code>. This is where the Claude Code CLI stores its OAuth credentials on macOS, so on a typical Mac the file above does not exist and the Keychain is the real source. Do not skip it. Read it from the server action with the <code>security</code> CLI: <code>security find-generic-password -s "Claude Code-credentials" -w</code>, which prints the secret blob to stdout. Always check the file first, then fall back to this Keychain service.</li>
           <li>Future app-local credential cache under Electron user data, not committed to the repo.</li>
-        </ul>
-        <p>Look for an OAuth access token with scope that can call usage APIs. Tokens with only inference scope may fail.</p>
+        </ol>
+        <p>The file and the Keychain blob hold the same JSON shape. Parse <code>claudeAiOauth</code> and read the access token from it:</p>
+        <pre class="mockup-code p-4 overflow-auto"><code>{
+  "claudeAiOauth": {
+    "accessToken": "sk-ant-oat01-...",
+    "refreshToken": "sk-ant-ort01-...",
+    "expiresAt": 1780000000000,          // epoch ms; treat as expired / refresh-needed when in the past
+    "scopes": ["user:inference", "user:profile"],
+    "subscriptionType": "max"            // maps to the plan label: pro, max, ...
+  }
+}</code></pre>
+        <p>Also accept <code>accessToken</code> / <code>access_token</code> at the JSON root as a fallback, since some writers store the token at the top level rather than under <code>claudeAiOauth</code>. Prefer a token whose scopes can call usage APIs; tokens with only inference scope may fail.</p>
+        <p>macOS Keychain notes: the first <code>security find-generic-password</code> read of an item owned by the <code>claude</code> CLI can trigger a one-time macOS permission prompt for Baby Menu; that is expected, and "Always Allow" authorizes future reads. Never log or echo the secret blob, the access token, or the refresh token, and read credentials only inside the server action, never in the renderer.</p>
         <p>Request:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>GET https://api.anthropic.com/api/oauth/usage
 Authorization: Bearer &lt;access_token&gt;
 anthropic-beta: oauth-2025-04-20</code></pre>
-        <p>Map response fields into this normalized shape:</p>
+        <p><strong>Response shape - parse these fields, but treat the live response as canonical.</strong> The body is a flat object keyed by window id, with no <code>usage</code> / <code>data</code> wrapper. Each present window is <code>{ utilization, resets_at }</code> where <code>utilization</code> is the percent <em>used</em> (0-100), so remaining = <code>100 - utilization</code>. A window key may be <code>null</code> (the user has no such window) - skip nulls, do not treat them as 0% used. <code>resets_at</code> is an ISO-8601 timestamp or null.</p>
+        <p><strong>The live API is the source of truth.</strong> This shape was captured from the real endpoint at the time of writing; the remote API can change field names, nesting, units, or window keys without notice. Confirm the fields against the actual response you receive (and via web search for the current API) before depending on them, and parse defensively - tolerate missing, added, renamed, or null fields and never assume a field is present. If the response no longer matches anything you can parse, return an unavailable or sign-in-required result rather than showing a wrong or fabricated number.</p>
+        <pre class="mockup-code p-4 overflow-auto"><code>{
+  "five_hour":         { "utilization": 20.0, "resets_at": "2026-05-28T21:30:00Z" },
+  "seven_day":         { "utilization": 4.0,  "resets_at": "2026-05-30T15:00:00Z" },
+  "seven_day_opus":    null,
+  "seven_day_sonnet":  { "utilization": 0.0,  "resets_at": null },
+  "extra_usage":       { "is_enabled": false, "monthly_limit": null, "used_credits": null,
+                         "utilization": null, "currency": null }
+}</code></pre>
+        <p>So for the example above the weekly window is 4% used (equivalently 96% remaining). Do not default a missing <code>utilization</code> to 0 (that hides the real number); if a window has no numeric <code>utilization</code>, omit that window instead. For <code>extra_usage</code>, map <code>used_credits</code>/<code>monthly_limit</code> to spend/limit and only show it when <code>is_enabled</code> is true.</p>
+        <p><strong>One axis, consistently.</strong> "Used" and "remaining" are the same number from opposite ends (<code>remaining = 100 - used</code>). Whatever you choose to present, the label, the number, and any progress/meter for a given window must all describe the <em>same</em> axis. A meter or number labeled "left"/"remaining" must carry the remaining value, not the used value (a 4%-used week is "96% left", and a "left" meter should read nearly full, not nearly empty). This is a correctness constraint only - it does not require a meter, a number, or any particular label or layout.</p>
+        <p>Map those fields into this normalized shape:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>type ClaudeQuotaSnapshot = {
-  source: "oauth" | "cli" | "web" | "mock";
+  source: "oauth" | "cli";
   accountEmail?: string;
   plan?: string;
   windows: Array&lt;{
     id: "five_hour" | "seven_day" | "seven_day_sonnet" | "seven_day_opus" | "extra_usage";
     label: string;
-    percentUsed?: number;
-    percentRemaining?: number;
+    percentUsed?: number;        // canonical, percent USED (0-100); derive remaining as 100 - percentUsed
     resetText?: string;
     resetAt?: string;
     spentUsd?: number;
@@ -133,91 +131,26 @@ anthropic-beta: oauth-2025-04-20</code></pre>
       </section>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
-        <h2>Manual Cookie Web API Details</h2>
-        <p>This is not required for the first implementation unless OAuth and CLI are insufficient.</p>
-        <p>If implemented, require explicit user-provided cookie text and keep it out of git.</p>
-        <p>Required cookie name: <code>sessionKey</code>, usually with value prefix <code>sk-ant-</code>.</p>
-        <p>API flow:</p>
-        <pre class="mockup-code p-4 overflow-auto"><code>GET https://claude.ai/api/organizations
-Cookie: sessionKey=&lt;value&gt;
-
-GET https://claude.ai/api/organizations/{orgId}/usage
-Cookie: sessionKey=&lt;value&gt;
-
-GET https://claude.ai/api/organizations/{orgId}/overage_spend_limit
-Cookie: sessionKey=&lt;value&gt;
-
-GET https://claude.ai/api/account
-Cookie: sessionKey=&lt;value&gt;</code></pre>
-      </section>
-
-      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Implementation Contract</h2>
-        <p>Create or edit these extension files:</p>
-        <ul>
-          <li><code>claude-code-quota/server.ts</code> for privileged token, CLI, network, timeout, and parser work.</li>
-          <li><code>claude-code-quota/widget.tsx</code> for a <code>RefreshableBabyMenuWidget</code>, using <code>@babymenu/ui</code>.</li>
-          <li>The widget should call <code>window.babyMenu.capabilities.invoke("claude-code-quota", "getQuota", input)</code>.</li>
-          <li>Put quota reload logic in the widget's exported <code>refreshView</code> method and set <code>viewRefreshIntervalMs</code> to 5 minutes; <code>WidgetHost</code> owns the timer and manual refresh calls, and pauses view refresh while the popover is hidden.</li>
-          <li>Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</li>
-        </ul>
-        <p>Add repo-level tests:</p>
-        <ul>
-          <li><code>tests/claude-quota.test.ts</code> for parser and fallback tests.</li>
-        </ul>
+        <p>All data acquisition lives in <code>claude-code-quota/server.ts</code>: token reads, the CLI probe, network calls, timeouts, and parsing. Expose it as a <code>getQuota</code> server action invoked from the renderer with <code>window.babyMenu.capabilities.invoke("claude-code-quota", "getQuota", input)</code>. Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</p>
+        <p>The data is safe to refresh roughly every 5 minutes; how and when the widget triggers a refresh is the widget's concern, not this recipe's.</p>
+        <p>Colocate parser and fallback tests inside the extension as <code>claude-code-quota/&lt;name&gt;.test.ts</code>.</p>
         <p>Server action response shape:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>type QuotaResult&lt;T&gt; =
   | { ok: true; data: T }
-  | { ok: false; error: string; sourceTried: string[]; mock?: T };</code></pre>
+  | { ok: false; error: string; sourceTried: string[] };</code></pre>
       </section>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Error Handling</h2>
+        <p>These are data outcomes the server action returns, not UI copy.</p>
         <ul>
-          <li>If no token or CLI is available, show <code>Claude quota unavailable</code> and offer mock data labeled as mock.</li>
-          <li>If a request times out, show <code>Refresh timed out</code> and keep the previous successful value as stale.</li>
-          <li>If credentials are expired, show <code>Claude sign-in required</code>.</li>
-          <li>Never print token or cookie values in renderer errors, logs, or tests.</li>
-        </ul>
-      </section>
-
-      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
-        <h2>Interactive Demo</h2>
-        <div class="card max-w-sm border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-4">
-          <h3 class="card-title">Claude Code quota</h3>
-          <p><strong id="remaining">68%</strong> weekly capacity remaining</p>
-          <progress id="bar" class="progress progress-primary" value="68" max="100"></progress>
-          <p id="stamp">Last refreshed just now</p>
-          <button id="refresh" class="btn btn-primary" type="button">Manual refresh</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
-        <h2>Acceptance Criteria</h2>
-        <ul>
-          <li>The widget displays current Claude quota or a clear unavailable state.</li>
-          <li>The widget displays source label: OAuth, CLI, Web, or Mock data.</li>
-          <li>The widget displays when it was last refreshed.</li>
-          <li>The widget refreshes on a timer.</li>
-          <li>The widget exposes a manual refresh action.</li>
-          <li>The widget shows stale previous values if a refresh fails after a prior success.</li>
-          <li>The widget shows a clear error state if quota cannot be read.</li>
-          <li>Tests cover parser success, parser missing data, timeout/error fallback, and mock fallback.</li>
+          <li>If no token or CLI is available, return an unavailable error (<code>Claude quota unavailable</code>). Do not return mock data.</li>
+          <li>If a request times out, return the previous successful snapshot marked <code>stale: true</code> when one exists.</li>
+          <li>If credentials are expired, return an error of <code>Claude sign-in required</code> rather than silently using a stale token.</li>
+          <li>Never log, echo, or return token or cookie values in errors, logs, or tests.</li>
         </ul>
       </section>
     </main>
-    <script>
-      const values = [68, 54, 73, 61];
-      let index = 0;
-      document.getElementById("refresh").addEventListener("click", () => {
-        index = (index + 1) % values.length;
-        const value = values[index];
-        document.getElementById("remaining").textContent = `${value}%`;
-        document.getElementById("bar").value = value;
-        document.getElementById("stamp").textContent = `Last refreshed ${new Date().toLocaleTimeString()}`;
-      });
-    </script>
   </body>
 </html>

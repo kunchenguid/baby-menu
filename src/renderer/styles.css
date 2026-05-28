@@ -51,7 +51,7 @@ button:disabled,
 }
 
 .app-shell {
-  width: 360px;
+  width: 504px;
   height: auto;
   /* A fixed cap, not a viewport-relative one: the viewport height equals the
      auto-sized window, so capping to it would ratchet the popover - it could
@@ -154,20 +154,6 @@ button:disabled,
   text-transform: uppercase;
 }
 
-.widget .refresh {
-  border: 0;
-  background: transparent;
-  color: var(--ink-faint);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  padding: 2px 4px;
-  transition: color var(--motion-fast) var(--ease);
-}
-
-.widget .refresh:hover {
-  color: var(--signal-live);
-}
 
 .quota-widget,
 .widget > div {
@@ -229,30 +215,6 @@ button:disabled,
   color: var(--ink-soft);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 14px;
-  border: 1px dashed var(--line-faint);
-  border-radius: var(--radius-sm);
-}
-
-.empty-state .top {
-  color: var(--ink-200);
-  font-size: 12px;
-}
-
-.empty-state p {
-  color: var(--ink-soft);
-  font-size: 11px;
-}
-
-.empty-state .ex {
-  color: var(--ink-faint);
-  font-size: 10px;
 }
 
 .runstrip {

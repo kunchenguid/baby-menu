@@ -33,6 +33,8 @@ describe("capabilities IPC", () => {
       send: vi.fn(),
       save: vi.fn(),
       rollback: vi.fn(),
+      currentSessionSnapshot: vi.fn(),
+      currentTurn: vi.fn(),
     };
 
     registerIpcHandlers(rootDir, agentRuntime, undefined, undefined, undefined, undefined, undefined, { recipesDir });
@@ -53,6 +55,8 @@ describe("capabilities IPC", () => {
       send: vi.fn(),
       save: vi.fn(),
       rollback: vi.fn(),
+      currentSessionSnapshot: vi.fn(),
+      currentTurn: vi.fn(),
     };
     const serverActions = {
       list: vi.fn(async () => [{ id: "demo.ping", extensionId: "demo", action: "ping" }]),
@@ -84,6 +88,8 @@ describe("capabilities IPC", () => {
       send: vi.fn(),
       save: vi.fn(),
       rollback: vi.fn(),
+      currentSessionSnapshot: vi.fn(),
+      currentTurn: vi.fn(),
     };
 
     registerIpcHandlers(
@@ -111,6 +117,8 @@ describe("capabilities IPC", () => {
       }),
       save: vi.fn(),
       rollback: vi.fn(),
+      currentSessionSnapshot: vi.fn(),
+      currentTurn: vi.fn(),
     };
 
     registerIpcHandlers("/repo", agentRuntime);
@@ -127,7 +135,7 @@ describe("capabilities IPC", () => {
   it("registers SQL database channels backed by a shared store", async () => {
     const { registerIpcHandlers } = await import("../src/main/ipc");
     const { createExtensionDatabase } = await import("../src/main/extension-database");
-    const agentRuntime = { send: vi.fn(), save: vi.fn(), rollback: vi.fn() };
+    const agentRuntime = { send: vi.fn(), save: vi.fn(), rollback: vi.fn(), currentSessionSnapshot: vi.fn(), currentTurn: vi.fn() };
     const database = createExtensionDatabase(":memory:");
 
     registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, undefined, undefined, { database });
@@ -149,6 +157,8 @@ describe("capabilities IPC", () => {
       send: vi.fn(),
       save: vi.fn(),
       rollback: vi.fn(),
+      currentSessionSnapshot: vi.fn(),
+      currentTurn: vi.fn(),
     };
     const widgetModules = {
       list: vi.fn(async () => [{ id: "cpu-temp.widget", extensionId: "cpu-temp", moduleUrl: "/@fs/cpu-temp/widget.tsx" }]),
@@ -168,6 +178,8 @@ describe("capabilities IPC", () => {
       send: vi.fn(),
       save: vi.fn(),
       rollback: vi.fn(),
+      currentSessionSnapshot: vi.fn(),
+      currentTurn: vi.fn(),
     };
     const popover = {
       setContentHeight: vi.fn(),
@@ -187,6 +199,8 @@ describe("capabilities IPC", () => {
       send: vi.fn(),
       save: vi.fn(),
       rollback: vi.fn(),
+      currentSessionSnapshot: vi.fn(),
+      currentTurn: vi.fn(),
     };
     const appController = { quit: vi.fn() };
 
@@ -202,6 +216,8 @@ describe("capabilities IPC", () => {
       send: vi.fn(),
       save: vi.fn(),
       rollback: vi.fn(),
+      currentSessionSnapshot: vi.fn(),
+      currentTurn: vi.fn(),
     };
     const settings = {
       get: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),

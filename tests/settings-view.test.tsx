@@ -15,8 +15,8 @@ function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
   let current = base;
   const api: BabyMenuApi = {
     recipes: { list: vi.fn(async () => []) },
-    git: { save: vi.fn(async () => ({ ok: true })), rollback: vi.fn(async () => ({ ok: true })) },
-    agent: { send: vi.fn(async () => ({ assistantText: "" })), onStatus: vi.fn(() => () => undefined) },
+    git: { save: vi.fn(async () => ({ ok: true })), rollback: vi.fn(async () => ({ ok: true })), status: vi.fn(async () => null) },
+    agent: { send: vi.fn(async () => ({ assistantText: "" })), onStatus: vi.fn(() => () => undefined), getActiveTurn: vi.fn(async () => null) },
     capabilities: { list: vi.fn(async () => []), invoke: vi.fn(async () => undefined) as BabyMenuApi["capabilities"]["invoke"] },
     db: {
       query: vi.fn(async () => []),
@@ -59,7 +59,7 @@ describe("settings view", () => {
     render(<App />);
 
     // Menu view: composer present, no settings controls.
-    expect(screen.getByPlaceholderText("ask the agent")).toBeTruthy();
+    expect(screen.getByPlaceholderText("talk to the baby")).toBeTruthy();
     expect(screen.queryByText("launch at system start")).toBeNull();
 
     // Open settings.
@@ -68,7 +68,7 @@ describe("settings view", () => {
     const toggle = screen.getByRole("switch", { name: "launch at system start" });
     expect(toggle).toBeTruthy();
     // The agent composer is hidden in the settings context.
-    expect(screen.queryByPlaceholderText("ask the agent")).toBeNull();
+    expect(screen.queryByPlaceholderText("talk to the baby")).toBeNull();
 
     // Toggle the setting.
     fireEvent.click(toggle);
@@ -76,7 +76,7 @@ describe("settings view", () => {
 
     // Return to the menu.
     fireEvent.click(screen.getByRole("button", { name: "close settings" }));
-    expect(await screen.findByPlaceholderText("ask the agent")).toBeTruthy();
+    expect(await screen.findByPlaceholderText("talk to the baby")).toBeTruthy();
     expect(screen.queryByText("launch at system start")).toBeNull();
   });
 

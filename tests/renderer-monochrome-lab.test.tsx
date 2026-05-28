@@ -12,6 +12,7 @@ function installBabyMenuApi(overrides: Partial<BabyMenuApi> = {}) {
     git: {
       save: vi.fn(async () => ({ ok: true, commit: "abcdef123456" })),
       rollback: vi.fn(async () => ({ ok: true })),
+      status: vi.fn(async () => null),
     },
     agent: {
       send: vi.fn(async () => ({
@@ -25,6 +26,7 @@ function installBabyMenuApi(overrides: Partial<BabyMenuApi> = {}) {
         },
       })),
       onStatus: vi.fn(() => () => undefined),
+      getActiveTurn: vi.fn(async () => null),
     },
     capabilities: {
       list: vi.fn(async () => []),
@@ -84,7 +86,7 @@ describe("Monochrome Lab renderer", () => {
     expect(
       screen.getByText((_, element) => element?.classList.contains("mark") === true && element.textContent === "baby_menu"),
     ).toBeTruthy();
-    expect(screen.getByPlaceholderText("ask the agent")).toBeTruthy();
+    expect(screen.getByPlaceholderText("talk to the baby")).toBeTruthy();
     expect(screen.queryByLabelText("Agent chat")).toBeNull();
     expect(screen.queryByText("dev-mode menu bar")).toBeNull();
     expect(screen.queryByText("live repo")).toBeNull();
@@ -102,12 +104,13 @@ describe("Monochrome Lab renderer", () => {
             }),
         ),
         onStatus: vi.fn(() => () => undefined),
+      getActiveTurn: vi.fn(async () => null),
       },
     });
 
     render(<App />);
 
-    fireEvent.change(screen.getByPlaceholderText("ask the agent"), {
+    fireEvent.change(screen.getByPlaceholderText("talk to the baby"), {
       target: { value: "add a cpu temperature widget" },
     });
     fireEvent.click(screen.getByRole("button", { name: "send" }));
@@ -144,14 +147,14 @@ describe("Monochrome Lab renderer", () => {
 
     render(<App />);
 
-    fireEvent.change(screen.getByPlaceholderText("ask the agent"), {
+    fireEvent.change(screen.getByPlaceholderText("talk to the baby"), {
       target: { value: "add a battery widget" },
     });
     fireEvent.click(screen.getByRole("button", { name: "send" }));
 
     await screen.findByText("Added a CPU temperature widget");
 
-    fireEvent.change(screen.getByPlaceholderText("ask the agent"), {
+    fireEvent.change(screen.getByPlaceholderText("talk to the baby"), {
       target: { value: "add weather" },
     });
     fireEvent.click(screen.getByRole("button", { name: "send" }));

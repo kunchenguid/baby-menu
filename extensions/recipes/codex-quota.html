@@ -14,23 +14,10 @@
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Capability</h2>
-        <p>Add a baby-menu widget that shows Codex usage limits, credits, and reset windows from local Codex credentials or CLI state.</p>
-        <p>The widget should prefer real local data and fall back to clearly labeled mock data only when no usable source is available.</p>
+        <p>Source Codex usage limits, credits, and reset windows from local Codex credentials or CLI state for a baby-menu widget.</p>
+        <p>Use real local data only. When no usable local source is available, return an unavailable or sign-in-required result - do not fabricate or fall back to mock data.</p>
+        <p><strong>Scope:</strong> this recipe covers only how to obtain and normalize the data. How the widget presents it - layout, states, copy, refresh controls - is left to the implementer and is intentionally not specified here.</p>
         <p>This recipe is self-contained. Do not require external source code, websites, or implementation guides to complete it.</p>
-      </section>
-
-      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
-        <h2>User-Facing Behavior</h2>
-        <ul>
-          <li>Show primary and secondary Codex usage windows when available.</li>
-          <li>Show reset countdown or reset timestamp for each window when available.</li>
-          <li>Show credit balance if available.</li>
-          <li>Show account email and plan type if available.</li>
-          <li>Show last refreshed time.</li>
-          <li>Show loading, success, stale, unavailable, and error states.</li>
-          <li>Refresh automatically every 5 minutes by default.</li>
-          <li>Expose a manual refresh button.</li>
-        </ul>
       </section>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
@@ -52,18 +39,6 @@
               <td>The <code>codex</code> CLI is installed and signed in.</td>
               <td>Rate limit windows, credits, account identity.</td>
             </tr>
-            <tr>
-              <td>3</td>
-              <td>Manual status parser</td>
-              <td>A developer supplies saved <code>codex /status</code> output for tests or diagnostics.</td>
-              <td>Credits, five-hour limit, weekly limit, reset text.</td>
-            </tr>
-            <tr>
-              <td>4</td>
-              <td>Mock provider</td>
-              <td>No real source is configured or readable.</td>
-              <td>Static sample values labeled <strong>Mock data</strong>.</td>
-            </tr>
           </tbody>
         </table>
       </section>
@@ -75,20 +50,52 @@
           <li><code>$CODEX_HOME/auth.json</code> if <code>CODEX_HOME</code> is set.</li>
           <li><code>~/.codex/auth.json</code> otherwise.</li>
         </ul>
+        <p>Unlike Claude, Codex stores credentials in a plain file, not the macOS Keychain, so a file read is sufficient. Do not read the Keychain for Codex.</p>
+        <p>Parse <code>auth.json</code> with this precedence:</p>
+        <ol>
+          <li>If a non-empty top-level <code>OPENAI_API_KEY</code> string is present, use it directly as the bearer token (API-key auth).</li>
+          <li>Otherwise read the <code>tokens</code> object: <code>access_token</code> (or <code>accessToken</code>), <code>refresh_token</code> (or <code>refreshToken</code>), and optionally <code>id_token</code> / <code>account_id</code>. Accept both snake_case and camelCase keys.</li>
+        </ol>
+        <pre class="mockup-code p-4 overflow-auto"><code>{
+  "OPENAI_API_KEY": null,                 // when set, use as the bearer token directly
+  "tokens": {
+    "access_token": "...",
+    "refresh_token": "...",
+    "id_token": "...",                    // optional
+    "account_id": "..."                   // optional
+  },
+  "last_refresh": "2026-05-22T08:21:00Z"  // used for the staleness check below
+}</code></pre>
+        <p>If <code>tokens</code> is missing or has no <code>access_token</code>, treat it as a sign-in-required error (<code>Run `codex` to log in.</code>) rather than failing silently. Never log or echo the token values, and read credentials only inside the server action, never in the renderer.</p>
         <p>Request:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>GET https://chatgpt.com/backend-api/wham/usage
-Authorization: Bearer &lt;access_token&gt;</code></pre>
+Authorization: Bearer &lt;access_token&gt;
+ChatGPT-Account-Id: &lt;tokens.account_id&gt;</code></pre>
+        <p>Send the <code>ChatGPT-Account-Id</code> header from <code>tokens.account_id</code> (or the account id decoded from the JWT) - the usage call needs it.</p>
+        <p><strong>Response shape - parse these fields, but treat the live response as canonical.</strong> Usage lives under <code>rate_limit</code>, and each window carries <code>used_percent</code> (percent <em>used</em>, 0-100), so remaining = <code>100 - used_percent</code>. <code>primary_window</code> is the short session window (its <code>limit_window_seconds</code> is ~18000 = 5h) and <code>secondary_window</code> is the weekly window (~604800 = 7d). <code>reset_at</code> is epoch <em>seconds</em> (multiply by 1000 for a JS Date); <code>reset_after_seconds</code> is the countdown.</p>
+        <p><strong>The live API is the source of truth.</strong> This shape was captured from the real endpoint at the time of writing; the remote API can change field names, nesting, units, or window keys without notice. Confirm the fields against the actual response you receive (and via web search for the current API) before depending on them, and parse defensively - tolerate missing, added, renamed, or null fields and never assume a field is present. If the response no longer matches anything you can parse, return an unavailable or sign-in-required result rather than showing a wrong or fabricated number.</p>
+        <pre class="mockup-code p-4 overflow-auto"><code>{
+  "email": "you@example.com",
+  "plan_type": "pro",
+  "rate_limit": {
+    "allowed": true, "limit_reached": false,
+    "primary_window":   { "used_percent": 25, "limit_window_seconds": 18000,  "reset_at": 1780007894 },
+    "secondary_window": { "used_percent": 70, "limit_window_seconds": 604800, "reset_at": 1780176266 }
+  },
+  "credits": { "has_credits": false, "unlimited": false, "balance": "0" }
+}</code></pre>
+        <p>So for the example above the session window is 25% used (equivalently 75% remaining) and the weekly window is 70% used (30% remaining). Map <code>primary_window</code> to the session/5-hour window and <code>secondary_window</code> to the weekly window; map <code>email</code> to <code>accountEmail</code>, <code>plan_type</code> to <code>plan</code>, and <code>credits</code> through. Do not default a missing <code>used_percent</code> to 0 (that hides the real number); omit a window that has no numeric <code>used_percent</code> instead.</p>
+        <p><strong>One axis, consistently.</strong> "Used" and "remaining" are the same number from opposite ends (<code>remaining = 100 - used</code>). Whatever you choose to present, the label, the number, and any progress/meter for a given window must all describe the <em>same</em> axis. A meter or number labeled "left"/"remaining" must carry the remaining value, not the used value (a 25%-used window is "75% left", and a "left" meter should read three-quarters full). This is a correctness constraint only - it does not require a meter, a number, or any particular label or layout.</p>
         <p>If the token metadata includes a refresh timestamp and it is older than roughly 8 days, prefer returning a sign-in or refresh-needed error for the first implementation rather than silently using a stale token.</p>
         <p>Normalize response data into this shape:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>type CodexQuotaSnapshot = {
-  source: "oauth" | "cli-rpc" | "status-text" | "mock";
+  source: "oauth" | "cli-rpc";
   accountEmail?: string;
   plan?: string;
   windows: Array&lt;{
     id: "five_hour" | "weekly" | "primary" | "secondary";
     label: string;
-    percentUsed?: number;
-    percentRemaining?: number;
+    percentUsed?: number;        // canonical, percent USED (0-100); derive remaining as 100 - percentUsed
     resetText?: string;
     resetAt?: string;
   }&gt;;
@@ -129,99 +136,27 @@ Authorization: Bearer &lt;access_token&gt;</code></pre>
       </section>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
-        <h2>Status Text Parser Details</h2>
-        <p>Do not launch the interactive Codex TUI in the background for the first implementation.</p>
-        <p>Keep this parser for tests and manual diagnostics using captured <code>/status</code> text.</p>
-        <p>Parser expectations:</p>
-        <ul>
-          <li>Strip ANSI escape sequences.</li>
-          <li>Parse <code>Credits:</code> lines into <code>credits.balance</code> where possible.</li>
-          <li>Parse <code>5h limit</code> lines into a five-hour usage window.</li>
-          <li>Parse <code>Weekly limit</code> lines into a weekly usage window.</li>
-          <li>Extract percent used or remaining and reset text near each line.</li>
-          <li>Surface update prompts as <code>Codex CLI update needed</code>.</li>
-        </ul>
-      </section>
-
-      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
-        <h2>Optional Web Dashboard Extras</h2>
-        <p>Do not implement browser-cookie scraping in the first widget unless the user explicitly asks for richer dashboard extras.</p>
-        <p>If implemented later, it must be opt-in and server-action only.</p>
-        <p>Dashboard URL: <code>https://chatgpt.com/codex/settings/usage</code>.</p>
-        <p>Potential extras include code review remaining, usage breakdown chart data, credits history, and credits purchase URL.</p>
-        <p>Cookie handling must never write secrets to committed files or renderer logs.</p>
-      </section>
-
-      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Implementation Contract</h2>
-        <p>Create or edit these extension files:</p>
-        <ul>
-          <li><code>codex-quota/server.ts</code> for privileged token, CLI RPC, timeout, and parser work.</li>
-          <li><code>codex-quota/widget.tsx</code> for a <code>RefreshableBabyMenuWidget</code>, using <code>@babymenu/ui</code>.</li>
-          <li>The widget should call <code>window.babyMenu.capabilities.invoke("codex-quota", "getQuota", input)</code>.</li>
-          <li>Put quota reload logic in the widget's exported <code>refreshView</code> method and set <code>viewRefreshIntervalMs</code> to 5 minutes; <code>WidgetHost</code> owns the timer and manual refresh calls, and pauses view refresh while the popover is hidden.</li>
-          <li>Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</li>
-        </ul>
-        <p>Add repo-level tests:</p>
-        <ul>
-          <li><code>tests/codex-quota.test.ts</code> for parser, RPC fallback, timeout, and mock tests.</li>
-        </ul>
+        <p>All data acquisition lives in <code>codex-quota/server.ts</code>: token reads, the CLI RPC, network calls, timeouts, and parsing. Expose it as a <code>getQuota</code> server action invoked from the renderer with <code>window.babyMenu.capabilities.invoke("codex-quota", "getQuota", input)</code>. Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</p>
+        <p>The data is safe to refresh roughly every 5 minutes; how and when the widget triggers a refresh is the widget's concern, not this recipe's.</p>
+        <p>Colocate parser, RPC-fallback, and timeout tests inside the extension as <code>codex-quota/&lt;name&gt;.test.ts</code>.</p>
         <p>Server action response shape:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>type QuotaResult&lt;T&gt; =
   | { ok: true; data: T }
-  | { ok: false; error: string; sourceTried: string[]; mock?: T };</code></pre>
+  | { ok: false; error: string; sourceTried: string[] };</code></pre>
       </section>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Error Handling</h2>
+        <p>These are data outcomes the server action returns, not UI copy.</p>
         <ul>
-          <li>If no auth file or CLI is available, show <code>Codex quota unavailable</code> and offer mock data labeled as mock.</li>
-          <li>If the CLI app-server times out, show <code>Codex CLI timed out</code> and keep the previous successful value as stale.</li>
-          <li>If credentials are expired, show <code>Codex sign-in required</code>.</li>
-          <li>If macOS blocks the CLI executable, show <code>Codex CLI could not be launched</code>.</li>
-          <li>Never print token or cookie values in renderer errors, logs, or tests.</li>
-        </ul>
-      </section>
-
-      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
-        <h2>Interactive Demo</h2>
-        <div class="card max-w-sm border border-base-300 bg-base-100 shadow">
-          <div class="card-body gap-4">
-          <h3 class="card-title">Codex status</h3>
-          <div class="grid grid-cols-[1fr_auto] items-center gap-3"><progress id="meter" class="progress progress-primary" value="42" max="100"></progress><strong id="value">42%</strong></div>
-          <p id="credits">Credits: 18.50</p>
-          <p id="stamp">Mock data refreshed just now</p>
-          <button id="refresh" class="btn btn-primary" type="button">Manual refresh</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
-        <h2>Acceptance Criteria</h2>
-        <ul>
-          <li>The widget displays current Codex quota state or a clear unavailable state.</li>
-          <li>The widget displays source label: OAuth, CLI RPC, Status text, or Mock data.</li>
-          <li>The widget displays when it was last refreshed.</li>
-          <li>The widget refreshes on a timer.</li>
-          <li>The widget exposes a manual refresh action.</li>
-          <li>The widget shows stale previous values if a refresh fails after a prior success.</li>
-          <li>The widget shows a clear error state if quota cannot be read.</li>
-          <li>Tests cover status parser success, parser missing data, CLI timeout/error fallback, and mock fallback.</li>
+          <li>If no auth file or CLI is available, return an unavailable error (<code>Codex quota unavailable</code>). Do not return mock data.</li>
+          <li>If the CLI app-server times out, return the previous successful snapshot marked <code>stale: true</code> when one exists.</li>
+          <li>If credentials are expired, return a <code>Codex sign-in required</code> error rather than silently using a stale token.</li>
+          <li>If macOS blocks the CLI executable, return a <code>Codex CLI could not be launched</code> error.</li>
+          <li>Never log, echo, or return token or cookie values in errors, logs, or tests.</li>
         </ul>
       </section>
     </main>
-    <script>
-      const values = [42, 47, 39, 52];
-      const credits = [18.5, 17.9, 16.4, 20.0];
-      let index = 0;
-      document.getElementById("refresh").addEventListener("click", () => {
-        index = (index + 1) % values.length;
-        const value = values[index];
-        document.getElementById("meter").value = value;
-        document.getElementById("value").textContent = `${value}%`;
-        document.getElementById("credits").textContent = `Credits: ${credits[index].toFixed(2)}`;
-        document.getElementById("stamp").textContent = `Mock data refreshed ${new Date().toLocaleTimeString()}`;
-      });
-    </script>
   </body>
 </html>

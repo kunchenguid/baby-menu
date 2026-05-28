@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { GitSessionSnapshot } from "../../shared/contracts";
 
 const unavailableText = "open baby_menu from the tray to talk to the agent";
@@ -8,6 +8,10 @@ export type AgentRun = {
   title: string;
   startedAt: number;
   statusText?: string;
+  // True when this run strip was restored from the main process (a turn that is
+  // still running but whose original send() promise lives in an unmounted
+  // instance). Recovered runs are polled until the turn ends.
+  recovered?: boolean;
 };
 
 export type AgentSessionNotice =
@@ -34,6 +38,54 @@ export function useAgentRuntime() {
       setRun((current) => (current ? { ...current, statusText: status.text } : current));
     });
   }, []);
+
+  // Reconcile renderer state from the main process. The run strip and the
+  // Keep/Rollback prompt are otherwise ephemeral renderer state, so remounting the
+  // popover view (returning from Settings, or an HMR/window reload) would drop a
+  // turn that is still running or a change session that is still open. Main is the
+  // source of truth: if a turn is running, restore the run strip; once it finishes,
+  // surface the pending prompt. This is why the prompt no longer appears mid-build.
+  const reconcile = useCallback(async () => {
+    const api = window.babyMenu;
+    if (!api) return;
+
+    const turn = await api.agent.getActiveTurn();
+    if (turn) {
+      // Do not clobber a live run this instance is already driving via send().
+      setRun((current) =>
+        current && !current.recovered
+          ? current
+          : {
+              id: current?.id ?? crypto.randomUUID(),
+              title: turn.title,
+              startedAt: turn.startedAt,
+              statusText: current?.statusText ?? "Working...",
+              recovered: true,
+            },
+      );
+      return;
+    }
+
+    setRun((current) => (current?.recovered ? null : current));
+    const snapshot = await api.git.status();
+    if (snapshot) {
+      const notice = sessionNoticeForSnapshot(snapshot);
+      if (notice) setPendingChange(notice);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reconcile();
+  }, [reconcile]);
+
+  // While a restored run strip is showing (a turn whose send() promise is not in
+  // this instance), poll until the turn ends so the prompt flips in at the right
+  // time. Live sends resolve their own promise and never set `recovered`.
+  useEffect(() => {
+    if (!run?.recovered) return undefined;
+    const timer = window.setInterval(() => void reconcile(), 1000);
+    return () => window.clearInterval(timer);
+  }, [run?.recovered, reconcile]);
 
   async function send(prompt: string) {
     const trimmed = prompt.trim();
@@ -134,6 +186,20 @@ function sessionNoticeForResult(
     kind: "blocked",
     summary: "Finish this change first",
     hint: "keep or undo before asking again",
+  };
+}
+
+// Builds a pending notice from a re-hydrated session snapshot. There is no
+// assistant text after a reload, so the summary falls back to the snapshot
+// message. Returns null when the session can no longer be saved or rolled back.
+function sessionNoticeForSnapshot(snapshot: GitSessionSnapshot): AgentSessionNotice | null {
+  if (!snapshot.canSave && !snapshot.canRollback) return null;
+  return {
+    kind: "pending",
+    summary: snapshot.message?.trim() || "Unsaved agent changes",
+    hint: "keep it, or undo",
+    canKeep: snapshot.canSave,
+    canUndo: snapshot.canRollback,
   };
 }
 

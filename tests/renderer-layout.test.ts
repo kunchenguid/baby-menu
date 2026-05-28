@@ -9,7 +9,7 @@ describe("renderer layout styles", () => {
     const css = await readFile(stylesPath, "utf8");
 
     expect(css).toContain('@import url("./colors_and_type.css")');
-    expect(css).toMatch(/\.app-shell\s*\{[^}]*width:\s*360px/s);
+    expect(css).toMatch(/\.app-shell\s*\{[^}]*width:\s*504px/s);
     expect(css).toMatch(/\.app-shell\s*\{[^}]*background:\s*var\(--bg-stage\)/s);
     expect(css).toMatch(/\.app-shell\s*\{[^}]*border-radius:\s*var\(--radius-xl\)/s);
   });

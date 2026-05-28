@@ -134,6 +134,10 @@ describe("dev launcher", () => {
 
     expect(status).toBe(0);
     expect(harness.removedDirs).toContain(devExtensionsDir);
+    // Reset must also clear the embedded agent's persistent conversation, or the
+    // agent rebuilds widgets from its prior context and never re-reads updated
+    // recipes. The session store lives outside extensions-dev, under .cache.
+    expect(harness.removedDirs).toContain(join("/repo", ".cache", "baby-menu", "acp-sessions"));
     expect(harness.createdDirs).toContain(devExtensionsDir);
     expect(harness.copiedFiles).toContainEqual({
       source: join("/repo", "extensions", "AGENTS.md"),

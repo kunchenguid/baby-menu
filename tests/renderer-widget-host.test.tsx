@@ -11,10 +11,12 @@ function installBabyMenuApi(widgets: BabyMenuApi["widgets"]) {
     git: {
       save: vi.fn(async () => ({ ok: true })),
       rollback: vi.fn(async () => ({ ok: true })),
+      status: vi.fn(async () => null),
     },
     agent: {
       send: vi.fn(async () => ({ assistantText: "done" })),
       onStatus: vi.fn(() => () => undefined),
+      getActiveTurn: vi.fn(async () => null),
     },
     capabilities: {
       list: vi.fn(async () => []),

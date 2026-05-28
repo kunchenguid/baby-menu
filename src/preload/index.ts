@@ -14,6 +14,7 @@ const api: BabyMenuApi = {
   git: {
     save: (message?: string) => ipcRenderer.invoke("baby-menu:git:save", message),
     rollback: () => ipcRenderer.invoke("baby-menu:git:rollback"),
+    status: () => ipcRenderer.invoke("baby-menu:git:status"),
   },
   agent: {
     send: (prompt: string) => ipcRenderer.invoke("baby-menu:agent:send", prompt),
@@ -22,6 +23,7 @@ const api: BabyMenuApi = {
       ipcRenderer.on("baby-menu:agent:status", handler);
       return () => ipcRenderer.removeListener("baby-menu:agent:status", handler);
     },
+    getActiveTurn: () => ipcRenderer.invoke("baby-menu:agent:active-turn"),
   },
   capabilities: {
     list: () => ipcRenderer.invoke("baby-menu:capabilities:list"),

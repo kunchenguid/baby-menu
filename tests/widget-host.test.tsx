@@ -47,15 +47,6 @@ describe("useViewRefresh", () => {
     expect(refreshView).toHaveBeenCalledTimes(3);
   });
 
-  it("supports manual refresh", () => {
-    const refreshView = vi.fn();
-
-    const { result } = renderHook(() => useViewRefresh({ id: "quota", viewRefreshIntervalMs: 1000, refreshView }));
-    act(() => result.current.refreshNow());
-
-    expect(refreshView).toHaveBeenCalledTimes(2);
-  });
-
   it("pauses the interval while the popover is hidden and resumes on show", () => {
     vi.useFakeTimers();
     const popover = installPopoverVisibility();
