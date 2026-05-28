@@ -6,7 +6,7 @@ The open questions below were resolved along the recommended lines; see "Resolve
 ## Goal
 
 Let an extension contribute its own section to the Settings page, so a user can configure the extension (API account, thresholds, units, which calendar, refresh cadence) without editing code.
-Today `SettingsView` only renders app-level preferences (launch at login); an extension that needs configuration has nowhere to put it.
+`SettingsView` renders app-level preferences (launch at login) first, followed by any settings sections discovered from extensions.
 
 ## Why this shape
 
@@ -17,7 +17,7 @@ The host owns the Settings page chrome (section title, dividers, spacing); the e
 ## Contract
 
 An extension may export a settings surface from `widget.tsx` alongside its widget.
-Proposed shape, mirroring `BabyMenuWidget`:
+The implemented shape mirrors `BabyMenuWidget`:
 
 ```ts
 export type BabyMenuSettingsSection = {
@@ -28,20 +28,20 @@ export type BabyMenuSettingsSection = {
 ```
 
 The section is renderer-only, like a widget.
-It reads and writes its own configuration through the existing bridges - `window.babyMenu.db` for normal values, and the future secrets bridge for tokens - so no new per-extension IPC or preload methods are added.
+It reads and writes its own configuration through the existing bridges - `window.babyMenu.db` for normal values and extension server actions for privileged credential work - so no new per-extension IPC or preload methods are added.
 It may import `@babymenu/ui` and should build its form from `Field`, `Input`, `Switch`, `Select`, and `Button` so it matches the app shell for free.
 
 ## Discovery and rendering
 
 The host discovers settings sections the same way it discovers widgets, via the widget module registry, by inspecting module exports for objects that match `BabyMenuSettingsSection`.
 `SettingsView` renders the built-in app preferences first, then one framed section per discovered extension section, sorted by extension id for stable order.
-Sections hot-reload in dev and load from compiled modules in packaged mode, with no Electron restart - the same delivery the widgets use.
+Sections are rediscovered when settings refresh or the popover reopens, and they load from compiled modules in packaged mode with the same stylesheet handling widgets use.
 An extension with no settings section simply contributes nothing; the page degrades to just app preferences.
 
 ## Storage
 
 Configuration values live in the shared SQLite store via `window.babyMenu.db`, using an extension-prefixed table (for example `calendar_settings`).
-Secrets (API tokens) do not go in `db`; they belong in the planned secrets building block, and the settings section is the natural place to collect them.
+Secrets (API tokens) do not go in `db`; keep credential work in extension server actions, and use the settings section only as the user-facing collection surface.
 There is no separate "settings store" primitive - settings are just rows the extension owns, which keeps the surface small.
 
 ## Resolved decisions
@@ -53,7 +53,7 @@ The three open questions were resolved along the recommended lines:
    Authors build the form body from `@babymenu/ui`; the host draws the frame.
 2. Where the section is exported -> reuse `widget.tsx`.
    Sections are discovered from the same extension module as widgets, so there is no new discovered-file convention.
-   `loadExtensionModules` (`src/renderer/extension-modules.ts`) loads each module once and `settingsSectionsFromModule` extracts the section exports.
+   `loadExtensionModules` (`src/renderer/extension-modules.ts`) centralizes descriptor lookup, dynamic import, and packaged-mode stylesheet injection; `settingsSectionsFromModule` extracts the section exports.
 3. Live application of changes -> re-read on next view refresh.
    No host-emitted "settings changed" event; the running widget reads its `db` rows on its next refresh.
 

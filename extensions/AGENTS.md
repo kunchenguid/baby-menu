@@ -11,13 +11,13 @@ Use lowercase kebab-case ids such as `codex-quota`.
 
 Common files are:
 
-- `widget.tsx` for the renderer widget surface.
+- `widget.tsx` for renderer widget and settings-section surfaces.
 - `server.ts` for privileged server actions and background tasks.
 - Additional local helper files used only by this extension.
 - Optional notes that make the extension understandable and shareable.
 
 Packaged Baby Menu compiles extension modules before loading them.
-Keep imports package-safe: widgets may import `react`, `react/jsx-runtime`, `react/jsx-dev-runtime`, the design system `@babymenu/ui`, and local helper files only.
+Keep imports package-safe: widget modules may import `react`, `react/jsx-runtime`, `react/jsx-dev-runtime`, the design system `@babymenu/ui`, and local helper files only.
 Server modules may import Node built-ins such as `node:fs` plus local helper files only.
 Do not add arbitrary npm package imports to extension code unless the host compiler is updated to support them.
 
@@ -69,7 +69,7 @@ Available components:
 - Disclosure: `Tabs` with `TabsList`, `TabsTrigger`, `TabsContent`; `Dialog` with `DialogTrigger`, `DialogContent`, `DialogTitle`, `DialogDescription`, `DialogBody`, `DialogFooter`; `DropdownMenu` with `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuItem`; and `Tooltip`.
 - `cn(...)` merges Tailwind class strings safely.
 
-`@babymenu/ui` is the only extra import a widget may add beyond `react` and local files.
+`@babymenu/ui` is the only extra import a widget module may add beyond `react` and local files.
 Overlays such as `Dialog`, `Select`, and `Tooltip` are already sized to fit the tray popover; do not reposition them.
 
 Common API patterns:

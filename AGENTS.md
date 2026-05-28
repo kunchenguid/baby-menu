@@ -33,13 +33,13 @@ Three processes, kept deliberately separate:
 
 1. **Main** (`src/main/`) - app lifecycle, tray, popover window, IPC, git, agent runtime. Never call agent or git from the renderer directly.
 2. **Preload** (`src/preload/index.ts`) - the stable bridge. Exposes `window.babyMenu` via `contextBridge`. Do not add one-off preload methods for each widget.
-3. **Renderer** (`src/renderer/`) - React UI: `AgentChat`, `WidgetHost`, `SettingsView`, and app-shell controls such as Quit. Widgets should be hot reloadable and should not require an Electron restart for each new capability. The app shell and extension widgets share one design system, `@babymenu/ui` (`src/ui/`); see "Design system" below.
+3. **Renderer** (`src/renderer/`) - React UI: `AgentChat`, `WidgetHost`, `SettingsView`, and app-shell controls such as Quit. Widgets and extension settings sections should be hot reloadable and should not require an Electron restart for each new capability. The app shell and extension renderer surfaces share one design system, `@babymenu/ui` (`src/ui/`); see "Design system" below.
 4. **Extension server actions and background tasks** - privileged filesystem, shell, network, credential, token, storage, notification, and background work should live behind extension-owned `server.ts` modules.
    Renderer widgets call these actions with `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
    Server actions live in the active extension workspace under `<extension-id>/server.ts` and export an `actions` object; background tasks export `background` from the same file.
    Do not add per-widget IPC channels or preload methods.
 
-Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`, `GitSessionSnapshot`, etc. The `Window.babyMenu` global is declared here.
+Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`, `BabyMenuSettingsSection`, `GitSessionSnapshot`, etc. The `Window.babyMenu` global is declared here.
 
 `src/main/` module index:
 
@@ -66,6 +66,11 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 - `extension-database.ts` - owns the shared local SQLite database exposed to extension server actions, background tasks, and widgets through the bridge.
 - `notifier.ts` - backs `context.notify` for server actions and background tasks with native notifications.
 
+`src/renderer/` extension loading modules:
+
+- `extension-modules.ts` - shared runtime loader for extension `widget.tsx` modules, including dynamic import and packaged-mode stylesheet injection for widgets and settings sections.
+- `settings/settings-sections.ts` - extracts `BabyMenuSettingsSection` exports from loaded extension modules and sorts them by extension id for stable Settings page order.
+
 ### Electron build wiring
 
 `electron.vite.config.ts` has three roots:
@@ -86,7 +91,7 @@ The renderer build adds `@tailwindcss/vite` and aliases `@babymenu/ui` to `src/u
 `src/ui/theme.css` is the single `@theme` source of truth: it wipes Tailwind's default palette so only token colors exist, and it is consumed by both the renderer build (`src/ui/styles.css`) and the per-widget compiler (imported `?raw` into the main bundle).
 Delivery mirrors the React shim exactly: `main.tsx` installs the kit on `window.__BABY_MENU_WIDGET_HOST__.ui`, `widget-protocol.ts` serves `baby-menu-host://ui/index.mjs` as a thin re-export, and the compiler rewrites the bare `@babymenu/ui` specifier to that URL - so Radix, cva, and lucide stay inside the host bundle and never reach the widget import allowlist.
 `src/shared/ui-exports.ts` is the public surface contract (treated like the preload bridge): the barrel, the contract list, and the generated host shim are kept in lockstep by `tests/ui-export-contract.test.ts`, so changing a public export is a deliberate, tested act.
-Extension widgets may additionally import only `@babymenu/ui`; they author token-scoped Tailwind utilities, and the per-widget stylesheet is compiled and injected automatically.
+Extension widgets and settings sections may additionally import only `@babymenu/ui`; they author token-scoped Tailwind utilities, and the per-widget stylesheet is compiled and injected automatically.
 
 `createPopoverOptions` enforces `frame:false`, `contextIsolation:true`, `nodeIntegration:false`, `skipTaskbar:true`, `alwaysOnTop:true`. Do not relax these without a reason.
 On macOS, `app.ts` appends Chromium's `use-mock-keychain` switch before app readiness, so do not rely on Chromium or renderer storage for keychain-backed secrets.
@@ -112,8 +117,9 @@ Do not write generated extension files, the local extension database, compiled m
 
 - Recipes are HTML files in `recipes/` inside the active extension workspace. `recipe-loader.ts` discovers `*.html`, sorts them, and extracts the title from `<title>` or first `<h1>`. They are intentionally HTML so the embedded agent can read them from its cwd and use embedded interactive demos.
 - Extensions live in the active extension workspace under `<extension-id>/` and may include `widget.tsx`, `server.ts`, and local helper files.
-- Packaged widgets and server actions are compiled into `~/.baby-menu/cache` and loaded through custom protocols or cached modules; dev mode keeps Vite `/@fs` loading.
+- Packaged widgets, settings sections, and server actions are compiled into `~/.baby-menu/cache` and loaded through custom protocols or cached modules; dev mode keeps Vite `/@fs` loading.
 - Widgets conform to `BabyMenuWidget` / `RefreshableBabyMenuWidget`. The `WidgetHost` owns visible-widget refresh timing via `useViewRefresh`, using the main-process popover visibility signal - widgets should not start their own polling.
+- Settings sections conform to `BabyMenuSettingsSection`, are exported from `widget.tsx`, and own only the section body; `SettingsView` owns the frame and rediscovers sections when settings refresh or the popover reopens.
 - New widgets and capabilities should be built as self-contained extensions behind the stable `window.babyMenu` bridge.
 - Extension server actions and background tasks are discovered dynamically from the active extension workspace, so new or changed capabilities can be picked up without changing preload.
 - Use `viewRefreshIntervalMs` / `refreshView` for live data that only matters while the popover is visible, and use background tasks only for work that must keep running while the popover is closed.
@@ -130,7 +136,7 @@ Do not write generated extension files, the local extension database, compiled m
 - For privileged work, explicitly say that filesystem, shell, network, credential, and token access belongs in extension-owned server actions behind `window.babyMenu.capabilities.invoke`.
 - For durable local data, explicitly say whether the widget should read directly from `window.babyMenu.db`, whether a server action should use `context.db`, or whether a background task should persist data for later widget reads.
 - For ongoing work, explicitly distinguish visible-widget refresh from background tasks and require the slowest acceptable interval.
-- Renderer widgets should receive normalized data over `window.babyMenu` and should not add new preload methods for each capability.
+- Renderer widgets and settings sections should receive normalized data over `window.babyMenu` and should not add new preload methods for each capability.
 - If a real data source may be unavailable, define the mock fallback and require the UI to label it as mock data.
 - Define normalized TypeScript shapes in the recipe so the agent knows what data extension server actions should return to widgets.
 - Include parser guidance for command or API output, including timeout behavior, stale-data behavior, and user-visible errors.
