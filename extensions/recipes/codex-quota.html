@@ -146,7 +146,7 @@ Authorization: Bearer &lt;access_token&gt;</code></pre>
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Optional Web Dashboard Extras</h2>
         <p>Do not implement browser-cookie scraping in the first widget unless the user explicitly asks for richer dashboard extras.</p>
-        <p>If implemented later, it must be opt-in and main-process only.</p>
+        <p>If implemented later, it must be opt-in and server-action only.</p>
         <p>Dashboard URL: <code>https://chatgpt.com/codex/settings/usage</code>.</p>
         <p>Potential extras include code review remaining, usage breakdown chart data, credits history, and credits purchase URL.</p>
         <p>Cookie handling must never write secrets to committed files or renderer logs.</p>
@@ -154,16 +154,15 @@ Authorization: Bearer &lt;access_token&gt;</code></pre>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Implementation Contract</h2>
-        <p>Create or edit these files:</p>
+        <p>Create or edit these extension files:</p>
         <ul>
-          <li><code>src/main/codex-quota.ts</code> for main-process data fetching, RPC, and parsing.</li>
-          <li><code>src/main/ipc.ts</code> to expose <code>baby-menu:quota:codex</code>.</li>
-          <li><code>src/preload/index.ts</code> to expose <code>window.babyMenu.quota.codex()</code>.</li>
-          <li><code>src/renderer/widgets/codex-quota-widget.tsx</code> for the renderer widget.</li>
-          <li><code>src/renderer/menu/WidgetHost.tsx</code> or a widget registry file to register the widget.</li>
+          <li><code>codex-quota/server.ts</code> for privileged token, CLI RPC, timeout, and parser work.</li>
+          <li><code>codex-quota/widget.tsx</code> for the renderer widget, using <code>@babymenu/ui</code>.</li>
+          <li>The widget should call <code>window.babyMenu.capabilities.invoke("codex-quota", "getQuota", input)</code>.</li>
+          <li>Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</li>
           <li><code>tests/codex-quota.test.ts</code> for parser, RPC fallback, timeout, and mock tests.</li>
         </ul>
-        <p>IPC response shape:</p>
+        <p>Server action response shape:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>type QuotaResult&lt;T&gt; =
   | { ok: true; data: T }
   | { ok: false; error: string; sourceTried: string[]; mock?: T };</code></pre>
