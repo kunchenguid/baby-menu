@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.3...baby-menu-v0.1.4) (2026-05-28)
+
+
+### Bug Fixes
+
+* preserve native binaries in universal macOS package ([#21](https://github.com/kunchenguid/baby-menu/issues/21)) ([73bacd0](https://github.com/kunchenguid/baby-menu/commit/73bacd066b7aed1ad9f265f5d00b65c998010bb4))
+
 ## [0.1.3](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.2...baby-menu-v0.1.3) (2026-05-28)
 
 
