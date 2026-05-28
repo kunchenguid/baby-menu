@@ -34,12 +34,12 @@ describe("settings view", () => {
 
     // Menu view: composer present, no settings controls.
     expect(screen.getByPlaceholderText("ask the agent")).toBeTruthy();
-    expect(screen.queryByText("open at login")).toBeNull();
+    expect(screen.queryByText("launch at system start")).toBeNull();
 
     // Open settings.
     fireEvent.click(screen.getByRole("button", { name: "open settings" }));
-    expect(await screen.findByText("open at login")).toBeTruthy();
-    const toggle = screen.getByRole("switch", { name: "open at login" });
+    expect(await screen.findByText("launch at system start")).toBeTruthy();
+    const toggle = screen.getByRole("switch", { name: "launch at system start" });
     expect(toggle).toBeTruthy();
     // The agent composer is hidden in the settings context.
     expect(screen.queryByPlaceholderText("ask the agent")).toBeNull();
@@ -51,6 +51,6 @@ describe("settings view", () => {
     // Return to the menu.
     fireEvent.click(screen.getByRole("button", { name: "close settings" }));
     expect(await screen.findByPlaceholderText("ask the agent")).toBeTruthy();
-    expect(screen.queryByText("open at login")).toBeNull();
+    expect(screen.queryByText("launch at system start")).toBeNull();
   });
 });

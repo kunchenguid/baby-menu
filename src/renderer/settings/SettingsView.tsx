@@ -25,10 +25,10 @@ export function SettingsView() {
       <span className="text-xxs uppercase tracking-caps text-ink-label">preferences</span>
       <div className="flex items-center justify-between gap-4">
         <span className="flex flex-col gap-0.5">
-          <span className="text-sm text-ink">open at login</span>
-          <span className="text-xs text-ink-soft">launch baby_menu when you sign in</span>
+          <span className="text-sm text-ink">launch at system start</span>
+          <span className="text-xs text-ink-soft">Automatically start baby menu along with your system</span>
         </span>
-        <Switch checked={openAtLogin} onCheckedChange={(next) => void toggle(next)} aria-label="open at login" />
+        <Switch checked={openAtLogin} onCheckedChange={(next) => void toggle(next)} aria-label="launch at system start" />
       </div>
     </div>
   );
