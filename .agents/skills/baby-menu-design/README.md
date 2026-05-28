@@ -25,7 +25,7 @@ This system was built from the live codebase at:
 Key files referenced (paths in that repo):
 
 - `AGENTS.md` — architecture, three-process split, source-vs-packaged change-session invariants, recipe conventions.
-- `src/renderer/styles.css` — the original warm-paper palette (now replaced by this system's monochrome direction).
+- `src/renderer/styles.css` — the live Monochrome Lab popover shell and app-surface styling.
 - `src/renderer/App.tsx`, `src/renderer/agent/AgentChat.tsx`, `src/renderer/menu/MenuSurface.tsx`, `src/renderer/menu/WidgetHost.tsx` — the components being redesigned here.
 - `src/ui/` — the shared `@babymenu/ui` component kit used by the app shell and extension widgets.
 - `src/ui/theme.css` — the Tailwind `@theme` token source consumed by the renderer and per-widget CSS compiler.
@@ -64,8 +64,8 @@ Baby Menu copy is **terse, lowercase, second-person, present-tense**. It sounds 
 - **Lowercase by default.** UI strings stay lowercase unless they're a proper noun, an identifier, or a button label (which is sentence-case-with-no-period). The wordmark is `baby_menu`.
 - **Tracked-caps for keys.** Anything that classifies - widget key (`CLAUDE · WEEKLY`), source (`OAUTH`, `CLI`, `WEB`, `MOCK`), occasional status word - is rendered uppercase with `0.18em` letter-spacing at 11px minimum. This is the workhorse heading of the entire system.
 - **Address the user as "you"; address the agent as "the agent"** (never "I", "we", or "Claude").
-- **No emoji.** Status is a 5px glowing mint dot + one tracked-caps word. Never `🟢` or `✅`.
-- **Use ASCII glyphs as iconography.** `›` for prompt, `⟳` for refresh, `+` for add, `·` for separator, `↵` `⌘` for shortcuts. Lucide (16px, stroke 1.5) is the fallback when an ASCII glyph won't read.
+- **No emoji.** Status is a small glowing mint dot + one tracked-caps word. Live UI dots are 6px in shared components and 8px in RunStrip/SessionBar controls. Never `🟢` or `✅`.
+- **Use ASCII glyphs as iconography.** `›` for prompt, `⟳` for refresh, `+` for add, `·` for separator, `↵` `⌘` for shortcuts. Lucide is the fallback when an ASCII glyph won't read.
 - **Plain dashes, not em dashes.** (From `AGENTS.md`. Honor it in copy.)
 - **Numbers are confident, units are quiet.** `72%` is 32px / weight 300; `last sync 12:04` is 11px / 48% ink.
 
@@ -200,7 +200,7 @@ Easings: `--ease` `cubic-bezier(0.22, 0.61, 0.36, 1)` for entry; `--ease-in-out`
 
 ### Layout rules
 
-- Width is fixed at **360px**, **400px max**. Never less than 320px.
+- Width is fixed at **360px** in the live popover. Do not design responsive popover widths unless the runtime sizing code changes.
 - **Height is auto.** The popover grows to fit. Plan layouts for any height between 220px and 720px. Once the popover reaches its max height, the popover body scrolls; the header and active agent-control surface stay pinned.
 - The **composer** is pinned to the bottom on the main menu and idle agent surface; it is hidden while the settings view is open and replaced by the RunStrip while an agent run is in flight.
 - The **SessionBar** is pinned just above the composer **only when** the agent has just added or undone something and is waiting for the user to decide.
@@ -225,7 +225,7 @@ Widgets do **not** have backgrounds, borders, shadows, or padding-as-containers.
 Type is the iconography. The system leans on **ASCII glyphs** and **tracked-caps words** instead of a drawn icon set.
 
 1. **ASCII first.** `›` is the prompt and the menu-affordance pointer. `⟳` is refresh. `+` is add. `·` is separator. `↵` and `⌘` appear in shortcut hints. `●` is a status dot. These read crisp at any size because they are real characters in the body font (JetBrains Mono).
-2. **Lucide as fallback.** When an ASCII glyph won't carry a meaning, use [Lucide](https://lucide.dev) at **16×16**, stroke width **1.5**, color `currentColor`. Lucide is the closest visual match - slightly soft, geometric, monoline - and is bundled with the live codebase.
+2. **Lucide as fallback.** When an ASCII glyph won't carry a meaning, use [Lucide](https://lucide.dev) at **14×14** in compact controls and **16×16** in roomier controls, color `currentColor`. Lucide is the closest visual match - slightly soft, geometric, monoline - and is bundled with the live codebase.
 3. **No emoji as UI.** No `🟢 / ✅ / ⚠️ / 🚫`. Status is the mint dot + word.
 4. **No custom hand-drawn SVG.** The tray glyph is the wordmark's `b` rendered as a template PNG by `src/main/tray.ts`.
 
