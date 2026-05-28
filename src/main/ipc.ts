@@ -36,8 +36,10 @@ export function registerIpcHandlers(
   },
   runtimeOptions: IpcRuntimeOptions = {},
 ) {
+  const recipesDir = runtimeOptions.recipesDir ?? getRecipesDir(rootDir);
+
   ipcMain.handle("baby-menu:recipes:list", async (): Promise<RecipeMetadata[]> => {
-    return loadRecipes(pathToFileURL(`${runtimeOptions.recipesDir ?? getRecipesDir(rootDir)}/`));
+    return loadRecipes(pathToFileURL(`${recipesDir}/`));
   });
 
   ipcMain.handle("baby-menu:agent:send", async (event, prompt: string): Promise<AgentChatResult> => {

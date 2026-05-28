@@ -29,7 +29,7 @@ describe("loadRecipes", () => {
       expect(html).toContain("This recipe is self-contained");
       expect(html).toContain("Recommended Data Source Order");
       expect(html).toContain("Implementation Contract");
-      expect(html).toContain("IPC response shape");
+      expect(html).toContain("Server action response shape");
       expect(html).toContain('data-theme="wireframe"');
       expect(html).toContain("https://cdn.jsdelivr.net/npm/daisyui@5");
       expect(html).toContain("https://cdn.jsdelivr.net/npm/daisyui@5/themes.css");

@@ -28,7 +28,6 @@ describe("capabilities IPC", () => {
       join(recipesDir, "daily-standup.html"),
       `<html><head><title>Daily Standup</title></head><body><h1>Fallback</h1></body></html>\n`,
     );
-    vi.stubEnv("BABY_MENU_EXTENSIONS_DIR", join(rootDir, "extensions-dev"));
     const { registerIpcHandlers } = await import("../src/main/ipc");
     const agentRuntime = {
       send: vi.fn(),
@@ -36,7 +35,7 @@ describe("capabilities IPC", () => {
       rollback: vi.fn(),
     };
 
-    registerIpcHandlers(rootDir, agentRuntime);
+    registerIpcHandlers(rootDir, agentRuntime, undefined, undefined, undefined, undefined, { recipesDir });
 
     await expect(handlers.get("baby-menu:recipes:list")?.({})).resolves.toEqual([
       {
@@ -79,15 +78,19 @@ describe("capabilities IPC", () => {
       join(actionDir, "server.mjs"),
       `export const actions = { ping: async (input, context) => ({ input, rootDir: context.rootDir }) };\n`,
     );
-    vi.stubEnv("BABY_MENU_EXTENSIONS_DIR", join(rootDir, "extensions-dev"));
     const { registerIpcHandlers } = await import("../src/main/ipc");
+    const { createServerActionRegistry } = await import("../src/main/server-action-registry");
     const agentRuntime = {
       send: vi.fn(),
       save: vi.fn(),
       rollback: vi.fn(),
     };
 
-    registerIpcHandlers(rootDir, agentRuntime);
+    registerIpcHandlers(
+      rootDir,
+      agentRuntime,
+      createServerActionRegistry({ rootDir, actionRoots: [join(rootDir, "extensions-dev")] }),
+    );
 
     await expect(handlers.get("baby-menu:capabilities:list")?.({})).resolves.toEqual([
       { id: "demo.ping", extensionId: "demo", action: "ping" },
