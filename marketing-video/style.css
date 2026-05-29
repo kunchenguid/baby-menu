@@ -513,7 +513,7 @@ body {
   color: var(--ink-200);
 }
 .ctext .ph {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.5);
 }
 .ctext .ch {
   display: inline-block;
@@ -630,9 +630,12 @@ body {
   color: var(--ink-200);
 }
 .btn-primary {
-  background: var(--ink-100);
-  color: #0b0b0c;
-  border-color: var(--ink-100);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--ink-100);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+#sb-keep {
+  color: var(--ink-100);
 }
 .btn-danger {
   color: var(--signal-error);
@@ -706,7 +709,7 @@ body {
   position: absolute;
   inset: 0;
   z-index: 90;
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -729,6 +732,9 @@ body {
   display: block;
   width: 128px;
   height: 128px;
+}
+.outro text {
+  fill: #f4f4f4;
 }
 .outro .wordmark {
   font-family: var(--font-mono);

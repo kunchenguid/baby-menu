@@ -267,10 +267,12 @@ const ZTY = ZY - ZS * TRAY_Y
   const clone = document.getElementById('outro').cloneNode(true)
   clone.id = 'outro-poster' // keep inner ids so the svg glow filter still resolves
   clone.style.opacity = '1' // visible by default so frame 0 = the outro
+  clone.style.display = 'flex'
   document.getElementById('root').appendChild(clone)
 })()
 
 tl.set('#stage', { x: 0, y: 0, scale: 1, transformOrigin: '0 0', force3D: false }, 0)
+tl.set('#outro', { display: 'none', opacity: 0 }, 0)
 tl.set('#popover', { opacity: 0, y: -8, scale: 0.985, transformOrigin: 'top center' }, 0)
 tl.set('#tray-b', { opacity: 1, scale: 1, backgroundColor: 'rgba(255,255,255,0.16)' }, 0)
 tl.set('#composer', { opacity: 1 }, 0)
@@ -290,6 +292,7 @@ tl.to('#wipe', { y: '0%', duration: 0.3, ease: 'power3.in' }, 0.05)
 // Drop the poster instantly while the wipe fully covers (0.35), so the
 // thumbnail shows for frame 0 only and never flickers back during reveal.
 tl.to('#outro-poster', { opacity: 0, duration: 0.03, ease: 'none', immediateRender: false }, 0.36)
+tl.set('#outro-poster', { display: 'none' }, 0.39)
 const R = 0.38
 tl.set('#tray-b', { opacity: 0, backgroundColor: 'rgba(255,255,255,0)' }, R)
 tl.set('#stage', { x: ZTX, y: ZTY, scale: ZS, force3D: false }, R)
@@ -359,7 +362,7 @@ tl.fromTo('#sessionbar', { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'pow
 tl.to('#cursor', { opacity: 1, duration: 0.3, ease: 'power2.out' }, 16.0)
 moveCursor(sx(KEEP_NX), dockCY('cpu'), 16.2, 0.8)
 click(sx(KEEP_NX), dockCY('cpu'), 17.05)
-tl.to('#sb-keep', { backgroundColor: '#ffffff', duration: 0.12, yoyo: true, repeat: 1 }, 17.05)
+tl.to('#sb-keep', { scale: 1.06, duration: 0.12, yoyo: true, repeat: 1, transformOrigin: 'center center' }, 17.05)
 tl.to('#sessionbar', { opacity: 0, duration: 0.28, ease: 'power2.in' }, 17.2)
 tl.set(P1.wrap, { opacity: 0 }, 17.25)
 tl.set(P1.caret, { opacity: 0 }, 17.25)
@@ -409,7 +412,7 @@ tl.fromTo('#sessionbar', { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'pow
 tl.to('#cursor', { opacity: 1, duration: 0.3, ease: 'power2.out' }, 26.4)
 moveCursor(sx(KEEP_NX), dockCY('claude'), 26.6, 0.8)
 click(sx(KEEP_NX), dockCY('claude'), 27.45)
-tl.to('#sb-keep', { backgroundColor: '#ffffff', duration: 0.12, yoyo: true, repeat: 1 }, 27.45)
+tl.to('#sb-keep', { scale: 1.06, duration: 0.12, yoyo: true, repeat: 1, transformOrigin: 'center center' }, 27.45)
 tl.to('#sessionbar', { opacity: 0, duration: 0.28, ease: 'power2.in' }, 27.6)
 tl.set(P2.wrap, { opacity: 0 }, 27.65)
 tl.set(P2.caret, { opacity: 0 }, 27.65)
@@ -459,6 +462,7 @@ tl.to('#composer', { opacity: 1, duration: 0.3, ease: 'power2.out' }, 35.4)
    WIPE back to the OUTRO (matches frame 0 -> seamless loop).
    ---------------------------------------------------------------- */
 tl.to('#wipe', { y: '0%', duration: 0.32, ease: 'power3.in' }, 36.4)
+tl.set('#outro', { display: 'flex' }, 36.73)
 tl.to('#outro', { opacity: 1, duration: 0.15, ease: 'none', immediateRender: false }, 36.74)
 tl.to('#wipe', { y: '-100%', duration: 0.34, ease: 'power3.out' }, 36.78)
 

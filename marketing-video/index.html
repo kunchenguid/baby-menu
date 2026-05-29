@@ -16,7 +16,7 @@
       data-height="1080"
     >
       <!-- ===================== STAGE (camera) ===================== -->
-      <div class="stage" id="stage">
+      <div class="stage" id="stage" data-layout-allow-overflow>
         <!-- ===================== DESKTOP ===================== -->
         <div class="desktop" id="desktop"></div>
 
@@ -29,7 +29,7 @@
           <span class="mb-item">View</span>
           <span class="mb-item">Go</span>
           <div class="right">
-            <button class="tray-btn open" id="tray-b"><span class="tray-glyph">b</span></button>
+            <button class="tray-btn open" id="tray-b" aria-label="baby menu"><span class="tray-glyph" aria-hidden="true">b</span></button>
             <span class="pct">78%</span>
             <span class="ico" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none"
@@ -221,9 +221,9 @@
               </filter>
             </defs>
             <rect width="1024" height="1024" fill="#0B0B0C" />
-            <text x="515" y="696" text-anchor="middle"
+            <text x="515" y="696" text-anchor="middle" aria-hidden="true"
               font-family="Arial Black, Helvetica Neue, Helvetica, Arial, sans-serif"
-              font-size="690" font-weight="900" letter-spacing="-34" fill="#F4F4F4">b</text>
+              font-size="690" font-weight="900" letter-spacing="-34" fill="#F4F4F4" style="fill: #f4f4f4; color: #f4f4f4">b</text>
             <rect x="225" y="874" width="574" height="9" rx="1" fill="#6AE3B6" filter="url(#mintglow)" />
           </svg>
         </div>
