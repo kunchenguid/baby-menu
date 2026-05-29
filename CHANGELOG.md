@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.6...baby-menu-v0.1.7) (2026-05-29)
+
+
+### Bug Fixes
+
+* **extensions:** ship stable extension contract types ([#29](https://github.com/kunchenguid/baby-menu/issues/29)) ([53ab316](https://github.com/kunchenguid/baby-menu/commit/53ab316b6f330c6b56bd0938eddaf9ccf2d7a7cb))
+
 ## [0.1.6](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.5...baby-menu-v0.1.6) (2026-05-29)
 
 
