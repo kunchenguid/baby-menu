@@ -36,6 +36,7 @@ describe("distribution config", () => {
 
     expect(config).toContain("appId: com.kunchenguid.baby-menu");
     expect(config).toContain("to: extensions-template");
+    expect(config).toContain("babymenu-env.d.ts");
     expect(config).toContain("to: tray");
     expect(config).toContain("baby_menuTemplate*.png");
     expect(config).toContain("identity: null");
