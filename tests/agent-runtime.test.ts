@@ -235,6 +235,15 @@ describe("agent runtime defaults", () => {
     expect(prompt).toContain("recipes/");
   });
 
+  it("aligns runtime guidance with extension-only verification", () => {
+    const prompt = buildBabyMenuAgentPrompt("Build a Codex quota widget");
+
+    expect(prompt).not.toContain("test-driven");
+    expect(prompt).not.toContain("Run relevant tests");
+    expect(prompt).toContain("Do not write test files");
+    expect(prompt).toContain("do not write README or other documentation files");
+  });
+
   it("rejects a second send while an agent turn is already running", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-agent-runtime-"));
     const extensionsDir = join(rootDir, "extensions-dev");

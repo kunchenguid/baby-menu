@@ -240,7 +240,7 @@ export function buildBabyMenuAgentPrompt(prompt: string): string {
   return `${prompt}
 
 You are editing the baby-menu repository in dev mode.
-Prefer small, test-driven changes in your current extension workspace.
+Prefer small, focused changes in your current extension workspace.
 Build self-contained extensions under <extension-id>/ inside your current extension workspace so they can be shared as a directory behind the stable window.babyMenu bridge.
 For recipe-backed widgets, read the matching self-contained spec from recipes/ before editing.
 Do not modify files outside your current extension workspace unless the user explicitly asks.
@@ -248,7 +248,8 @@ Renderer widgets should call privileged work with window.babyMenu.capabilities.i
 Extension server actions live in server.ts files and export an actions object.
 Do not add new preload methods or one-off IPC method names for each widget.
 Put privileged filesystem, shell, network, credential, and token work behind an extension-owned server action that is invoked through a stable generic capability bridge.
-Run relevant tests when you change behavior.`;
+Do not write test files, and do not write README or other documentation files for extensions.
+Verify extension work by reasoning through widget render output and server action return shapes.`;
 }
 
 export class BabyMenuAgentRuntime {
