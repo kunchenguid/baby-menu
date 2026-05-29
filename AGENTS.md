@@ -63,8 +63,8 @@ The extension-facing slice of that contract is a generated public surface, treat
 - `ipc.ts` - registers all `ipcMain` handlers exposed via the preload bridge; the single place new generic IPC routes are added.
 - `agent-catalog.ts` - defines built-in agents, parses custom `agents.json`, computes Settings availability, and builds `acpx` registry overrides.
 - `agent-catalog-controller.ts` - owns the live agent catalog, validates Settings-added custom ACP agents, persists `agents.json`, and pushes refreshed registry overrides into the runtime without requiring an app restart.
-- `agent-runtime.ts` - `BabyMenuAgentRuntime` wrapping `acpx/runtime`; gates every `send()` through a change session.
-- `agent-turn-log.ts` - structured per-turn transcript log used by the renderer and tests.
+- `agent-runtime.ts` - `BabyMenuAgentRuntime` wrapping `acpx/runtime`; gates every `send()` through a change session, preserves structured turn failures, and retries once after deleting a stale persisted ACP session that reports `SESSION_RESUME_REQUIRED`.
+- `agent-turn-log.ts` - structured per-turn transcript log used by diagnostics and tests; failed turns include the runtime error message plus optional `code` and `detailCode`.
 - `git-change-session.ts` - the tracked-source Save/Rollback safety boundary (see below).
 - `dev-extension-change-session.ts` - the snapshot Save/Rollback boundary for gitignored dev and packaged extension workspaces.
 - `extension-seeder.ts` - self-heals the packaged extension workspace from the bundled template on every launch: it force-copies the shipped defaults (`AGENTS.md`, `babymenu-env.d.ts`, `recipes/`, and starter extensions) so a stale or edited managed file is restored, while leaving user-created extensions the template does not ship untouched (it never deletes them). Editing a managed default in `~/.baby-menu/extensions` therefore does not persist; change the source under `extensions/` instead.
@@ -133,6 +133,8 @@ Every accepted `send()` call:
 3. Uses `GitChangeSession.begin(rootDir)` only for the tracked source `extensions/` workspace when that workspace is selected explicitly. If the working tree is dirty, it short-circuits and returns a refusal message instead of running the agent - this is intentional; do not bypass it for tracked edits.
 4. Lazily constructs the ACP runtime with `createFileSessionStore({ stateDir })` under `.cache/baby-menu/acp-sessions` in source mode or `~/.baby-menu/cache/acp-sessions` in packaged mode, with `permissionMode: "approve-all"`.
 5. Uses a fixed `sessionKey: "baby-menu-agent-chat"` so the agent has a single persistent conversation.
+6. If a failed turn returns `SESSION_RESUME_REQUIRED`, closes the runtime, removes `<stateDir>/sessions/baby-menu-agent-chat.json`, and retries the prompt once so bundled adapters that do not support `session/load` recover after an app restart.
+   The failed attempt is still written to `.cache/baby-menu/agent-turns` with its error `message`, `code`, and `detailCode`; if the retry fails, the renderer surfaces the real thrown message instead of replacing it with a generic unavailable reason.
 
 `GitChangeSession` (`src/main/git-change-session.ts`) is the safety boundary for Save/Rollback. Both operations refuse unless: the session started clean, the session is not already completed, and `HEAD` has not moved since the session began. `rollback()` runs `git reset --hard <recorded HEAD>` + `git clean -fd` - those destructive commands are only acceptable because of the preceding guards. Preserve this invariant.
 
