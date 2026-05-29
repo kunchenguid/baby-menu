@@ -16,8 +16,9 @@ export type CodexDriverOptions = {
 
 /**
  * Drives `codex exec --json` per turn. The first turn runs `codex exec <prompt>`
- * and captures the `thread.started` id; subsequent turns run
- * `codex exec resume <id> <prompt>` so conversation memory carries over.
+ * with `--color never` and captures the `thread.started` id; subsequent turns
+ * run `codex exec resume <id> <prompt>` without `--color`, because the resume
+ * subcommand rejects that flag, so conversation memory carries over.
  *
  * Each turn is its own short-lived child (exec is one-shot), which keeps us off
  * the `codex app-server` path that starts the computer-use MCP server behind
