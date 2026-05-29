@@ -48,7 +48,7 @@ Baby Menu writes the extension under `~/.baby-menu/extensions`, mounts the widge
 Use Keep to keep it, or Undo to throw it away.
 Extensions can keep local state in Baby Menu's shared SQLite store, contribute settings sections, and register background tasks for work that must continue while the popover is closed.
 The packaged app opens at login by default.
-Use the popover header to open settings or fully quit the app.
+Use the popover header to open settings, fully quit the app, or install an available update.
 Settings opens as an overlay so the menu, widgets, and composer keep their state while you configure the app.
 It lets you turn `launch at system start` off or back on, choose the embedded agent, add/edit/remove custom ACP agents, and see unavailable built-in agents with install hints.
 Switching agents resets the current conversation after confirmation.
@@ -89,6 +89,9 @@ brew update
 brew upgrade --cask baby-menu
 ```
 
+When a newer GitHub Release is available, Baby Menu shows an update indicator in the popover header.
+The indicator opens a small dialog with the same Homebrew upgrade command and a link to the release notes.
+
 ## From Source
 
 Use source mode when developing Baby Menu itself.
@@ -109,6 +112,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
    ┌─────────────────────┐
    │  macOS tray popover │   (React renderer, 504px wide)
    │ + Menu / Settings   │
+   │ + Update indicator  │
    │ + Quit              │
    └──────────┬──────────┘
               │  send()
@@ -141,6 +145,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 - **Bundled ACP adapters** - the built-in Claude Code and Codex entries launch `out/adapters/<name>/index.mjs`, which wraps the local authenticated CLI and keeps Baby Menu's embedded agent isolated from user-level agent configuration.
 - **Live custom agent catalog** - Settings-owned custom ACP agents are persisted to `agents.json`, registered as `acpx` overrides immediately, and kept separate from read-only built-ins.
 - **Settings overlay** - Settings covers the default menu without unmounting it, so chat composer, widget, and run state survive opening and closing Settings.
+- **Release update indicator** - the main process checks the latest GitHub Release at most every four hours, keeps failures silent, and shows a header indicator with `brew update && brew upgrade --cask baby-menu` only when a newer packaged release exists.
+  Source/dev mode simulates an available update so the UI can be exercised locally.
 - **Extension settings sections** - extensions may export `BabyMenuSettingsSection` from `widget.tsx`; the Settings page discovers those renderer-only sections through the same module pipeline as widgets and renders the host-owned frame around each body.
 - **Extension server actions** - privileged work (shell, network, credentials) lives in `<extension-id>/server.ts` and is invoked from widgets and settings sections via `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
   No per-widget IPC channels.
@@ -157,9 +163,9 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | Path                        | What lives here                                                                        |
 | --------------------------- | -------------------------------------------------------------------------------------- |
 | `src/adapters/`             | Bundled clean-room ACP adapters for built-in Claude Code and Codex agents              |
-| `src/main/`                 | Electron lifecycle, tray, popover, IPC, git, agent runtime                             |
+| `src/main/`                 | Electron lifecycle, tray, popover, IPC, git, agent runtime, update checks              |
 | `src/preload/index.ts`      | The stable `window.babyMenu` bridge                                                    |
-| `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, settings, and app controls                        |
+| `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, settings, update indicator, and app controls      |
 | `src/ui/`                   | Shared `@babymenu/ui` design system for shell and extension renderer surfaces          |
 | `src/shared/contracts.ts`   | `BabyMenuApi`, `BabyMenuWidget`, `BabyMenuSettingsSection`, `GitSessionSnapshot`, etc. |
 | `src/shared/extension-contract-names.ts` | Public type names exported through `@babymenu/contracts`                  |

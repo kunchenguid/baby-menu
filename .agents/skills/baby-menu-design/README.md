@@ -14,7 +14,7 @@ When the user sends a request, the composer momentarily becomes a `RunStrip`: a 
 
 The popover surface is dynamic-height.
 On the main menu, the composer is pinned to the bottom; everything above it stacks and grows.
-The header keeps compact settings and quit controls together; quit stays neutral at rest and shifts to danger coral only on hover.
+The header keeps compact update, settings, and quit controls together; the update control appears only when a newer release is available, while quit stays neutral at rest and shifts to danger coral only on hover.
 Settings replaces the menu body and composer, and includes both the `open at login` preference and the embedded-agent picker.
 Agent options are radio-like rows: available inactive agents can be selected, unavailable agents are disabled with install hints, and switching agents requires confirmation because it resets the current conversation.
 
@@ -30,7 +30,7 @@ Key files referenced (paths in that repo):
 
 - `AGENTS.md` — architecture, three-process split, source-vs-packaged change-session invariants, recipe conventions.
 - `src/renderer/styles.css` — the live Monochrome Lab popover shell and app-surface styling.
-- `src/renderer/App.tsx`, `src/renderer/agent/AgentChat.tsx`, `src/renderer/menu/MenuSurface.tsx`, `src/renderer/menu/WidgetHost.tsx` — the components being redesigned here.
+- `src/renderer/App.tsx`, `src/renderer/UpdateIndicator.tsx`, `src/renderer/agent/AgentChat.tsx`, `src/renderer/menu/MenuSurface.tsx`, `src/renderer/menu/WidgetHost.tsx` — the components being redesigned here.
 - `src/ui/` — the shared `@babymenu/ui` component kit used by the app shell and extension widgets.
 - `src/ui/theme.css` — the Tailwind `@theme` token source consumed by the renderer and per-widget CSS compiler.
 - `src/shared/ui-exports.ts` — the public export contract for the host-provided design-system surface.
@@ -69,7 +69,7 @@ Baby Menu copy is **terse, lowercase, second-person, present-tense**. It sounds 
 - **Tracked-caps for keys.** Anything that classifies - widget key (`CLAUDE · WEEKLY`), source (`OAUTH`, `CLI`, `WEB`, `MOCK`), occasional status word - is rendered uppercase with `0.18em` letter-spacing at 11px minimum. This is the workhorse heading of the entire system.
 - **Address the user as "you"; address the agent as "the agent"** (never "I", "we", or "Claude").
 - **No emoji.** Status is a small glowing mint dot + one tracked-caps word. Live UI dots are 6px in shared components and 8px in RunStrip/SessionBar controls. Never `🟢` or `✅`.
-- **Use ASCII glyphs as iconography.** `›` for prompt, `+` for add, `·` for separator, `↵` `⌘` for shortcuts. Lucide is used when an ASCII glyph won't read, including compact refresh, settings, and quit controls.
+- **Use ASCII glyphs as iconography.** `›` for prompt, `+` for add, `·` for separator, `↵` `⌘` for shortcuts. Lucide is used when an ASCII glyph won't read, including compact update, refresh, settings, and quit controls.
 - **Plain dashes, not em dashes.** (From `AGENTS.md`. Honor it in copy.)
 - **Numbers are confident, units are quiet.** `72%` is 32px / weight 300; `last sync 12:04` is 11px / 48% ink.
 
@@ -231,7 +231,7 @@ Widgets do **not** have backgrounds, borders, shadows, or padding-as-containers.
 Type is the iconography. The system leans on **ASCII glyphs** and **tracked-caps words** instead of a drawn icon set.
 
 1. **ASCII first.** `›` is the prompt and the menu-affordance pointer. `+` is add. `·` is separator. `↵` and `⌘` appear in shortcut hints. `●` is a status dot. These read crisp at any size because they are real characters in the body font (JetBrains Mono).
-2. **Lucide for compact controls.** Use [Lucide](https://lucide.dev) when ASCII won't carry a meaning, including `Settings` for settings and `Power` for quitting the app. Use **14×14** in compact controls and **16×16** in roomier controls, color `currentColor`. Lucide is the closest visual match - slightly soft, geometric, monoline - and is bundled with the live codebase.
+2. **Lucide for compact controls.** Use [Lucide](https://lucide.dev) when ASCII won't carry a meaning, including `CircleArrowUp` for the update indicator, `Settings` for settings, and `Power` for quitting the app. Use **14×14** in compact controls and **16×16** in roomier controls, color `currentColor`. Lucide is the closest visual match - slightly soft, geometric, monoline - and is bundled with the live codebase.
 3. **No emoji as UI.** No `🟢 / ✅ / ⚠️ / 🚫`. Status is the mint dot + word.
 4. **No custom hand-drawn SVG.** The tray glyph is the wordmark's `b` rendered as a template PNG by `src/main/tray.ts`.
 

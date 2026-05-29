@@ -43,7 +43,7 @@ Three processes, kept deliberately separate:
 
 1. **Main** (`src/main/`) - app lifecycle, tray, popover window, IPC, git, agent runtime. Never call agent or git from the renderer directly.
 2. **Preload** (`src/preload/index.ts`) - the stable bridge. Exposes `window.babyMenu` via `contextBridge`. Do not add one-off preload methods for each widget.
-3. **Renderer** (`src/renderer/`) - React UI: `AgentChat`, `WidgetHost`, `SettingsView`, and app-shell controls such as Quit. Widgets and extension settings sections should be hot reloadable and should not require an Electron restart for each new capability. The app shell and extension renderer surfaces share one design system, `@babymenu/ui` (`src/ui/`); see "Design system" below.
+3. **Renderer** (`src/renderer/`) - React UI: `AgentChat`, `WidgetHost`, `SettingsView`, `UpdateIndicator`, and app-shell controls such as Quit. Widgets and extension settings sections should be hot reloadable and should not require an Electron restart for each new capability. The app shell and extension renderer surfaces share one design system, `@babymenu/ui` (`src/ui/`); see "Design system" below.
 4. **Extension server actions and background tasks** - privileged filesystem, shell, network, credential, token, storage, notification, and background work should live behind extension-owned `server.ts` modules.
    Renderer widgets call these actions with `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
    Server actions live in the active extension workspace under `<extension-id>/server.ts` and export an `actions` object; background tasks export `background` from the same file.
@@ -73,6 +73,7 @@ The extension-facing slice of that contract is a generated public surface, treat
 - `widget-protocol.ts` - registers custom protocols for compiled widget modules, the per-widget `.css`, and the renderer host shims (`react`, `react/jsx-runtime`, and `@babymenu/ui` re-exported from the host global).
 - `preferences.ts` - stores app preferences, including the selected agent, under the active app data root and applies login-item settings only when login items are allowed, keeping source/dev mode as a no-op for macOS login items.
 - `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs.
+- `update-checker.ts` - checks the latest GitHub Release at most every 4 hours, compares it to the running app version, opens the release page externally, and simulates an available update in source/dev mode so the header indicator can be exercised.
 - `recipe-loader.ts` - discovers and parses `recipes/*.html` from the active extension workspace.
 - `server-action-registry.ts` - discovers extension server actions and background task declarations from the active extension workspace, caches unchanged compiled server modules, and reloads them when the entry or local helper source changes.
 - `background-task-scheduler.ts` - runs discovered extension background tasks on host-owned timers, hot-reloads changed tasks, and enforces the 60-second minimum interval.
