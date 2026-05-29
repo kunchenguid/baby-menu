@@ -150,6 +150,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | `extensions/<id>/`          | Tracked extensions (`widget.tsx` widgets/settings, `server.ts`)                        |
 | `extensions/recipes/*.html` | Self-contained widget specs the agent reads                                            |
 | `extensions-dev/`           | Gitignored dev workspace prepared by `scripts/dev.mjs`                                 |
+| `marketing-video/`          | HyperFrames source plus committed MP4/GIF assets for the README hero video             |
 | `~/.baby-menu/extensions/`  | Packaged app extension workspace                                                       |
 | `~/.baby-menu/baby-menu.db` | Packaged app's shared local SQLite store for extensions                                |
 | `~/.baby-menu/cache/`       | Packaged widget, server-action, snapshot, and agent caches                             |
@@ -183,6 +184,9 @@ Use `pnpm dev:reset` when recipe or extension guidance changes; it also clears `
 Source/dev mode never touches macOS login items, including Electron's `setLoginItemSettings` API.
 Use `pnpm package:mac` when you want to test the actual packaged app from `release/mac-universal/Baby Menu.app`.
 The universal package is expected to run on both Intel and Apple Silicon Macs, so macOS native prebuilt dependencies must stay installed for `x64` and `arm64` and must stay covered by `electron-builder.yml` `x64ArchFiles` when new native packages are added.
+
+The README hero animation is committed from `marketing-video/baby-menu-marketing-square.gif`.
+Use the HyperFrames project in `marketing-video/` when revising that asset: `pnpm --dir marketing-video check` validates the composition, and `pnpm --dir marketing-video render` renders the MP4 before regenerating the 960x960 GIF.
 
 Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pattern>"`.
 

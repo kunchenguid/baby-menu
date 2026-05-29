@@ -5,8 +5,9 @@
 Monochrome Lab.
 A calm command-line surface that happens to live in the macOS menu bar.
 Near-black canvas, white type at varying alpha, JetBrains Mono everywhere, one mint signal color.
-No gradients as decoration, no emoji, no second accent, no bounce.
+No gradients as decoration, no emoji, no second accent, no bounce during the product workflow.
 Motion is snappy, short, ease-out - a terminal does not boing.
+The only exception is the final logo, which does a short joyful baby-bounce before settling back to the identical loop frame.
 The product builds menu-bar widgets by asking an agent, so the video practices the same restraint the product preaches.
 
 ## Colors
@@ -36,18 +37,19 @@ Mint glow: `0 0 6px rgba(106,227,182,0.65)`.
 - **Prose** - `Inter Tight`, 300 / 400 / 500. ONLY for marketing copy outside the popover surface (the outro tagline). Never inside the popover.
 - Wordmark is `baby_menu` (lowercase, underscore) so it reads like an identifier - always in mono.
 
-Video scale: the popover is rendered at ~2x so 13px composer copy reads on a phone. Tracked-caps keys at `0.18em`. Tabular numerals on every number column.
+Video scale: the popover is rendered at 1.7x so 13px composer copy reads on a phone. Tracked-caps keys at `0.18em`. Tabular numerals on every number column.
 
 ## Motion
 
 - `--motion-fast` 80ms (hover, dot pulse start), `--motion-base` 160ms (toggles, press), `--motion-slow` 280ms (popover entry, RunStrip appear).
 - Easings: entry `cubic-bezier(0.22,0.61,0.36,1)`; morph-in-place `cubic-bezier(0.65,0,0.35,1)`. For video pacing extend reveals slightly to 0.4-0.7s.
 - Caret blink, active-step pulse (mint dot opacity 1 <-> 0.4), 1px progress fill that grows with a 3x5 scanline head.
-- No bounce, no spring, no overshoot. No `back.out`, no `elastic`. Use `power2.out`, `power3.out`, `expo.out`, `sine.inOut`.
+- No bounce, no spring, no overshoot during the product workflow. No `back.out`, no `elastic` before the outro. Use `power2.out`, `power3.out`, `expo.out`, `sine.inOut`.
+- The outro logo may use `bounce.out` / `elastic.out` for the brief baby-bounce, but it must settle back to the exact frame-0 pose before the composition ends.
 
 ## What this video shows
 
-A poster frame (the finished result, used as the X thumbnail), then the story of how it was built:
+A frame-0 outro poster (logo + install command, used as the X thumbnail and seamless loop point), then the story of how it was built:
 clean menu bar -> baby_menu tray icon appears -> click -> hello-world popover -> ask for a cpu + memory widget -> agent works -> widget appears -> ask for a claude code usage widget -> agent works -> widget appears -> "drop the sonnet quota line" -> agent works -> line removed -> outro with the homebrew install command.
 
 The agent's work is never a chat. It is one live RunStrip (pulsing mint dot + the user's prompt + a current step + an elapsed timer), replaced by a SessionBar (`Added a cpu + memory widget`, Keep / Undo) when done. The user never sees git, files, or commits.
@@ -58,7 +60,7 @@ The agent's work is never a chat. It is one live RunStrip (pulsing mint dot + th
 - No gradients as decoration. Solid near-black only (a single faint radial vignette on the desktop is allowed).
 - No second accent color. Monochrome plus mint.
 - No pure `#000` and no `#FFF` - ink is white at alpha.
-- No bouncy easing, no springs, no 3D rotations.
+- No bouncy easing, no springs, no 3D rotations during the product workflow.
 - No transcript, no chat bubbles, no message history.
 - Never expose git, file counts, paths, or SHAs. Buttons are Keep and Undo.
 - No em dashes. Plain dashes only.
