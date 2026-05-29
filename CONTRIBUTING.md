@@ -30,6 +30,7 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 - Use TDD for bug fixes and new features.
 - Tests live in `tests/` at the repo root.
 - Run `pnpm typecheck`, `pnpm test`, and `pnpm build` before pushing.
+- Run `pnpm generate:contracts` and commit `extensions/babymenu-env.d.ts` after changing extension-facing types or `src/shared/extension-contract-names.ts`.
 - Run `pnpm package:mac` when changing packaging, runtime paths, extension compilation, native dependencies, or release behavior.
 - Local `pnpm package:mac` builds intentionally produce `Baby Menu Dev.app` with bundle id `com.kunchenguid.baby-menu.dev`; release automation uses `electron-builder.yml` directly for the production `Baby Menu.app` identity.
 - Keep universal macOS packaging compatible with both Intel and Apple Silicon Macs; native prebuilt packages must be installed for `x64` and `arm64` and preserved in `electron-builder.yml` `x64ArchFiles` when electron-builder merges the app.

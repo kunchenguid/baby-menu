@@ -17,6 +17,7 @@ The host owns the Settings page chrome (section title, dividers, spacing); the e
 ## Contract
 
 An extension may export a settings surface from `widget.tsx` alongside its widget.
+Import `BabyMenuSettingsSection` from the generated `@babymenu/contracts` type surface.
 The implemented shape mirrors `BabyMenuWidget`:
 
 ```ts
@@ -30,6 +31,7 @@ export type BabyMenuSettingsSection = {
 The section is renderer-only, like a widget.
 It reads and writes its own configuration through the existing bridges - `window.babyMenu.db` for normal values and extension server actions for privileged credential work - so no new per-extension IPC or preload methods are added.
 It may import `@babymenu/ui` and should build its form from `Field`, `Input`, `Switch`, `Select`, and `Button` so it matches the app shell for free.
+Extension authors should import the type from `@babymenu/contracts`; that generated type-only module is shipped as `babymenu-env.d.ts` in the extension workspace, so extensions should not import from host source paths such as `../../src/shared/contracts`.
 
 ## Discovery and rendering
 
@@ -60,6 +62,7 @@ The three open questions were resolved along the recommended lines:
 ## Implementation map
 
 - `src/shared/contracts.ts` - `BabyMenuSettingsSection` type.
+- `extensions/babymenu-env.d.ts` - generated `@babymenu/contracts` declaration that exposes `BabyMenuSettingsSection` inside extension workspaces.
 - `src/renderer/extension-modules.ts` - shared module loader (discovery, dynamic import, packaged-mode stylesheet injection) used by both the widget host and the settings view.
 - `src/renderer/settings/settings-sections.ts` - `settingsSectionsFromModule` and `loadRuntimeSettingsSections` (sorted by extension id).
 - `src/renderer/settings/SettingsView.tsx` - renders app settings first, including custom ACP agent management, then one framed section per discovered extension section.

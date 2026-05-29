@@ -56,6 +56,7 @@ Switching agents resets the current conversation after confirmation.
 ## Install Details
 
 The packaged app stores mutable extensions, the local extension database, caches, agent sessions, custom agent catalog, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets and extension state.
+On launch, packaged Baby Menu refreshes bundled default extension files such as `AGENTS.md`, `babymenu-env.d.ts`, recipes, and starter extensions from the app template while preserving user-created extension directories.
 Baby Menu detects supported agents from the catalog in order: Claude Code (`claude`), then Codex (`codex`).
 Those built-ins run through bundled clean-room ACP adapters that drive the authenticated local CLIs without inheriting user-level agent settings, skills, MCP servers, or extra rules.
 Use Settings to persist an agent choice across launches.
@@ -148,7 +149,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
   Use this store for settings, history, rate baselines, and anything else that must survive reloads.
 - **Background tasks vs view refresh** - `refreshView` / `viewRefreshIntervalMs` keeps a visible widget current and pauses while the popover is hidden; `export const background` in `server.ts` runs on a host-owned timer, clamped to a 60-second minimum, for work that must continue while the popover is closed.
 - **Runtime-specific extension roots** - `pnpm dev` edits gitignored `extensions-dev/`; packaged builds seed and edit `~/.baby-menu/extensions` with internal snapshot save/rollback.
-  Tracked `extensions/` remain the source templates for dev and packaged extension workspaces.
+  Tracked `extensions/` remain the source templates for dev and packaged extension workspaces, including the generated `@babymenu/contracts` declaration in `extensions/babymenu-env.d.ts`.
+- **Stable extension contracts** - extension code imports public host types with type-only `import ... from "@babymenu/contracts"`; the generated declaration is shipped into each extension workspace so extensions never need to reach back into `src/shared/contracts.ts`.
 
 ## Layout
 
@@ -160,6 +162,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, settings, and app controls                        |
 | `src/ui/`                   | Shared `@babymenu/ui` design system for shell and extension renderer surfaces          |
 | `src/shared/contracts.ts`   | `BabyMenuApi`, `BabyMenuWidget`, `BabyMenuSettingsSection`, `GitSessionSnapshot`, etc. |
+| `src/shared/extension-contract-names.ts` | Public type names exported through `@babymenu/contracts`                  |
+| `extensions/babymenu-env.d.ts` | Generated `@babymenu/contracts` declarations copied into extension workspaces       |
 | `extensions/<id>/`          | Tracked extensions (`widget.tsx` descriptors, `components.tsx` views, `server.ts`)      |
 | `extensions/recipes/*.html` | Self-contained widget specs the agent reads                                            |
 | `extensions-dev/`           | Gitignored dev workspace prepared by `scripts/dev.mjs`                                 |
@@ -184,6 +188,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 pnpm dev          # run Electron + renderer dev server with a gitignored extensions-dev/ sandbox
 pnpm dev:reset    # wipe extensions-dev/ and agent session cache, then start fresh
 pnpm build        # build main + preload + renderer + bundled adapters into out/
+pnpm generate:contracts # regenerate extensions/babymenu-env.d.ts from src/shared/contracts.ts
 pnpm package:mac  # clean release/ and create an ad-hoc-signed Baby Menu Dev.app
 pnpm dist:mac     # build Baby Menu Dev.app and create a universal DMG in release/
 pnpm test         # run all Vitest tests
@@ -194,6 +199,7 @@ pnpm lint         # tsc --noEmit (same as typecheck)
 
 Use `pnpm dev` for source iteration in a throwaway sandbox - the agent edits the gitignored `extensions-dev/` copy and your tracked tree stays clean.
 Use `pnpm dev:reset` when recipe or extension guidance changes; it also clears `.cache/baby-menu/acp-sessions` so the embedded agent re-reads the fresh copied specs instead of continuing from prior conversation state.
+Run `pnpm generate:contracts` after changing extension-facing types in `src/shared/contracts.ts` or the public name list in `src/shared/extension-contract-names.ts`; CI fails if the committed `extensions/babymenu-env.d.ts` is stale.
 Source/dev mode never touches macOS login items, including Electron's `setLoginItemSettings` API.
 Use `pnpm package:mac` when you want to test the actual packaged app from `release/mac-universal/Baby Menu Dev.app`.
 Local packaging uses the `Baby Menu Dev` product name and `com.kunchenguid.baby-menu.dev` bundle id so local builds do not shadow the released `/Applications/Baby Menu.app` in macOS LaunchServices.
