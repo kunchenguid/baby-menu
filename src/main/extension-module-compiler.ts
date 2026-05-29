@@ -339,7 +339,14 @@ function matchesForPattern(
 }
 
 function isTypeOnlyImport(statement: string): boolean {
-  return /^\s*(?:import|export)\s+type\b/.test(statement);
+  if (/^\s*(?:import|export)\s+type\b/.test(statement)) return true;
+  const namedImport = statement.match(/^\s*(?:import|export)\s*\{([\s\S]*?)\}\s*from\s*["']/);
+  if (!namedImport) return false;
+  return namedImport[1]
+    .split(",")
+    .map((specifier) => specifier.trim())
+    .filter(Boolean)
+    .every((specifier) => specifier.startsWith("type "));
 }
 
 function applyReplacements(source: string, replacements: Array<{ start: number; end: number; value: string }>): string {

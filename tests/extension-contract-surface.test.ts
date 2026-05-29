@@ -24,6 +24,13 @@ describe("@babymenu/contracts public surface contract", () => {
     expect(committed).toBe(regenerated);
   });
 
+  it("declares the extension window bridge globally", async () => {
+    const declaration = await readFile(declarationPath, "utf8");
+
+    expect(declaration).toContain("interface Window {");
+    expect(declaration).toContain("babyMenu?: import(\"@babymenu/contracts\").BabyMenuExtensionApi;");
+  });
+
   it("only names types that actually exist in contracts.ts", async () => {
     const contracts = await readFile(contractsPath, "utf8");
     const exported = new Set([...contracts.matchAll(/^export\s+type\s+([A-Za-z0-9_]+)/gm)].map((m) => m[1]));

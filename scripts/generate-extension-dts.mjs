@@ -50,7 +50,7 @@ export function generateExtensionDts(contractsSource, contractNames) {
   }
   // Emit in contracts.ts source order (Map preserves insertion order).
   const body = [...byName.values()].map(indentBlock).join("\n\n");
-  return `${PREAMBLE}\ndeclare module "@babymenu/contracts" {\n  import type { ReactNode } from "react";\n\n${body}\n}\n`;
+  return `${PREAMBLE}\ndeclare module "@babymenu/contracts" {\n  import type { ReactNode } from "react";\n\n${body}\n}\n\ninterface Window {\n  babyMenu?: import("@babymenu/contracts").BabyMenuExtensionApi;\n}\n`;
 }
 
 // The verbatim source text of a declaration including its leading JSDoc comment,

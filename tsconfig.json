@@ -17,8 +17,10 @@
     "jsx": "react-jsx",
     "types": ["node", "vitest/globals"],
     "paths": {
+      "@babymenu/contracts": ["./src/shared/contracts.ts"],
       "@babymenu/ui": ["./src/ui/index.ts"]
     }
   },
-  "include": ["electron.vite.config.ts", "vitest.config.ts", "src", "extensions", "tests"]
+  "include": ["electron.vite.config.ts", "vitest.config.ts", "src", "extensions", "tests"],
+  "exclude": ["extensions/babymenu-env.d.ts"]
 }

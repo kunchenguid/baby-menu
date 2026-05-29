@@ -68,6 +68,29 @@ describe("extension module compiler", () => {
     await expect(readFile(compiled.outputPath, "utf8")).resolves.not.toContain("@babymenu/contracts");
   });
 
+  it("ignores inline type-only contract imports when collecting widget dependencies", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-compiler-"));
+    tempDirs.push(rootDir);
+    const extensionDir = join(rootDir, "extensions", "inline-contract");
+    const entryFile = join(extensionDir, "widget.tsx");
+    await mkdir(extensionDir, { recursive: true });
+    await writeFile(
+      entryFile,
+      `import { type RefreshableBabyMenuWidget } from "@babymenu/contracts";
+      export const widget: RefreshableBabyMenuWidget = { id: "inline-contract", title: "Inline", render: () => "ok", refreshView: async () => undefined };`,
+    );
+
+    const compiled = await compileExtensionModule({
+      kind: "widget",
+      extensionId: "inline-contract",
+      extensionDir,
+      entryFile,
+      cacheRoot: join(rootDir, "cache", "widgets"),
+    });
+
+    await expect(readFile(compiled.outputPath, "utf8")).resolves.not.toContain("@babymenu/contracts");
+  });
+
   it("reuses cached output for unchanged extension modules", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-compiler-"));
     tempDirs.push(rootDir);

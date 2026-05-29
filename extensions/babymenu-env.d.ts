@@ -142,3 +142,7 @@ declare module "@babymenu/contracts" {
     };
   };
 }
+
+interface Window {
+  babyMenu?: import("@babymenu/contracts").BabyMenuExtensionApi;
+}
