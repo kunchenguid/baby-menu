@@ -47,6 +47,7 @@ Use prefixes such as `feat:` and `fix:` so release-please can choose the version
 Mark breaking changes with `!` in the commit type or a `BREAKING CHANGE:` footer.
 Merging the release-please PR creates the version tag and GitHub Release.
 The release-please workflow then builds and uploads the macOS DMG, then updates `kunchenguid/homebrew-tap` with the release SHA.
+The generated Homebrew Cask quits Baby Menu during upgrade and relaunches it after installation only when the app was already running before uninstall started.
 Maintainers must keep `HOMEBREW_TAP_TOKEN` configured with write access to `kunchenguid/homebrew-tap` for that update step.
 Maintainers must also keep the `BABY_MENU_UMAMI_WEBSITE_ID` GitHub Actions repository variable configured for packaged-release telemetry; it is intentionally a variable rather than a secret because the id is baked into the app and sent in Umami payloads.
 Do not manually rewrite the tap from this repo outside that workflow unless you are repairing a failed release.

@@ -94,6 +94,8 @@ brew upgrade --cask baby-menu
 
 When a newer GitHub Release is available, Baby Menu shows an update indicator in the popover header.
 The indicator opens a small dialog with the same Homebrew upgrade command and a link to the release notes.
+If Baby Menu is running during a Homebrew Cask upgrade, the cask quits the old app and relaunches the newly installed app after replacement.
+Fresh installs and upgrades while Baby Menu is closed do not launch the app automatically.
 
 ## From Source
 
@@ -150,6 +152,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 - **Settings overlay** - Settings covers the default menu without unmounting it, so chat composer, widget, and run state survive opening and closing Settings.
 - **Release update indicator** - the main process checks the latest GitHub Release at most every four hours, keeps failures silent, and shows a header indicator with `brew update && brew upgrade --cask baby-menu` only when a newer packaged release exists.
   Source/dev mode simulates an available update so the UI can be exercised locally.
+  The released Homebrew Cask relaunches Baby Menu after an upgrade only when the old app was running before uninstall started.
 - **Extension settings sections** - extensions may export `BabyMenuSettingsSection` from `widget.tsx`; the Settings page discovers those renderer-only sections through the same module pipeline as widgets and renders the host-owned frame around each body.
 - **Extension server actions** - privileged work (shell, network, credentials) lives in `<extension-id>/server.ts` and is invoked from widgets and settings sections via `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
   No per-widget IPC channels.
