@@ -22,5 +22,5 @@ After rendering, regenerate `baby-menu-marketing-square.gif` from the MP4 before
 
 ## Composition Notes
 
-Frame 0 is the settled outro with the logo and Homebrew install command, so the first frame works as the X thumbnail and the ending loops cleanly back to the start.
+Frame 0 is the settled outro with the logo, `what would yours look like?` tagline, and Homebrew install command, so the first frame works as the X thumbnail and the ending loops cleanly back to the start.
 The story then shows the tray icon appearing, the production-style popover opening, agent-created CPU/memory and Claude usage widgets appearing, a feedback turn removing the Sonnet quota line, and the outro returning to the same settled frame.

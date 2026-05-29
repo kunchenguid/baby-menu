@@ -49,8 +49,8 @@ Video scale: the popover is rendered at 1.7x so 13px composer copy reads on a ph
 
 ## What this video shows
 
-A frame-0 outro poster (logo + install command, used as the X thumbnail and seamless loop point), then the story of how it was built:
-clean menu bar -> baby_menu tray icon appears -> click -> hello-world popover -> ask for a cpu + memory widget -> agent works -> widget appears -> ask for a claude code usage widget -> agent works -> widget appears -> "drop the sonnet quota line" -> agent works -> line removed -> outro with the homebrew install command.
+A frame-0 outro poster (logo + `what would yours look like?` tagline + install command, used as the X thumbnail and seamless loop point), then the story of how it was built:
+clean menu bar -> baby_menu tray icon appears -> click -> hello-world popover -> ask for a cpu + memory widget -> agent works -> widget appears -> ask for a claude code usage widget -> agent works -> widget appears -> "drop the sonnet quota line" -> agent works -> line removed -> outro with the tagline and homebrew install command.
 
 The agent's work is never a chat. It is one live RunStrip (pulsing mint dot + the user's prompt + a current step + an elapsed timer), replaced by a SessionBar (`Added a cpu + memory widget`, Keep / Undo) when done. The user never sees git, files, or commits.
 
@@ -66,7 +66,11 @@ The agent's work is never a chat. It is one live RunStrip (pulsing mint dot + th
 - No em dashes. Plain dashes only.
 - Wordmark stays lowercase `baby_menu`. UI copy is terse, lowercase, second-person.
 
-## Install command (outro)
+## Outro copy
+
+Tagline: `what would yours look like?`
+
+Install command:
 
 ```
 brew install --cask kunchenguid/tap/baby-menu
