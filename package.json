@@ -3,6 +3,7 @@
   "version": "0.1.7",
   "description": "Menu-bar app that writes its own widgets",
   "author": "Kun Chen",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "main": "out/main/index.js",
