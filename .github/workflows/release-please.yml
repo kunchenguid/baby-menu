@@ -107,30 +107,10 @@ jobs:
             app "Baby Menu.app"
             uninstall quit: "com.kunchenguid.baby-menu"
 
-            # On a brew upgrade, Homebrew uninstalls the installed version (which quits the
-            # running app via the quit: directive above) before installing the new one, so by
-            # the time postflight runs the app is already gone. Record a marker here, while the
-            # app is still alive, so postflight knows to relaunch the upgraded build. The marker
-            # is only written when the app is actually running, so a fresh install or an upgrade
-            # of a quit app does not auto-launch.
-            uninstall_preflight do
-              if system_command("/usr/bin/pgrep", args: ["-x", "Baby Menu"], must_succeed: false).success?
-                FileUtils.touch("/tmp/com.kunchenguid.baby-menu.relaunch")
-              end
-            end
-
             postflight do
               system_command "/usr/bin/xattr",
                              args: ["-cr", "#{appdir}/Baby Menu.app"],
                              must_succeed: false
-
-              relaunch_marker = "/tmp/com.kunchenguid.baby-menu.relaunch"
-              if File.exist?(relaunch_marker)
-                File.delete(relaunch_marker)
-                system_command "/usr/bin/open",
-                               args: ["-a", "#{appdir}/Baby Menu.app"],
-                               must_succeed: false
-              end
             end
 
             zap trash: [
