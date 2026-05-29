@@ -67,6 +67,8 @@ const api: BabyMenuApi = {
   },
   app: {
     quit: () => ipcRenderer.invoke("baby-menu:app:quit"),
+    getUpdateStatus: () => ipcRenderer.invoke("baby-menu:app:get-update-status"),
+    openReleasePage: () => ipcRenderer.invoke("baby-menu:app:open-release-page"),
   },
 };
 

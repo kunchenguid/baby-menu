@@ -57,6 +57,8 @@ function installBabyMenuApi(overrides: Partial<BabyMenuApi> = {}) {
     },
     app: {
       quit: vi.fn(async () => ({ ok: true })),
+      getUpdateStatus: vi.fn(async () => ({ currentVersion: "0.0.0", latestVersion: null, updateAvailable: false, releaseUrl: null })),
+      openReleasePage: vi.fn(async () => ({ ok: true })),
     },
   };
 

@@ -5,6 +5,7 @@ import { AgentChat } from "./agent/AgentChat";
 import { MenuSurface } from "./menu/MenuSurface";
 import { measurePopoverContentHeight } from "./popover-content-height";
 import { SettingsView } from "./settings/SettingsView";
+import { UpdateIndicator } from "./UpdateIndicator";
 
 type AppView = "menu" | "settings";
 
@@ -40,6 +41,7 @@ export function App() {
             baby<span className="sep">_</span>menu
           </span>
           <div className="flex items-center gap-1">
+            <UpdateIndicator />
             <Tooltip content="Open settings">
               <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="open settings" onClick={openSettings}>
                 <Settings className="size-4" />

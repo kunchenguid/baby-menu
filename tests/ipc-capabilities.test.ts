@@ -210,6 +210,35 @@ describe("capabilities IPC", () => {
     expect(appController.quit).toHaveBeenCalledOnce();
   });
 
+  it("registers app update-status and open-release-page channels", async () => {
+    const { registerIpcHandlers } = await import("../src/main/ipc");
+    const agentRuntime = {
+      send: vi.fn(),
+      save: vi.fn(),
+      rollback: vi.fn(),
+      currentSessionSnapshot: vi.fn(),
+      currentTurn: vi.fn(),
+    };
+    const status = {
+      currentVersion: "0.1.7",
+      latestVersion: "0.2.0",
+      updateAvailable: true,
+      releaseUrl: "https://github.com/kunchenguid/baby-menu/releases/tag/v0.2.0",
+    };
+    const appController = {
+      quit: vi.fn(),
+      getUpdateStatus: vi.fn(async () => status),
+      openReleasePage: vi.fn(),
+    };
+
+    registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, undefined, appController);
+
+    await expect(handlers.get("baby-menu:app:get-update-status")?.({})).resolves.toEqual(status);
+    expect(appController.getUpdateStatus).toHaveBeenCalledOnce();
+    await expect(handlers.get("baby-menu:app:open-release-page")?.({})).resolves.toEqual({ ok: true });
+    expect(appController.openReleasePage).toHaveBeenCalledOnce();
+  });
+
   it("registers settings channels for open-at-login", async () => {
     const { registerIpcHandlers } = await import("../src/main/ipc");
     const agentRuntime = {

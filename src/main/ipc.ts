@@ -10,6 +10,7 @@ import type {
   PopoverVisibilityState,
   RecipeMetadata,
   SqlParams,
+  UpdateStatus,
 } from "../shared/contracts";
 import { getExtensionsDir, getRecipesDir } from "../shared/paths";
 import { BabyMenuAgentRuntime, type BabyMenuAgentRuntimeSendOptions } from "./agent-runtime";
@@ -41,6 +42,8 @@ type SettingsController = {
 
 type AppController = {
   quit: () => void | Promise<void>;
+  getUpdateStatus?: () => UpdateStatus | Promise<UpdateStatus>;
+  openReleasePage?: () => void | Promise<void>;
 };
 
 type IpcRuntimeOptions = {
@@ -157,6 +160,22 @@ export function registerIpcHandlers(
 
   ipcMain.handle("baby-menu:app:quit", async () => {
     await appController.quit();
+    return { ok: true };
+  });
+
+  ipcMain.handle("baby-menu:app:get-update-status", async (): Promise<UpdateStatus> => {
+    return (
+      (await appController.getUpdateStatus?.()) ?? {
+        currentVersion: electronApp.getVersion(),
+        latestVersion: null,
+        updateAvailable: false,
+        releaseUrl: null,
+      }
+    );
+  });
+
+  ipcMain.handle("baby-menu:app:open-release-page", async () => {
+    await appController.openReleasePage?.();
     return { ok: true };
   });
 }

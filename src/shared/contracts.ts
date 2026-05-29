@@ -178,6 +178,17 @@ export type PopoverVisibilityState = {
   visible: boolean;
 };
 
+// Result of the host's background check against the latest published release.
+// `updateAvailable` is true only when a newer version than the running build was
+// found; `latestVersion`/`releaseUrl` are null when the check has not succeeded
+// yet (offline, rate limited, etc.) so the shell can fail silent.
+export type UpdateStatus = {
+  currentVersion: string;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  releaseUrl: string | null;
+};
+
 export type BabyMenuApi = {
   recipes: {
     list: () => Promise<RecipeMetadata[]>;
@@ -242,6 +253,10 @@ export type BabyMenuApi = {
   app: {
     /** Fully quits the Electron app from the popover shell. */
     quit: () => Promise<{ ok: boolean }>;
+    /** Current update status from the host's cached background release check. */
+    getUpdateStatus: () => Promise<UpdateStatus>;
+    /** Opens the latest release page in the user's default browser. */
+    openReleasePage: () => Promise<{ ok: boolean }>;
   };
 };
 

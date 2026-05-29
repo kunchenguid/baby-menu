@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, type Rectangle } from "electron";
+import { app, BrowserWindow, screen, shell, type Rectangle } from "electron";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BabyMenuCustomAgentInput, BabyMenuSettings } from "../shared/contracts";
@@ -22,6 +22,7 @@ import { createNotifier } from "./notifier";
 import { createPreferencesService } from "./preferences";
 import { createBackgroundTaskSource, createServerActionRegistry } from "./server-action-registry";
 import { expandProcessPathForGuiLaunch } from "./shell-path";
+import { createUpdateChecker } from "./update-checker";
 import { createBabyMenuTray, type BabyMenuTray } from "./tray";
 import { createWidgetModuleRegistry } from "./widget-module-registry";
 import { registerBabyMenuProtocolHandlers, registerBabyMenuProtocolSchemes } from "./widget-protocol";
@@ -223,6 +224,14 @@ export async function startBabyMenuApp(): Promise<void> {
     widgetCacheDir: paths.widgetCacheDir,
   });
 
+  const updateChecker = createUpdateChecker({
+    currentVersion: app.getVersion(),
+    openExternal: (url) => shell.openExternal(url),
+    // Dev/source builds are never "behind" a release, so force the indicator on
+    // there to make it visible while developing. Packaged builds do the real check.
+    simulateUpdate: !app.isPackaged,
+  });
+
   registerIpcHandlers(
     paths.appDataRoot,
     agentRuntime,
@@ -230,7 +239,11 @@ export async function startBabyMenuApp(): Promise<void> {
     widgetModules,
     { setContentHeight: setPopoverContentHeight, getVisibility: () => ({ visible: popoverWindow?.isVisible() ?? false }) },
     settingsController,
-    undefined,
+    {
+      quit: () => app.quit(),
+      getUpdateStatus: () => updateChecker.getStatus(),
+      openReleasePage: () => updateChecker.openReleasePage(),
+    },
     { recipesDir: paths.recipesDir, database },
   );
   activeTray = createBabyMenuTray(

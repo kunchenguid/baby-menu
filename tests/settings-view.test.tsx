@@ -65,7 +65,11 @@ function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
         return current;
       }),
     },
-    app: { quit: vi.fn(async () => ({ ok: true })) },
+    app: {
+      quit: vi.fn(async () => ({ ok: true })),
+      getUpdateStatus: vi.fn(async () => ({ currentVersion: "0.0.0", latestVersion: null, updateAvailable: false, releaseUrl: null })),
+      openReleasePage: vi.fn(async () => ({ ok: true })),
+    },
   };
   window.babyMenu = api;
   return api;
