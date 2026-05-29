@@ -472,3 +472,110 @@ describe("agent runtime change-session snapshot", () => {
     expect(runtime.currentTurn()).toBe(info);
   });
 });
+
+describe("agent runtime telemetry", () => {
+  function recordingTelemetry() {
+    const events: Array<{ name: string; fields: Record<string, unknown> }> = [];
+    return {
+      events,
+      client: {
+        track: (name: string, fields: Record<string, unknown> = {}) => {
+          events.push({ name, fields });
+        },
+        pageview: () => {},
+        close: async () => {},
+      },
+    };
+  }
+
+  type SendInternals = {
+    ensureAgentRuntimeCwd: () => Promise<string>;
+    beginChangeSession: () => Promise<unknown>;
+    ensureRuntime: () => Promise<unknown>;
+    collectTurnOutput: () => Promise<string>;
+  };
+
+  function stubCleanSend(runtime: BabyMenuAgentRuntime, extensionsDir: string, collect: () => Promise<string>) {
+    const internals = runtime as unknown as SendInternals;
+    internals.ensureAgentRuntimeCwd = vi.fn(async () => extensionsDir);
+    internals.beginChangeSession = vi.fn(async () => ({
+      startedClean: true,
+      canSave: true,
+      canRollback: true,
+      snapshot: (message?: string) => ({ startedClean: true, canSave: true, canRollback: true, head: "HEAD", message }),
+      save: vi.fn(async () => ({ ok: true })),
+      rollback: vi.fn(async () => ({ ok: true })),
+    }));
+    internals.ensureRuntime = vi.fn(async () => ({
+      ensureSession: vi.fn(async () => ({})),
+      startTurn: vi.fn(() => fakeTurn({ events: (async function* () {})() })),
+    }));
+    internals.collectTurnOutput = vi.fn(collect);
+  }
+
+  it("reports an agent_switch event when the active agent changes", async () => {
+    const telemetry = recordingTelemetry();
+    const runtime = new BabyMenuAgentRuntime("/repo", { agentName: "claude", telemetry: telemetry.client });
+
+    await runtime.setAgent("codex");
+
+    expect(telemetry.events).toContainEqual({ name: "agent_switch", fields: { agent: "codex" } });
+  });
+
+  it("does not report agent_switch for a no-op switch", async () => {
+    const telemetry = recordingTelemetry();
+    const runtime = new BabyMenuAgentRuntime("/repo", { agentName: "claude", telemetry: telemetry.client });
+
+    await runtime.setAgent("claude");
+
+    expect(telemetry.events).toHaveLength(0);
+  });
+
+  it("reports a successful agent_turn after a completed send", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-telemetry-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    const telemetry = recordingTelemetry();
+    const runtime = new BabyMenuAgentRuntime(rootDir, {
+      agentName: "mock-agent",
+      telemetry: telemetry.client,
+      paths: {
+        extensionsDir,
+        agentStateDir: join(rootDir, ".cache", "acp-sessions"),
+        snapshotDir: join(rootDir, ".cache", "snapshots"),
+      },
+    });
+    stubCleanSend(runtime, extensionsDir, async () => "built a widget");
+
+    await runtime.send("add a widget");
+
+    expect(telemetry.events).toContainEqual({
+      name: "agent_turn",
+      fields: { agent: "mock-agent", status: "success" },
+    });
+  });
+
+  it("reports a failed agent_turn when the turn throws", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-telemetry-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    const telemetry = recordingTelemetry();
+    const runtime = new BabyMenuAgentRuntime(rootDir, {
+      agentName: "mock-agent",
+      telemetry: telemetry.client,
+      paths: {
+        extensionsDir,
+        agentStateDir: join(rootDir, ".cache", "acp-sessions"),
+        snapshotDir: join(rootDir, ".cache", "snapshots"),
+      },
+    });
+    stubCleanSend(runtime, extensionsDir, async () => {
+      throw new Error("boom");
+    });
+
+    await expect(runtime.send("add a widget")).rejects.toThrow("boom");
+
+    expect(telemetry.events).toContainEqual({
+      name: "agent_turn",
+      fields: { agent: "mock-agent", status: "error" },
+    });
+  });
+});

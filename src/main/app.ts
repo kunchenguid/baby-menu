@@ -21,6 +21,7 @@ import { createExtensionDatabase } from "./extension-database";
 import { createNotifier } from "./notifier";
 import { createPreferencesService } from "./preferences";
 import { createBackgroundTaskSource, createServerActionRegistry } from "./server-action-registry";
+import { getDefaultTelemetry, initDefaultTelemetry } from "./telemetry";
 import { expandProcessPathForGuiLaunch } from "./shell-path";
 import { createBabyMenuTray, type BabyMenuTray } from "./tray";
 import { createWidgetModuleRegistry } from "./widget-module-registry";
@@ -89,6 +90,7 @@ async function togglePopover(trayBounds: Rectangle): Promise<void> {
   setPopoverKeyWindowActive(true);
   window.show();
   window.focus();
+  getDefaultTelemetry().track("popover_open");
 }
 
 // baby-menu runs as a macOS accessory app (dock hidden) so it has no permanent dock icon. But an
@@ -124,6 +126,17 @@ function setPopoverContentHeight(height: number) {
 export async function startBabyMenuApp(): Promise<void> {
   expandProcessPathForGuiLaunch();
   await app.whenReady();
+
+  // Anonymous, best-effort usage telemetry. No-op unless a build-time Umami
+  // website id was injected (packaged release builds only); see ./telemetry.
+  const telemetry = initDefaultTelemetry({
+    app: "baby-menu",
+    version: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+  });
+  telemetry.track("app_start");
+
   const sourceRoot = getRepoRoot();
   const paths = resolveBabyMenuRuntimePaths(sourceRoot);
   await seedExtensionWorkspace({ extensionsDir: paths.extensionsDir, templateDir: paths.bundledExtensionTemplateDir });
@@ -164,6 +177,7 @@ export async function startBabyMenuApp(): Promise<void> {
   agentRuntime = new BabyMenuAgentRuntime(paths.appDataRoot, {
     agentName: persistedPreferences.agentName,
     registryOverrides: Object.keys(agentCatalog.overrides).length > 0 ? agentCatalog.overrides : undefined,
+    telemetry,
     paths: {
       extensionsDir: paths.extensionsDir,
       agentStateDir: paths.agentStateDir,
@@ -262,6 +276,7 @@ export async function startBabyMenuApp(): Promise<void> {
   app.on("before-quit", () => {
     backgroundTasks.stop();
     database.close();
+    void telemetry.close(1_000);
   });
 }
 

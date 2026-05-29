@@ -18,12 +18,14 @@ import { getAgentStateDir, getDevExtensionSnapshotDir, getExtensionsDir } from "
 import { AgentTurnLogRecorder } from "./agent-turn-log";
 import { DevExtensionChangeSession } from "./dev-extension-change-session";
 import { GitChangeSession } from "./git-change-session";
+import type { TelemetryClient } from "./telemetry";
 
 export type BabyMenuAgentRuntimeOptions = {
   agentName?: string;
   registryOverrides?: Record<string, string>;
   requestTimeoutMs?: number;
   paths?: BabyMenuAgentRuntimePaths;
+  telemetry?: TelemetryClient;
 };
 
 export type BabyMenuAgentRuntimePaths = {
@@ -263,6 +265,7 @@ export class BabyMenuAgentRuntime {
   private registryOverridesStale = false;
   private readonly requestTimeoutMs: number;
   private readonly paths: BabyMenuAgentRuntimePaths | undefined;
+  private readonly telemetry: TelemetryClient | undefined;
 
   constructor(
     private readonly rootDir: string,
@@ -275,6 +278,7 @@ export class BabyMenuAgentRuntime {
     this.registryOverrides = typeof options === "string" ? undefined : options.registryOverrides;
     this.requestTimeoutMs = typeof options === "string" ? resolveAgentTimeoutMs() : options.requestTimeoutMs ?? resolveAgentTimeoutMs();
     this.paths = typeof options === "string" ? undefined : options.paths;
+    this.telemetry = typeof options === "string" ? undefined : options.telemetry;
   }
 
   get session(): AgentChangeSession | null {
@@ -344,6 +348,7 @@ export class BabyMenuAgentRuntime {
     await this.closeRuntime("agent-switch", true, true);
     this.activeSession = null;
     this.agentName = next;
+    this.telemetry?.track("agent_switch", { agent: next });
   }
 
   async send(prompt: string, options: BabyMenuAgentRuntimeSendOptions = {}): Promise<AgentChatResult> {
@@ -370,6 +375,7 @@ export class BabyMenuAgentRuntime {
     this.activeSession = changeSession;
 
     if (!changeSession.startedClean) {
+      this.telemetry?.track("agent_turn", { agent: this.agentName, status: "blocked_dirty" });
       return {
         assistantText:
           "I cannot start an editing session because the git working tree is already dirty. Commit or stash those changes first so Save and Rollback can stay safe.",
@@ -418,6 +424,7 @@ export class BabyMenuAgentRuntime {
       const output = await this.collectTurnOutput(turn, turnLog, options);
       await turnLog.finish("completed").catch(() => undefined);
 
+      this.telemetry?.track("agent_turn", { agent: this.agentName, status: "success" });
       return {
         assistantText: output.trim() || "Agent finished without a text response.",
         session: changeSession.snapshot("Review the generated repo changes, then Save or Rollback."),
@@ -425,9 +432,11 @@ export class BabyMenuAgentRuntime {
     } catch (error) {
       if (!(error instanceof AgentTimeoutError)) {
         await turnLog?.finish("failed").catch(() => undefined);
+        this.telemetry?.track("agent_turn", { agent: this.agentName, status: "error" });
         throw error;
       }
       await turnLog?.recordTimeout(error).catch(() => undefined);
+      this.telemetry?.track("agent_turn", { agent: this.agentName, status: "timeout" });
 
       if (runtime && handle) {
         await runtime.close({ handle, reason: "timeout" }).catch(() => undefined);

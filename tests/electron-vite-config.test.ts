@@ -26,6 +26,15 @@ describe("electron-vite config", () => {
     expect(asExternalList(config.main?.build?.rollupOptions?.external)).toContain("typescript");
   });
 
+  it("injects the build-time Umami telemetry config into the main bundle", async () => {
+    vi.stubGlobal("__dirname", rootDir);
+
+    const { default: config } = await import("../electron.vite.config");
+
+    expect(config.main?.define).toHaveProperty("process.env.BABY_MENU_BUILD_UMAMI_HOST");
+    expect(config.main?.define).toHaveProperty("process.env.BABY_MENU_BUILD_UMAMI_WEBSITE_ID");
+  });
+
   it("builds the preload bridge as a CommonJS file for Electron", async () => {
     vi.stubGlobal("__dirname", rootDir);
 

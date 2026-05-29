@@ -10,6 +10,7 @@ const electronApp = {
   commandLine: { appendSwitch: vi.fn() },
   dock: { hide: vi.fn() },
   getPath: vi.fn((name: string) => (name === "home" ? "/home/test-user" : "/tmp")),
+  getVersion: vi.fn(() => "0.0.0-test"),
   getLoginItemSettings: vi.fn(() => ({ openAtLogin: false })),
   setLoginItemSettings: vi.fn(),
   setActivationPolicy: vi.fn(),

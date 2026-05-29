@@ -56,6 +56,9 @@ jobs:
         run: pnpm test
 
       - name: Build
+        env:
+          BABY_MENU_UMAMI_HOST: https://a.kunchenguid.com
+          BABY_MENU_UMAMI_WEBSITE_ID: ${{ vars.BABY_MENU_UMAMI_WEBSITE_ID }}
         run: pnpm build
 
       - name: Package macOS app
