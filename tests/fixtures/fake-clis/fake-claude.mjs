@@ -4,7 +4,7 @@
 // runs one process per turn). Echoes whether it was resumed so the driver's
 // session threading can be asserted. Kept in sync with
 // tests/fixtures/protocols/claude/*.jsonl.
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 
 const emit = (obj) => process.stdout.write(JSON.stringify(obj) + "\n");
 
@@ -20,13 +20,14 @@ if (prompt.includes("SLOW_CANCEL")) {
   // process is still mid-script; registering after the emit left a window where
   // SIGTERM hit Node's default action (immediate termination) and the child
   // died early. Once terminated, exit only when the test creates the sentinel
-  // file encoded in the prompt (SLOW_CANCEL:<path>), so the driver's disposal
+  // release file encoded in the prompt, so the driver's disposal
   // and cancellation promises stay pending until the test releases us - no
   // wall-clock race decides the outcome.
-  const releaseFile = prompt.match(/SLOW_CANCEL:(\S+)/)?.[1] ?? null;
+  const [, releaseFile = null, terminatedFile = null] = prompt.match(/SLOW_CANCEL:(\S+):(\S+)/) ?? [];
   let terminating = false;
   process.on("SIGTERM", () => {
     terminating = true;
+    if (terminatedFile) writeFileSync(terminatedFile, "");
   });
   emit({ type: "system", subtype: "init", session_id: "fake-session", model: "fake", cwd: process.cwd() });
   emit({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "ready" }] } });

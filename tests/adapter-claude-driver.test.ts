@@ -1,20 +1,34 @@
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtemp, writeFile } from "node:fs/promises";
-import { setTimeout as delay } from "node:timers/promises";
+import { existsSync, watch } from "node:fs";
 import { describe, expect, it, afterEach } from "vitest";
 import { ClaudeDriver } from "../src/adapters/claude/driver";
 import type * as schema from "@agentclientprotocol/sdk";
 
 const FAKE = join(__dirname, "fixtures", "fake-clis", "fake-claude.mjs");
 
-// A SLOW_CANCEL fake stays alive after SIGTERM until this sentinel file appears,
-// so the test - not the wall clock - decides when the child exits. Returns the
-// prompt to send and a `release()` that lets the child finish.
-async function slowCancelGate(): Promise<{ prompt: string; release: () => Promise<void> }> {
+function waitForFile(path: string): Promise<void> {
+  if (existsSync(path)) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const watcher = watch(dirname(path), (_event, filename) => {
+      if (filename === basename(path) && existsSync(path)) {
+        watcher.close();
+        resolve();
+      }
+    });
+    watcher.on("error", (error) => {
+      watcher.close();
+      reject(error);
+    });
+  });
+}
+
+async function slowCancelGate(): Promise<{ prompt: string; terminated: Promise<void>; release: () => Promise<void> }> {
   const dir = await mkdtemp(join(tmpdir(), "claude-driver-"));
   const sentinel = join(dir, "release-exit");
-  return { prompt: `SLOW_CANCEL:${sentinel}`, release: () => writeFile(sentinel, "") };
+  const terminated = join(dir, "observed-sigterm");
+  return { prompt: `SLOW_CANCEL:${sentinel}:${terminated}`, terminated: waitForFile(terminated), release: () => writeFile(sentinel, "") };
 }
 
 describe("ClaudeDriver (against a fake claude CLI)", () => {
@@ -88,19 +102,20 @@ describe("ClaudeDriver (against a fake claude CLI)", () => {
       ac.signal,
     );
     await readyPromise;
-    ac.abort();
-
-    // The child cannot exit until we release the sentinel, so the prompt must
-    // stay pending regardless of scheduling - this assertion is not a race.
+    let released = false;
     let settled = false;
-    void prompt.then(() => {
+    const settlement = prompt.then((result) => {
       settled = true;
+      return { result, released };
     });
-    await delay(20);
+    ac.abort();
+    await gate.terminated;
+    await Promise.resolve();
     expect(settled).toBe(false);
 
+    released = true;
     await gate.release();
-    expect(await prompt).toBe("cancelled");
+    expect(await settlement).toEqual({ result: "cancelled", released: true });
   });
 
   it("waits for the child process to exit before resolving disposal", async () => {
@@ -121,17 +136,19 @@ describe("ClaudeDriver (against a fake claude CLI)", () => {
     await readyPromise;
 
     const disposal = d.dispose();
-    // Disposal awaits the child's exit, which the sentinel gates, so it stays
-    // pending until we release it - deterministic, no wall-clock window.
+    let released = false;
     let disposed = false;
-    void disposal.then(() => {
+    const settlement = disposal.then(() => {
       disposed = true;
+      return { released };
     });
-    await delay(20);
+    await gate.terminated;
+    await Promise.resolve();
     expect(disposed).toBe(false);
 
+    released = true;
     await gate.release();
-    await disposal;
+    expect(await settlement).toEqual({ released: true });
     expect(disposed).toBe(true);
     expect(await prompt).toBe("cancelled");
   });
