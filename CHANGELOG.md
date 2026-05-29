@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.8](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.7...baby-menu-v0.1.8) (2026-05-29)
+
+
+### Features
+
+* add update available indicator ([#36](https://github.com/kunchenguid/baby-menu/issues/36)) ([4c4a118](https://github.com/kunchenguid/baby-menu/commit/4c4a1180a643e378250ac1299a14ccedb0a38041))
+* **main:** add anonymous Umami telemetry ([#35](https://github.com/kunchenguid/baby-menu/issues/35)) ([3070174](https://github.com/kunchenguid/baby-menu/commit/3070174ab3ce5d700607944cc3d48ecd9cb7c95f))
+
+
+### Bug Fixes
+
+* **adapters:** omit Codex color flag on resume ([#32](https://github.com/kunchenguid/baby-menu/issues/32)) ([4ebe593](https://github.com/kunchenguid/baby-menu/commit/4ebe5931039f470a7c655039feef542923f46b09))
+* relaunch Baby Menu after Homebrew upgrades ([#37](https://github.com/kunchenguid/baby-menu/issues/37)) ([5c370ab](https://github.com/kunchenguid/baby-menu/commit/5c370abc9069df4c77eb7ec4553664655f6f13d0))
+
 ## [0.1.7](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.6...baby-menu-v0.1.7) (2026-05-29)
 
 
