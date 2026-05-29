@@ -91,7 +91,12 @@ async function togglePopover(trayBounds: Rectangle): Promise<void> {
   setPopoverKeyWindowActive(true);
   window.show();
   window.focus();
-  getDefaultTelemetry().track("popover_open");
+  // The popover is baby-menu's single screen, so opening it is the app's page
+  // view. Send a Umami pageview (empty event name) so the dashboard's Views /
+  // Visitors / Pages reports populate, and keep the named event for funnels.
+  const telemetry = getDefaultTelemetry();
+  telemetry.pageview("/popover");
+  telemetry.track("popover_open");
 }
 
 // baby-menu runs as a macOS accessory app (dock hidden) so it has no permanent dock icon. But an
