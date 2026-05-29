@@ -365,17 +365,60 @@ describe("agent runtime switching", () => {
     expect(runtime.currentAgent).toBe("codex");
   });
 
-  it("setRegistryOverrides replaces the overrides used to build the next runtime", () => {
+  it("setRegistryOverrides replaces the overrides used to build the next runtime", async () => {
     const runtime = new BabyMenuAgentRuntime("/repo", { agentName: "claude", registryOverrides: { claude: "old" } });
     const internals = runtime as unknown as { registryOverrides: Record<string, string> | undefined };
     expect(internals.registryOverrides).toEqual({ claude: "old" });
 
-    runtime.setRegistryOverrides({ claude: "old", gemini: "gemini acp" });
+    await runtime.setRegistryOverrides({ claude: "old", gemini: "gemini acp" });
     expect(internals.registryOverrides).toEqual({ claude: "old", gemini: "gemini acp" });
 
     // Empty/undefined collapses to undefined so createAgentRegistry gets no overrides.
-    runtime.setRegistryOverrides({});
+    await runtime.setRegistryOverrides({});
     expect(internals.registryOverrides).toBeUndefined();
+  });
+
+  it("setRegistryOverrides closes an active runtime so edited launch commands apply", async () => {
+    const { runtime, internals } = buildRuntime();
+    const close = vi.fn(async () => undefined);
+    internals.runtime = { close };
+    internals.handle = { sessionKey: "baby-menu-agent-chat" };
+
+    await runtime.setRegistryOverrides({ claude: "updated command" });
+
+    expect(close).toHaveBeenCalledWith({
+      handle: { sessionKey: "baby-menu-agent-chat" },
+      reason: "registry-overrides-change",
+      discardPersistentState: true,
+    });
+    expect(internals.runtime).toBeNull();
+    expect(internals.handle).toBeNull();
+  });
+
+  it("setRegistryOverrides waits to close the runtime until a pending change session is resolved", async () => {
+    const { runtime, internals } = buildRuntime();
+    const close = vi.fn(async () => undefined);
+    internals.runtime = { close };
+    internals.handle = { sessionKey: "baby-menu-agent-chat" };
+    internals.activeSession = {
+      canSave: true,
+      canRollback: true,
+      save: vi.fn(async () => ({ ok: true })),
+    };
+
+    await runtime.setRegistryOverrides({ claude: "updated command" });
+
+    expect(close).not.toHaveBeenCalled();
+
+    await runtime.save();
+
+    expect(close).toHaveBeenCalledWith({
+      handle: { sessionKey: "baby-menu-agent-chat" },
+      reason: "registry-overrides-change",
+      discardPersistentState: true,
+    });
+    expect(internals.runtime).toBeNull();
+    expect(internals.handle).toBeNull();
   });
 });
 

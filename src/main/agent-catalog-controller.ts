@@ -23,7 +23,7 @@ export type AgentCatalogControllerOptions = {
   /** The currently selected agent name; removal of the active agent is refused. */
   getActiveAgentName: () => string;
   /** Called whenever the registry overrides change so the runtime can pick them up live. */
-  onOverridesChange?: (overrides: Record<string, string>) => void;
+  onOverridesChange?: (overrides: Record<string, string>) => void | Promise<void>;
 };
 
 export type AgentCatalogController = {
@@ -66,7 +66,7 @@ export function createAgentCatalogController(options: AgentCatalogControllerOpti
     customs = next;
     await persist();
     rebuild();
-    options.onOverridesChange?.(overrides);
+    await options.onOverridesChange?.(overrides);
   }
 
   const controller: AgentCatalogController = {
