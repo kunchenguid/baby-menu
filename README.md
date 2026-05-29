@@ -58,7 +58,7 @@ Switching agents resets the current conversation after confirmation.
 The packaged app stores mutable extensions, the local extension database, caches, agent sessions, custom agent catalog, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets and extension state.
 On launch, packaged Baby Menu refreshes bundled default extension files such as `AGENTS.md`, `babymenu-env.d.ts`, recipes, and starter extensions from the app template while preserving user-created extension directories.
 Packaged release builds send anonymous, best-effort usage telemetry to a self-hosted Umami instance.
-Telemetry records app startup, popover opens, agent turn outcomes, and agent switches; it does not include a user or device id, prompts, file contents, generated code, extension data, or local paths, and network failures are ignored.
+Telemetry records app startup, popover opens as `/popover` page views plus named events, agent turn outcomes, and agent switches; it does not include a user or device id, prompts, file contents, generated code, extension data, or local paths, and network failures are ignored.
 Set `BABY_MENU_TELEMETRY=0` in the launch environment to opt out.
 If an agent send fails, the composer notice surfaces the underlying failure message instead of only showing a generic unavailable hint.
 Baby Menu detects supported agents from the catalog in order: Claude Code (`claude`), then Codex (`codex`).
@@ -165,7 +165,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 - **Runtime-specific extension roots** - `pnpm dev` edits gitignored `extensions-dev/`; packaged builds seed and edit `~/.baby-menu/extensions` with internal snapshot save/rollback.
   Tracked `extensions/` remain the source templates for dev and packaged extension workspaces, including the generated `@babymenu/contracts` declaration in `extensions/babymenu-env.d.ts`.
 - **Stable extension contracts** - extension code imports public host types with type-only `import ... from "@babymenu/contracts"`; the generated declaration is shipped into each extension workspace so extensions never need to reach back into `src/shared/contracts.ts`.
-- **Anonymous telemetry** - packaged release builds fire one best-effort Umami event for app start, popover open, agent turn status (`success`, `error`, `timeout`, or `blocked_dirty`), and agent switching.
+- **Anonymous telemetry** - packaged release builds fire best-effort Umami events for app start, popover open, agent turn status (`success`, `error`, `timeout`, or `blocked_dirty`), and agent switching, and also record each popover open as the `/popover` page view.
   Built-in agent names are reported as `claude` or `codex`; custom agent names are reported only as `custom`.
 
 ## Layout

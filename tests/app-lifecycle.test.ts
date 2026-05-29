@@ -44,6 +44,11 @@ const protocol = {
   handle: vi.fn(),
 };
 const registerIpcHandlers = vi.fn();
+const telemetryClient = {
+  track: vi.fn(),
+  pageview: vi.fn(),
+  close: vi.fn(async () => undefined),
+};
 
 vi.mock("electron", () => ({
   app: electronApp,
@@ -55,6 +60,11 @@ vi.mock("electron", () => ({
 
 vi.mock("../src/main/ipc", () => ({
   registerIpcHandlers,
+}));
+
+vi.mock("../src/main/telemetry", () => ({
+  initDefaultTelemetry: vi.fn(() => telemetryClient),
+  getDefaultTelemetry: vi.fn(() => telemetryClient),
 }));
 
 vi.mock("../src/main/agent-runtime", () => ({
@@ -234,6 +244,17 @@ describe("startBabyMenuApp", () => {
     expect(browserWindowInstance.webContents.send).toHaveBeenLastCalledWith("baby-menu:popover:visibility", {
       visible: false,
     });
+  });
+
+  it("records popover opens as both a pageview and a named event", async () => {
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+
+    await vi.waitFor(() => expect(telemetryClient.pageview).toHaveBeenCalledWith("/popover"));
+    expect(telemetryClient.track).toHaveBeenCalledWith("popover_open");
   });
 
   it("does not touch login items in source dev mode", async () => {
