@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.8...baby-menu-v0.1.9) (2026-05-29)
+
+
+### Bug Fixes
+
+* **main:** recover stale agent sessions ([#38](https://github.com/kunchenguid/baby-menu/issues/38)) ([95e5256](https://github.com/kunchenguid/baby-menu/commit/95e52560246b446f9cc71079421a6991175111eb))
+
 ## [0.1.8](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.7...baby-menu-v0.1.8) (2026-05-29)
 
 
