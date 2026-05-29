@@ -3,6 +3,8 @@
 // JSONL mirroring the real flat shape, then exits (exec is one-shot per turn).
 // Captures resume to prove the driver threads the thread id across turns.
 // Kept in sync with tests/fixtures/protocols/codex/exec-*.jsonl.
+// Special SLOW_* prompts are test controls for cancellation and child-process
+// termination behavior rather than captured protocol fixtures.
 import { existsSync, writeFileSync } from "node:fs";
 
 const emit = (obj) => process.stdout.write(JSON.stringify(obj) + "\n");

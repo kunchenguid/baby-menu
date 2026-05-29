@@ -25,6 +25,8 @@ function waitForFile(path: string): Promise<void> {
 }
 
 async function slowCancelGate(): Promise<{ prompt: string; terminated: Promise<void>; release: () => Promise<void> }> {
+  // The fake CLI reports SIGTERM through one file and waits on the other before
+  // exiting, which lets the tests assert ordering without wall-clock races.
   const dir = await mkdtemp(join(tmpdir(), "codex-driver-"));
   const sentinel = join(dir, "release-exit");
   const terminated = join(dir, "observed-sigterm");

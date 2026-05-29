@@ -4,6 +4,8 @@
 // runs one process per turn). Echoes whether it was resumed so the driver's
 // session threading can be asserted. Kept in sync with
 // tests/fixtures/protocols/claude/*.jsonl.
+// Special SLOW_* prompts are test controls for cancellation and child-process
+// termination behavior rather than captured protocol fixtures.
 import { existsSync, writeFileSync } from "node:fs";
 
 const emit = (obj) => process.stdout.write(JSON.stringify(obj) + "\n");
