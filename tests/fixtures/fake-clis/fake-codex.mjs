@@ -10,6 +10,15 @@ const isResume = argv[0] === "exec" && argv[1] === "resume";
 // The prompt is the final positional arg.
 const prompt = argv[argv.length - 1] ?? "";
 
+if (prompt.includes("SLOW_CANCEL")) {
+  emit({ type: "thread.started", thread_id: "fake-thread" });
+  emit({ type: "turn.started" });
+  emit({ type: "item.completed", item: { id: "item_1", type: "agent_message", text: "ready" } });
+  process.on("SIGTERM", () => setTimeout(() => process.exit(0), 100));
+  setInterval(() => {}, 1000);
+  await new Promise(() => {});
+}
+
 if (!isResume) {
   emit({ type: "thread.started", thread_id: "fake-thread" });
 }

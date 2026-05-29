@@ -82,30 +82,29 @@ export class ClaudeDriver implements SessionDriver {
     return new Promise<schema.StopReason>((resolve, reject) => {
       let settled = false;
       let stopReason: schema.StopReason | null = null;
+      let cancelled = false;
 
       const settle = (reason: schema.StopReason) => {
         if (settled) return;
         settled = true;
         this.child = null;
+        signal.removeEventListener("abort", onAbort);
         resolve(reason);
       };
       const fail = (err: Error) => {
         if (settled) return;
         settled = true;
         this.child = null;
+        signal.removeEventListener("abort", onAbort);
         reject(err);
       };
 
       const onAbort = () => {
+        if (settled || cancelled) return;
+        cancelled = true;
         logDebug(SCOPE, "cancel: killing claude");
         child.kill("SIGTERM");
-        settle("cancelled");
       };
-      if (signal.aborted) {
-        onAbort();
-        return;
-      }
-      signal.addEventListener("abort", onAbort, { once: true });
 
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (chunk: string) => {
@@ -129,13 +128,22 @@ export class ClaudeDriver implements SessionDriver {
       });
       child.stderr.setEncoding("utf8");
       child.stderr.on("data", (chunk: string) => logDebug(SCOPE, "stderr", chunk.trimEnd()));
-      child.on("error", (err) => fail(err instanceof Error ? err : new Error(String(err))));
+      child.on("error", (err) => {
+        if (cancelled) settle("cancelled");
+        else fail(err instanceof Error ? err : new Error(String(err)));
+      });
       child.on("exit", (code) => {
         logDebug(SCOPE, "claude exited", code);
+        if (cancelled) {
+          settle("cancelled");
+          return;
+        }
         if (stopReason) settle(stopReason);
         else if (code === 0) settle("end_turn");
         else fail(new Error(`claude exited with code ${code}`));
       });
+      if (signal.aborted) onAbort();
+      else signal.addEventListener("abort", onAbort, { once: true });
     });
   }
 

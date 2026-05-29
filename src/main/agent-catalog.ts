@@ -120,9 +120,7 @@ export function toAgentOptions(
   return catalog.map((agent) => ({
     name: agent.name,
     label: agent.label,
-    // Built-in adapter agents probe the wrapped CLI; a custom agent that only
-    // provides a launchCommand is assumed available (we cannot probe it).
-    available: agent.launchCommand && !agent.adapter ? true : commandExists(agent.command),
+    available: agent.launchCommand ? true : commandExists(agent.command),
     installHint: agent.installHint,
   }));
 }

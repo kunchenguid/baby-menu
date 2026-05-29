@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it, afterEach } from "vitest";
 import { CodexDriver } from "../src/adapters/codex/driver";
 import type * as schema from "@agentclientprotocol/sdk";
@@ -58,5 +59,28 @@ describe("CodexDriver (against a fake codex CLI)", () => {
     const ac = new AbortController();
     ac.abort();
     expect(await d.prompt("hi", () => {}, ac.signal)).toBe("cancelled");
+  });
+
+  it("waits for the child process to exit before resolving cancellation", async () => {
+    const d = makeDriver();
+    await d.start(tmpdir());
+    const ac = new AbortController();
+    let ready!: () => void;
+    const readyPromise = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    const prompt = d.prompt(
+      "SLOW_CANCEL",
+      (u) => {
+        if (u.sessionUpdate === "agent_message_chunk") ready();
+      },
+      ac.signal,
+    );
+    await readyPromise;
+    ac.abort();
+
+    const early = await Promise.race([prompt, delay(20).then(() => "still-running")]);
+    expect(early).toBe("still-running");
+    expect(await prompt).toBe("cancelled");
   });
 });

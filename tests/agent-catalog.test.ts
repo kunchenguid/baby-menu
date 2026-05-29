@@ -72,6 +72,12 @@ describe("agent-catalog", () => {
     expect(wired[0]!.launchCommand).toBe("my-claude");
   });
 
+  it("treats a custom launchCommand override for a built-in name as available", () => {
+    const catalog = resolveAgentCatalog({ config: [{ name: "claude", launchCommand: "my-claude-acp" }] });
+    const options = toAgentOptions(catalog, () => false);
+    expect(options.find((option) => option.name === "claude")?.available).toBe(true);
+  });
+
   it("builds registry overrides from launchCommand (adapter-wired and custom)", () => {
     const wired = withAdapterLaunchCommands(DEFAULT_AGENTS, (a) => `/o/${a}.js`, ["node"]);
     const overrides = agentRegistryOverrides([...wired, { name: "custom", label: "Custom", command: "c", launchCommand: "node custom.js" }]);
