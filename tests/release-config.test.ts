@@ -66,7 +66,10 @@ describe("distribution config", () => {
     expect(workflow).toContain("xattr");
     expect(workflow).toContain('"~/.baby-menu"');
     expect(workflow).toContain('uninstall quit: "com.kunchenguid.baby-menu"');
-    expect(workflow).not.toContain("uninstall_preflight do");
+    expect(workflow).toContain("uninstall_preflight do");
+    expect(workflow).toContain('system("/usr/bin/pgrep", "-x", "Baby Menu"');
+    expect(workflow).toContain('nohup", args: ["/bin/sh", "-c"');
+    expect(workflow).toContain('/usr/bin/open -a "#{appdir}/Baby Menu.app"');
     expect(workflow).not.toContain("baby-menu.relaunch");
     expect(workflow).not.toContain("/tmp/com.kunchenguid.baby-menu");
     expect(workflow).not.toContain("tags:");
