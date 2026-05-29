@@ -18,6 +18,7 @@ import type { UpdateStatus } from "../shared/contracts";
 // hand users: `brew update` refreshes the tap, then `brew upgrade --cask baby-menu`
 // installs the new build. Exported so the test pins the exact string.
 export const UPGRADE_COMMAND = "brew update && brew upgrade --cask baby-menu";
+const UPDATE_STATUS_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 // Sits in the popover header next to Settings. The host runs the actual release
 // check in the main process; this reads the cached status on mount and, when a
@@ -31,16 +32,22 @@ export function UpdateIndicator() {
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+
+    async function refreshStatus() {
       try {
         const next = await window.babyMenu?.app.getUpdateStatus();
         if (!cancelled && next) setStatus(next);
       } catch {
         // Best-effort: a failed check should never disrupt the shell.
       }
-    })();
+    }
+
+    void refreshStatus();
+    const refreshTimer = setInterval(() => void refreshStatus(), UPDATE_STATUS_REFRESH_INTERVAL_MS);
+
     return () => {
       cancelled = true;
+      clearInterval(refreshTimer);
     };
   }, []);
 
