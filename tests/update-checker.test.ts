@@ -27,6 +27,15 @@ describe("parseLatestRelease", () => {
     ).toEqual({ version: "0.2.0", url: "https://github.com/kunchenguid/baby-menu/releases/tag/v0.2.0" });
   });
 
+  it("extracts the version from component-prefixed release tags", () => {
+    expect(
+      parseLatestRelease({
+        tag_name: "baby-menu-v0.2.0",
+        html_url: "https://github.com/kunchenguid/baby-menu/releases/tag/baby-menu-v0.2.0",
+      }),
+    ).toEqual({ version: "0.2.0", url: "https://github.com/kunchenguid/baby-menu/releases/tag/baby-menu-v0.2.0" });
+  });
+
   it("returns null when the payload has no usable tag", () => {
     expect(parseLatestRelease(null)).toBeNull();
     expect(parseLatestRelease({})).toBeNull();
@@ -51,6 +60,13 @@ describe("createUpdateChecker", () => {
       releaseUrl: "https://example.test/rel",
     });
     expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it("reports an update from component-prefixed release tags", async () => {
+    const fetchImpl = vi.fn(release("baby-menu-v0.2.0"));
+    const checker = createUpdateChecker({ currentVersion: "0.1.7", fetchImpl, now: () => 0 });
+
+    await expect(checker.getStatus()).resolves.toMatchObject({ latestVersion: "0.2.0", updateAvailable: true });
   });
 
   it("reports no update when the current version is latest or newer", async () => {

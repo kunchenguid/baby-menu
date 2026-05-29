@@ -55,7 +55,7 @@ export function parseLatestRelease(payload: unknown): { version: string; url: st
   const record = payload as Record<string, unknown>;
   const tag = typeof record.tag_name === "string" ? record.tag_name : null;
   if (!tag) return null;
-  const version = tag.replace(/^v/i, "").trim();
+  const version = tag.trim().match(/(?:^|-)v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/)?.[1] ?? "";
   if (!version) return null;
   return { version, url: typeof record.html_url === "string" ? record.html_url : null };
 }
