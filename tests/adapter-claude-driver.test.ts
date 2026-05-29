@@ -1,11 +1,21 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it, afterEach } from "vitest";
 import { ClaudeDriver } from "../src/adapters/claude/driver";
 import type * as schema from "@agentclientprotocol/sdk";
 
 const FAKE = join(__dirname, "fixtures", "fake-clis", "fake-claude.mjs");
+
+// A SLOW_CANCEL fake stays alive after SIGTERM until this sentinel file appears,
+// so the test - not the wall clock - decides when the child exits. Returns the
+// prompt to send and a `release()` that lets the child finish.
+async function slowCancelGate(): Promise<{ prompt: string; release: () => Promise<void> }> {
+  const dir = await mkdtemp(join(tmpdir(), "claude-driver-"));
+  const sentinel = join(dir, "release-exit");
+  return { prompt: `SLOW_CANCEL:${sentinel}`, release: () => writeFile(sentinel, "") };
+}
 
 describe("ClaudeDriver (against a fake claude CLI)", () => {
   let driver: ClaudeDriver | null = null;
@@ -64,13 +74,14 @@ describe("ClaudeDriver (against a fake claude CLI)", () => {
   it("waits for the child process to exit before resolving cancellation", async () => {
     const d = makeDriver();
     await d.start(tmpdir());
+    const gate = await slowCancelGate();
     const ac = new AbortController();
     let ready!: () => void;
     const readyPromise = new Promise<void>((resolve) => {
       ready = resolve;
     });
     const prompt = d.prompt(
-      "SLOW_CANCEL",
+      gate.prompt,
       (u) => {
         if (u.sessionUpdate === "agent_message_chunk") ready();
       },
@@ -79,20 +90,29 @@ describe("ClaudeDriver (against a fake claude CLI)", () => {
     await readyPromise;
     ac.abort();
 
-    const early = await Promise.race([prompt, delay(20).then(() => "still-running")]);
-    expect(early).toBe("still-running");
+    // The child cannot exit until we release the sentinel, so the prompt must
+    // stay pending regardless of scheduling - this assertion is not a race.
+    let settled = false;
+    void prompt.then(() => {
+      settled = true;
+    });
+    await delay(20);
+    expect(settled).toBe(false);
+
+    await gate.release();
     expect(await prompt).toBe("cancelled");
   });
 
   it("waits for the child process to exit before resolving disposal", async () => {
     const d = makeDriver();
     await d.start(tmpdir());
+    const gate = await slowCancelGate();
     let ready!: () => void;
     const readyPromise = new Promise<void>((resolve) => {
       ready = resolve;
     });
     const prompt = d.prompt(
-      "SLOW_CANCEL",
+      gate.prompt,
       (u) => {
         if (u.sessionUpdate === "agent_message_chunk") ready();
       },
@@ -101,9 +121,18 @@ describe("ClaudeDriver (against a fake claude CLI)", () => {
     await readyPromise;
 
     const disposal = d.dispose();
-    const early = await Promise.race([disposal.then(() => "disposed"), delay(20).then(() => "still-running")]);
-    expect(early).toBe("still-running");
+    // Disposal awaits the child's exit, which the sentinel gates, so it stays
+    // pending until we release it - deterministic, no wall-clock window.
+    let disposed = false;
+    void disposal.then(() => {
+      disposed = true;
+    });
+    await delay(20);
+    expect(disposed).toBe(false);
+
+    await gate.release();
     await disposal;
+    expect(disposed).toBe(true);
     expect(await prompt).toBe("cancelled");
   });
 
@@ -123,9 +152,11 @@ describe("ClaudeDriver (against a fake claude CLI)", () => {
     );
     await readyPromise;
 
-    const disposal = d.dispose();
-    const result = await Promise.race([disposal.then(() => "disposed"), delay(1500).then(() => "still-running")]);
-    expect(result).toBe("disposed");
+    // The child swallows SIGTERM, so disposal can only resolve once the driver's
+    // SIGKILL after TERMINATION_GRACE_MS terminates it. Awaiting disposal is a
+    // deterministic proof of force-kill: if it never fired, this would hang and
+    // fail via the test timeout instead of flaking on a race window.
+    await d.dispose();
     expect(await prompt).toBe("cancelled");
   });
 });
