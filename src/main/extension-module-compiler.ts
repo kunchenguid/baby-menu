@@ -5,7 +5,10 @@ import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
-export type ExtensionModuleKind = "widget" | "server";
+// "layout" is the root layout.tsx module; it is a React surface with the exact
+// same import rules as a widget (react, react/jsx-runtime, @babymenu/ui), so it
+// shares the widget rewrite path.
+export type ExtensionModuleKind = "widget" | "server" | "layout";
 
 export type CompileExtensionModuleOptions = {
   kind: ExtensionModuleKind;
@@ -211,7 +214,7 @@ async function rewriteImportSpecifier(options: {
   validateExternalImports: boolean;
 }): Promise<string> {
   if (!isLocalSpecifier(options.specifier)) {
-    if (options.kind === "widget") return rewriteWidgetExternalImport(options);
+    if (options.kind === "widget" || options.kind === "layout") return rewriteWidgetExternalImport(options);
     if (options.validateExternalImports) {
       assertSupportedExternalImport(options.kind, options.specifier, options.extensionId, options.extensionDir, options.filePath);
     }

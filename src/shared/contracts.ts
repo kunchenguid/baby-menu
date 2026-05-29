@@ -139,6 +139,18 @@ export type BabyMenuWidgetModuleDescriptor = {
   cssUrl?: string;
 };
 
+// The optional, agent-authored layout module at the root of the extension
+// workspace (`layout.tsx`). When present the host renders its default export in
+// place of the built-in stacked column; when absent the host falls back to the
+// column, so this is purely additive and older apps that never look for it keep
+// working. Loaded through the same pipeline as a widget module - `moduleUrl`
+// (a `/@fs` URL in dev, a `baby-menu-widget://` URL when compiled) plus a sibling
+// compiled `cssUrl` in packaged mode.
+export type BabyMenuLayoutModuleDescriptor = {
+  moduleUrl: string;
+  cssUrl?: string;
+};
+
 export type BabyMenuWidget = {
   id: string;
   title: string;
@@ -173,6 +185,27 @@ export type RefreshableBabyMenuWidget = BabyMenuWidget &
         refreshView?: never;
       }
   );
+
+// The metadata the host hands a custom layout for each active extension so it
+// can decide what to place and where. The layout never imports widget files
+// directly; it places each one by id through `renderWidget`.
+export type BabyMenuLayoutWidget = {
+  id: string;
+  title: string;
+};
+
+// Props the host passes to the default export of `layout.tsx`. `renderWidget`
+// returns the refresh-wired, title-less render of one extension by id (null for
+// an unknown id), so the layout keeps the host's view-refresh wiring while
+// owning the arrangement and the overall canvas size (the host measures the
+// rendered layout and resizes the popover to fit its width and height).
+export type BabyMenuLayoutProps = {
+  widgets: BabyMenuLayoutWidget[];
+  renderWidget: (id: string) => ReactNode;
+};
+
+// The default export shape of an `extensions/layout.tsx` module.
+export type BabyMenuLayout = (props: BabyMenuLayoutProps) => ReactNode;
 
 export type PopoverVisibilityState = {
   visible: boolean;
@@ -227,6 +260,12 @@ export type BabyMenuApi = {
   widgets: {
     list: () => Promise<BabyMenuWidgetModuleDescriptor[]>;
   };
+  // Host-only: the agent-authored root layout module, or null when the workspace
+  // has no `layout.tsx` (the renderer then uses the built-in column). Not part of
+  // BabyMenuExtensionApi - extensions author the layout, they do not load it.
+  layout: {
+    get: () => Promise<BabyMenuLayoutModuleDescriptor | null>;
+  };
   background: {
     // Fires when an extension's background task finishes a run, so an open widget
     // can re-read its data. Nothing arrives while the task runs with the popover
@@ -235,6 +274,11 @@ export type BabyMenuApi = {
   };
   popover: {
     setContentHeight: (height: number) => Promise<{ ok: boolean }>;
+    // Reports the desired popover size so both width and height adapt to the
+    // layout content. The main process clamps to a usable range and the screen
+    // work area, then repositions. `setContentHeight` is retained for older
+    // callers; new code should use this.
+    setContentSize: (size: { width: number; height: number }) => Promise<{ ok: boolean }>;
     getVisibility: () => Promise<PopoverVisibilityState>;
     onVisibility: (listener: (state: PopoverVisibilityState) => void) => () => void;
   };
@@ -287,6 +331,7 @@ export type BabyMenuExtensionApi = {
   };
   popover: {
     setContentHeight: (height: number) => Promise<{ ok: boolean }>;
+    setContentSize: (size: { width: number; height: number }) => Promise<{ ok: boolean }>;
     getVisibility: () => Promise<PopoverVisibilityState>;
     onVisibility: (listener: (state: PopoverVisibilityState) => void) => () => void;
   };

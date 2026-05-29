@@ -183,6 +183,7 @@ describe("capabilities IPC", () => {
     };
     const popover = {
       setContentHeight: vi.fn(),
+      setContentSize: vi.fn(),
       getVisibility: vi.fn(() => ({ visible: false })),
     };
 
@@ -190,6 +191,10 @@ describe("capabilities IPC", () => {
 
     await expect(handlers.get("baby-menu:popover:set-content-height")?.({}, 333)).resolves.toEqual({ ok: true });
     expect(popover.setContentHeight).toHaveBeenCalledWith(333);
+    await expect(handlers.get("baby-menu:popover:set-content-size")?.({}, { width: 820, height: 400 })).resolves.toEqual({
+      ok: true,
+    });
+    expect(popover.setContentSize).toHaveBeenCalledWith({ width: 820, height: 400 });
     await expect(handlers.get("baby-menu:popover:get-visibility")?.({})).resolves.toEqual({ visible: false });
   });
 

@@ -52,7 +52,10 @@ button:disabled,
 
 .app-shell {
   position: relative;
-  width: 504px;
+  /* Fills the popover window, whose width the main process sizes to the reported
+     content width (the historical 504 by default, or the active layout canvas).
+     So both dimensions adapt to the content. */
+  width: 100%;
   height: auto;
   /* A fixed cap, not a viewport-relative one: the viewport height equals the
      auto-sized window, so capping to it would ratchet the popover - it could
@@ -139,6 +142,13 @@ button:disabled,
   min-height: 0;
 }
 
+/* An agent-authored layout owns its arrangement and its own width. The canvas
+   shrink-wraps it (max-content) so its intrinsic width is measurable even while
+   the popover window is still narrower, letting the host grow the window to fit. */
+.widget-canvas {
+  width: max-content;
+}
+
 .widget-host {
   display: flex;
   flex-direction: column;
@@ -162,23 +172,6 @@ button:disabled,
   padding-bottom: 4px;
   border-bottom: 0;
 }
-
-.widget .w-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.widget .key {
-  color: var(--ink-label);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: var(--weight-reg);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-}
-
 
 .quota-widget,
 .widget > div {

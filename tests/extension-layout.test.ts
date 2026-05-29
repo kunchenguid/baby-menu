@@ -73,7 +73,15 @@ describe("extension layout", () => {
     const instructions = await readFile(resolve(import.meta.dirname, "../extensions/AGENTS.md"), "utf8");
 
     expect(instructions).toContain("Monochrome Lab");
-    expect(instructions).toContain("Design for a 504px macOS tray popover");
+    expect(instructions).toContain("Design for a macOS tray popover");
+    // The host no longer draws a per-widget title, and a custom layout.tsx can
+    // resize/rearrange the popover - both must be documented so the agent knows
+    // it owns its own labeling and how to arrange widgets.
+    expect(instructions).toContain("it no longer draws a title above your widget");
+    expect(instructions).toContain("not a mandate to draw a title bar");
+    expect(instructions).toContain("## Popover Layout");
+    expect(instructions).toContain("layout.tsx");
+    expect(instructions).toContain("BabyMenuLayoutProps");
     // The design system is delivered as components, not a wall of CSS classes.
     expect(instructions).toContain("@babymenu/ui");
     expect(instructions).toContain("DataTable");

@@ -42,8 +42,10 @@ function installBabyMenuApi(overrides: Partial<BabyMenuApi> = {}) {
       list: vi.fn(async () => []),
     },
     background: { onUpdate: vi.fn(() => () => undefined) },
+    layout: { get: vi.fn(async () => null) },
     popover: {
       setContentHeight: vi.fn(async () => ({ ok: true })),
+      setContentSize: vi.fn(async () => ({ ok: true })),
       getVisibility: vi.fn(async () => ({ visible: true })),
       onVisibility: vi.fn(() => () => undefined),
     },

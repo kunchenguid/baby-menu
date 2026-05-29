@@ -25,7 +25,7 @@ import { getDefaultTelemetry, initDefaultTelemetry } from "./telemetry";
 import { expandProcessPathForGuiLaunch } from "./shell-path";
 import { createUpdateChecker } from "./update-checker";
 import { createBabyMenuTray, type BabyMenuTray } from "./tray";
-import { createWidgetModuleRegistry } from "./widget-module-registry";
+import { createLayoutModuleRegistry, createWidgetModuleRegistry } from "./widget-module-registry";
 import { registerBabyMenuProtocolHandlers, registerBabyMenuProtocolSchemes } from "./widget-protocol";
 
 if (process.platform === "darwin") {
@@ -116,12 +116,21 @@ function sendPopoverVisibility(visible: boolean): void {
   sendToPopover("baby-menu:popover:visibility", { visible });
 }
 
-function setPopoverContentHeight(height: number) {
-  latestPopoverSize = responsivePopoverSize(height);
+function setPopoverContentSize(size: { width: number; height: number }) {
+  const workArea = latestTrayBounds
+    ? screen.getDisplayNearestPoint({ x: latestTrayBounds.x, y: latestTrayBounds.y }).workArea
+    : undefined;
+  latestPopoverSize = responsivePopoverSize(size, workArea);
   if (!latestTrayBounds || !popoverWindow || popoverWindow.isDestroyed()) return;
 
   const display = screen.getDisplayNearestPoint({ x: latestTrayBounds.x, y: latestTrayBounds.y });
   popoverWindow.setBounds(calculatePopoverBounds(latestTrayBounds, display.workArea, latestPopoverSize));
+}
+
+// Retained for the height-only bridge call; keeps the current width and lets the
+// new width+height path own the full adaptive sizing.
+function setPopoverContentHeight(height: number) {
+  setPopoverContentSize({ width: latestPopoverSize.width, height });
 }
 
 export async function startBabyMenuApp(): Promise<void> {
@@ -231,12 +240,14 @@ export async function startBabyMenuApp(): Promise<void> {
     db: database,
     notify,
   });
-  const widgetModules = createWidgetModuleRegistry({
+  const widgetRegistryOptions = {
     rootDir: paths.appDataRoot,
     extensionsDir: paths.extensionsDir,
-    mode: paths.isPackaged ? "compiled" : "vite",
+    mode: (paths.isPackaged ? "compiled" : "vite") as "compiled" | "vite",
     widgetCacheDir: paths.widgetCacheDir,
-  });
+  };
+  const widgetModules = createWidgetModuleRegistry(widgetRegistryOptions);
+  const layoutModules = createLayoutModuleRegistry(widgetRegistryOptions);
 
   const updateChecker = createUpdateChecker({
     currentVersion: app.getVersion(),
@@ -251,14 +262,18 @@ export async function startBabyMenuApp(): Promise<void> {
     agentRuntime,
     serverActions,
     widgetModules,
-    { setContentHeight: setPopoverContentHeight, getVisibility: () => ({ visible: popoverWindow?.isVisible() ?? false }) },
+    {
+      setContentHeight: setPopoverContentHeight,
+      setContentSize: setPopoverContentSize,
+      getVisibility: () => ({ visible: popoverWindow?.isVisible() ?? false }),
+    },
     settingsController,
     {
       quit: () => app.quit(),
       getUpdateStatus: () => updateChecker.getStatus(),
       openReleasePage: () => updateChecker.openReleasePage(),
     },
-    { recipesDir: paths.recipesDir, database },
+    { recipesDir: paths.recipesDir, database, layoutModules },
   );
   activeTray = createBabyMenuTray(
     (bounds) => {

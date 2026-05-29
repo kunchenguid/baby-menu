@@ -5,13 +5,17 @@ import { describe, expect, it } from "vitest";
 const stylesPath = resolve(import.meta.dirname, "../src/renderer/styles.css");
 
 describe("renderer layout styles", () => {
-  it("uses the Monochrome Lab token file and fixed tray popover width", async () => {
+  it("uses the Monochrome Lab token file and fills the content-sized popover window", async () => {
     const css = await readFile(stylesPath, "utf8");
 
     expect(css).toContain('@import url("./colors_and_type.css")');
-    expect(css).toMatch(/\.app-shell\s*\{[^}]*width:\s*504px/s);
+    // The shell fills the window; the main process sizes the window's width to
+    // the reported content (504 by default, or the active layout canvas).
+    expect(css).toMatch(/\.app-shell\s*\{[^}]*width:\s*100%/s);
     expect(css).toMatch(/\.app-shell\s*\{[^}]*background:\s*var\(--bg-stage\)/s);
     expect(css).toMatch(/\.app-shell\s*\{[^}]*border-radius:\s*var\(--radius-xl\)/s);
+    // A custom layout canvas shrink-wraps its content so its width is measurable.
+    expect(css).toMatch(/\.widget-canvas\s*\{[^}]*width:\s*max-content/s);
   });
 
   it("keeps widgets as dashed log sections in a scroll region above a pinned composer", async () => {

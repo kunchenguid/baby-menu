@@ -3,6 +3,7 @@ import {
   DEFAULT_POPOVER_SIZE,
   MAX_POPOVER_HEIGHT,
   MIN_POPOVER_HEIGHT,
+  MIN_POPOVER_WIDTH,
   calculatePopoverBounds,
   createPopoverOptions,
   loadPopoverRenderer,
@@ -22,12 +23,27 @@ describe("calculatePopoverBounds", () => {
     expect(createPopoverOptions("/app/preload.js").width).toBe(504);
   });
 
-  it("clamps content-driven popover height to a usable range", () => {
+  it("clamps content-driven popover width and height to a usable range", () => {
     expect(MIN_POPOVER_HEIGHT).toBe(220);
     expect(MAX_POPOVER_HEIGHT).toBe(720);
-    expect(responsivePopoverSize(140)).toEqual({ width: 504, height: 220 });
-    expect(responsivePopoverSize(420.2)).toEqual({ width: 504, height: 421 });
-    expect(responsivePopoverSize(960)).toEqual({ width: 504, height: 720 });
+    expect(MIN_POPOVER_WIDTH).toBe(320);
+    // Height clamps as before; width passes through above the floor so the
+    // popover adapts to whatever canvas the layout reports.
+    expect(responsivePopoverSize({ width: 504, height: 140 })).toEqual({ width: 504, height: 220 });
+    expect(responsivePopoverSize({ width: 840, height: 420.2 })).toEqual({ width: 840, height: 421 });
+    expect(responsivePopoverSize({ width: 504, height: 960 })).toEqual({ width: 504, height: 720 });
+    // A layout narrower than the floor is pulled back up to the minimum width.
+    expect(responsivePopoverSize({ width: 120, height: 300 })).toEqual({ width: 320, height: 300 });
+  });
+
+  it("caps the popover size to the display work area when one is given", () => {
+    const workArea = { x: 0, y: 0, width: 700, height: 600 };
+    // A layout asking for more than the screen can show is capped to the work
+    // area minus edge padding (8px each side), in both dimensions.
+    expect(responsivePopoverSize({ width: 2000, height: 2000 }, workArea)).toEqual({
+      width: 684,
+      height: 584,
+    });
   });
 
   it("centers the popover under a menu bar tray icon", () => {

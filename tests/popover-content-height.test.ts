@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { measurePopoverContentHeight, OVERLAY_MARGIN } from "../src/renderer/popover-content-height";
+import {
+  DEFAULT_POPOVER_CONTENT_WIDTH,
+  measurePopoverContentHeight,
+  measurePopoverContentSize,
+  OVERLAY_MARGIN,
+} from "../src/renderer/popover-content-height";
 
 function stubHeight(el: HTMLElement, height: number): void {
   el.getBoundingClientRect = () =>
@@ -43,5 +48,34 @@ describe("measurePopoverContentHeight", () => {
     document.body.appendChild(shell);
     overlay(480);
     expect(measurePopoverContentHeight(shell)).toBe(480 + OVERLAY_MARGIN);
+  });
+});
+
+function canvas(scrollWidth: number): HTMLElement {
+  const el = document.createElement("div");
+  el.setAttribute("data-bm-canvas", "");
+  Object.defineProperty(el, "scrollWidth", { value: scrollWidth, configurable: true });
+  document.body.appendChild(el);
+  return el;
+}
+
+describe("measurePopoverContentSize", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("reports the default column width when no custom layout canvas is present", () => {
+    const shell = document.createElement("main");
+    stubHeight(shell, 300);
+    document.body.appendChild(shell);
+    expect(measurePopoverContentSize(shell)).toEqual({ width: DEFAULT_POPOVER_CONTENT_WIDTH, height: 300 });
+  });
+
+  it("reports the intrinsic canvas width when a custom layout is active", () => {
+    const shell = document.createElement("main");
+    stubHeight(shell, 360);
+    document.body.appendChild(shell);
+    canvas(840);
+    expect(measurePopoverContentSize(shell)).toEqual({ width: 840, height: 360 });
   });
 });

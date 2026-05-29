@@ -40,6 +40,9 @@ const api: BabyMenuApi = {
   widgets: {
     list: () => ipcRenderer.invoke("baby-menu:widgets:list"),
   },
+  layout: {
+    get: () => ipcRenderer.invoke("baby-menu:layout:get"),
+  },
   background: {
     onUpdate: (listener: (event: BackgroundTaskUpdate) => void) => {
       const handler = (_event: unknown, update: BackgroundTaskUpdate) => listener(update);
@@ -49,6 +52,8 @@ const api: BabyMenuApi = {
   },
   popover: {
     setContentHeight: (height: number) => ipcRenderer.invoke("baby-menu:popover:set-content-height", height),
+    setContentSize: (size: { width: number; height: number }) =>
+      ipcRenderer.invoke("baby-menu:popover:set-content-size", size),
     getVisibility: () => ipcRenderer.invoke("baby-menu:popover:get-visibility"),
     onVisibility: (listener: (state: PopoverVisibilityState) => void) => {
       const handler = (_event: unknown, state: PopoverVisibilityState) => listener(state);

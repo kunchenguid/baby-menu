@@ -1,7 +1,7 @@
 import type { Dirent } from "node:fs";
 import { access, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
-import type { BabyMenuWidgetModuleDescriptor } from "../shared/contracts";
+import type { BabyMenuLayoutModuleDescriptor, BabyMenuWidgetModuleDescriptor } from "../shared/contracts";
 import { getExtensionsDir } from "../shared/paths";
 import { compileExtensionModule } from "./extension-module-compiler";
 import { compileWidgetTailwindCss, widgetTailwindCssCacheKey } from "./widget-tailwind-css";
@@ -27,6 +27,14 @@ export type DiscoverWidgetModulesOptions = {
 
 const STARTER_EXTENSION_ID = "hello-world";
 const WIDGET_FILE_PATTERN = /^widget\.(tsx|jsx|ts|js|mjs)$/;
+// The agent-authored layout component lives at the root of the extension
+// workspace. It is discovered separately from widgets (which live one directory
+// down as `widget.tsx`), so the recursive widget scan never picks it up.
+const LAYOUT_FILE_PATTERN = /^layout\.(tsx|jsx|ts|js|mjs)$/;
+// Reserved namespace for the single root layout module in the widget cache and
+// the `baby-menu-widget://` protocol. Not a real extension id, so it never
+// collides with a user-created extension directory.
+const LAYOUT_EXTENSION_ID = "__layout";
 
 type CreateWidgetModuleRegistryOptions = DiscoverWidgetModulesOptions;
 
@@ -57,6 +65,82 @@ export async function discoverWidgetModules({
   return modules
     .filter((module): module is BabyMenuWidgetModuleDescriptor => Boolean(module))
     .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+export type LayoutModuleRegistry = {
+  get: () => Promise<BabyMenuLayoutModuleDescriptor | null>;
+};
+
+export function createLayoutModuleRegistry(rootDir: string | CreateWidgetModuleRegistryOptions): LayoutModuleRegistry {
+  const options = typeof rootDir === "string" ? { rootDir } : rootDir;
+  return {
+    get: () => discoverLayoutModule(options),
+  };
+}
+
+// Resolves the optional root `layout.tsx`, or null when the workspace ships
+// none (the renderer then falls back to the built-in column). Mirrors widget
+// discovery: a `/@fs` URL in dev, a compiled `baby-menu-widget://` module plus a
+// sibling `cssUrl` when packaged.
+export async function discoverLayoutModule({
+  rootDir,
+  extensionsDir = getExtensionsDir(rootDir),
+  mode = "vite",
+  widgetCacheDir,
+}: DiscoverWidgetModulesOptions): Promise<BabyMenuLayoutModuleDescriptor | null> {
+  const resolvedExtensionsDir = resolve(extensionsDir);
+  const filePath = await findLayoutFile(resolvedExtensionsDir);
+  if (!filePath) return null;
+
+  try {
+    if (mode === "compiled") {
+      return await compiledLayoutModuleUrls({ extensionsDir: resolvedExtensionsDir, filePath, widgetCacheDir });
+    }
+    const fileStat = await stat(filePath);
+    return { moduleUrl: rendererModuleUrl(filePath, fileStat.mtimeMs) };
+  } catch (error) {
+    if (mode !== "compiled") throw error;
+    return null;
+  }
+}
+
+async function findLayoutFile(extensionsDir: string): Promise<string | null> {
+  let entries: Dirent<string>[];
+  try {
+    entries = await readdir(extensionsDir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  const match = entries
+    .filter((entry) => entry.isFile() && LAYOUT_FILE_PATTERN.test(entry.name))
+    .map((entry) => entry.name)
+    .sort()[0];
+  return match ? join(extensionsDir, match) : null;
+}
+
+async function compiledLayoutModuleUrls({
+  extensionsDir,
+  filePath,
+  widgetCacheDir,
+}: {
+  extensionsDir: string;
+  filePath: string;
+  widgetCacheDir?: string;
+}): Promise<BabyMenuLayoutModuleDescriptor> {
+  if (!widgetCacheDir) throw new Error("widgetCacheDir is required for compiled layout modules");
+  const compiled = await compileExtensionModule({
+    kind: "layout",
+    extensionId: LAYOUT_EXTENSION_ID,
+    extensionDir: extensionsDir,
+    entryFile: filePath,
+    cacheRoot: widgetCacheDir,
+  });
+
+  const cssFileUrl = await ensureWidgetCss({ extensionDir: extensionsDir, outputDir: compiled.outputDir });
+  const encodedExtensionId = encodeURIComponent(LAYOUT_EXTENSION_ID);
+  const moduleUrl = `baby-menu-widget://${encodedExtensionId}/${compiled.hash}/${encodeModulePath(compiled.outputDir, compiled.outputPath)}`;
+  const cssUrl = `baby-menu-widget://${encodedExtensionId}/${compiled.hash}/${encodeModulePath(compiled.outputDir, cssFileUrl)}`;
+  return { moduleUrl, cssUrl };
 }
 
 async function discoverWidgetFiles(rootDir: string): Promise<string[]> {

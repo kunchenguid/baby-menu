@@ -17,7 +17,12 @@ import { BabyMenuAgentRuntime, type BabyMenuAgentRuntimeSendOptions } from "./ag
 import { createExtensionDatabase, type ExtensionDatabase } from "./extension-database";
 import { loadRecipes } from "./recipe-loader";
 import { createServerActionRegistry, type ServerActionRegistry } from "./server-action-registry";
-import { createWidgetModuleRegistry, type WidgetModuleRegistry } from "./widget-module-registry";
+import {
+  createLayoutModuleRegistry,
+  createWidgetModuleRegistry,
+  type LayoutModuleRegistry,
+  type WidgetModuleRegistry,
+} from "./widget-module-registry";
 
 type AgentRuntimeFacade = Pick<
   BabyMenuAgentRuntime,
@@ -28,6 +33,7 @@ type AgentRuntimeFacade = Pick<
 
 type PopoverController = {
   setContentHeight: (height: number) => void | Promise<void>;
+  setContentSize: (size: { width: number; height: number }) => void | Promise<void>;
   getVisibility: () => PopoverVisibilityState | Promise<PopoverVisibilityState>;
 };
 
@@ -49,6 +55,7 @@ type AppController = {
 type IpcRuntimeOptions = {
   recipesDir?: string;
   database?: ExtensionDatabase;
+  layoutModules?: LayoutModuleRegistry;
 };
 
 export function registerIpcHandlers(
@@ -56,7 +63,11 @@ export function registerIpcHandlers(
   agentRuntime: AgentRuntimeFacade = new BabyMenuAgentRuntime(rootDir),
   serverActions: ServerActionRegistry = createServerActionRegistry({ rootDir, actionRoots: [getExtensionsDir(rootDir)] }),
   widgetModules: WidgetModuleRegistry = createWidgetModuleRegistry(rootDir),
-  popover: PopoverController = { setContentHeight: () => undefined, getVisibility: () => ({ visible: false }) },
+  popover: PopoverController = {
+    setContentHeight: () => undefined,
+    setContentSize: () => undefined,
+    getVisibility: () => ({ visible: false }),
+  },
   settings: SettingsController = {
     get: () => ({ openAtLogin: false, agentName: "", agents: [] }),
     setOpenAtLogin: (openAtLogin) => ({ openAtLogin, agentName: "", agents: [] }),
@@ -70,6 +81,7 @@ export function registerIpcHandlers(
 ) {
   const recipesDir = runtimeOptions.recipesDir ?? getRecipesDir(rootDir);
   const database = runtimeOptions.database ?? createExtensionDatabase(":memory:");
+  const layoutModules = runtimeOptions.layoutModules ?? createLayoutModuleRegistry(rootDir);
 
   ipcMain.handle("baby-menu:recipes:list", async (): Promise<RecipeMetadata[]> => {
     return loadRecipes(pathToFileURL(`${recipesDir}/`));
@@ -125,8 +137,17 @@ export function registerIpcHandlers(
     return widgetModules.list();
   });
 
+  ipcMain.handle("baby-menu:layout:get", async () => {
+    return layoutModules.get();
+  });
+
   ipcMain.handle("baby-menu:popover:set-content-height", async (_event, height: number) => {
     await popover.setContentHeight(height);
+    return { ok: true };
+  });
+
+  ipcMain.handle("baby-menu:popover:set-content-size", async (_event, size: { width: number; height: number }) => {
+    await popover.setContentSize(size);
     return { ok: true };
   });
 

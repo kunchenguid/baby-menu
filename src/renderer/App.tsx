@@ -3,7 +3,7 @@ import { Power, Settings, X } from "lucide-react";
 import { Button, Tooltip } from "../ui";
 import { AgentChat } from "./agent/AgentChat";
 import { MenuSurface } from "./menu/MenuSurface";
-import { measurePopoverContentHeight } from "./popover-content-height";
+import { measurePopoverContentSize } from "./popover-content-height";
 import { SettingsView } from "./settings/SettingsView";
 import { UpdateIndicator } from "./UpdateIndicator";
 
@@ -108,15 +108,17 @@ function usePopoverContentHeight() {
     if (!element || !window.babyMenu?.popover) return undefined;
 
     let animationFrame = 0;
+    let lastWidth = 0;
     let lastHeight = 0;
     const report = () => {
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
       animationFrame = window.requestAnimationFrame(() => {
         animationFrame = 0;
-        const height = measurePopoverContentHeight(element);
-        if (!height || height === lastHeight) return;
+        const { width, height } = measurePopoverContentSize(element);
+        if (!height || (width === lastWidth && height === lastHeight)) return;
+        lastWidth = width;
         lastHeight = height;
-        void window.babyMenu?.popover.setContentHeight(height);
+        void window.babyMenu?.popover.setContentSize({ width, height });
       });
     };
 
@@ -129,20 +131,31 @@ function usePopoverContentHeight() {
     // body subtree to react when one opens or closes. Also observe the overlay
     // itself: a tall overlay can be max-h-clamped while the window is small, then
     // expand once the window grows, so we need to re-measure until it settles.
-    let observedOverlay: Element | null = null;
-    const syncOverlayObservation = () => {
-      const overlay = document.querySelector("[data-bm-overlay]");
-      if (overlay === observedOverlay) return;
-      if (observedOverlay) resizeObserver?.unobserve(observedOverlay);
-      observedOverlay = overlay;
-      if (overlay) resizeObserver?.observe(overlay);
+    // Observe the overlay and the layout canvas directly. The shell width is
+    // 100% of the window, so a custom layout that changes only its own width (the
+    // canvas overflows the shell) does not resize .app-shell and would otherwise
+    // be missed; observing the canvas catches it so the window keeps adapting.
+    const observed = new Map<string, Element>();
+    const syncExtraObservations = () => {
+      for (const selector of ["[data-bm-overlay]", "[data-bm-canvas]"]) {
+        const next = document.querySelector(selector);
+        const current = observed.get(selector) ?? null;
+        if (next === current) continue;
+        if (current) resizeObserver?.unobserve(current);
+        if (next) {
+          observed.set(selector, next);
+          resizeObserver?.observe(next);
+        } else {
+          observed.delete(selector);
+        }
+      }
     };
-    syncOverlayObservation();
+    syncExtraObservations();
     const mutationObserver =
       typeof MutationObserver === "undefined"
         ? null
         : new MutationObserver(() => {
-            syncOverlayObservation();
+            syncExtraObservations();
             report();
           });
     mutationObserver?.observe(document.body, { childList: true, subtree: true });

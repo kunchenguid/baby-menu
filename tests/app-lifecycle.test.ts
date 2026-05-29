@@ -92,6 +92,7 @@ vi.mock("../src/main/extension-database", () => ({
 
 vi.mock("../src/main/widget-module-registry", () => ({
   createWidgetModuleRegistry: vi.fn(() => ({})),
+  createLayoutModuleRegistry: vi.fn(() => ({ get: vi.fn(async () => null) })),
 }));
 
 vi.mock("../src/main/widget-protocol", () => ({

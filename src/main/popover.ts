@@ -18,6 +18,7 @@ export const DEFAULT_POPOVER_SIZE: Size = {
 
 export const MIN_POPOVER_HEIGHT = 220;
 export const MAX_POPOVER_HEIGHT = 720;
+export const MIN_POPOVER_WIDTH = 320;
 
 const EDGE_PADDING = 8;
 
@@ -48,10 +49,20 @@ export function calculatePopoverBounds(
   return { x, y, width: size.width, height: size.height };
 }
 
-export function responsivePopoverSize(contentHeight: number): Size {
+// Clamps the renderer-reported canvas size into the range the popover can
+// actually display, so both width and height adapt to the layout content. The
+// reported size is taken as-is (not max-ratcheted), so the popover grows AND
+// shrinks back as a layout changes. When a work area is given, the size is also
+// capped to it (minus edge padding) so an oversized layout never escapes the
+// screen.
+export function responsivePopoverSize(content: Size, workArea?: Rectangle): Size {
+  const maxWidth = workArea ? Math.max(MIN_POPOVER_WIDTH, workArea.width - EDGE_PADDING * 2) : Number.POSITIVE_INFINITY;
+  const maxHeight = workArea
+    ? Math.max(MIN_POPOVER_HEIGHT, Math.min(MAX_POPOVER_HEIGHT, workArea.height - EDGE_PADDING * 2))
+    : MAX_POPOVER_HEIGHT;
   return {
-    width: DEFAULT_POPOVER_SIZE.width,
-    height: Math.ceil(clamp(contentHeight, MIN_POPOVER_HEIGHT, MAX_POPOVER_HEIGHT)),
+    width: Math.ceil(clamp(content.width, MIN_POPOVER_WIDTH, maxWidth)),
+    height: Math.ceil(clamp(content.height, MIN_POPOVER_HEIGHT, maxHeight)),
   };
 }
 

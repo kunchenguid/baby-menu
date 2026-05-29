@@ -15,6 +15,10 @@ export const EXTENSION_CONTRACT_NAMES = [
   "BabyMenuWidget",
   "RefreshableBabyMenuWidget",
   "BabyMenuSettingsSection",
+  // Root layout.tsx surface: the canvas component and the props the host passes it.
+  "BabyMenuLayout",
+  "BabyMenuLayoutProps",
+  "BabyMenuLayoutWidget",
   // server.ts surface: the action/background context and what it carries.
   "BabyMenuServerContext",
   "BabyMenuDatabase",

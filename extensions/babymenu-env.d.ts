@@ -106,6 +106,27 @@ declare module "@babymenu/contracts" {
         }
     );
 
+  // The metadata the host hands a custom layout for each active extension so it
+  // can decide what to place and where. The layout never imports widget files
+  // directly; it places each one by id through `renderWidget`.
+  export type BabyMenuLayoutWidget = {
+    id: string;
+    title: string;
+  };
+
+  // Props the host passes to the default export of `layout.tsx`. `renderWidget`
+  // returns the refresh-wired, title-less render of one extension by id (null for
+  // an unknown id), so the layout keeps the host's view-refresh wiring while
+  // owning the arrangement and the overall canvas size (the host measures the
+  // rendered layout and resizes the popover to fit its width and height).
+  export type BabyMenuLayoutProps = {
+    widgets: BabyMenuLayoutWidget[];
+    renderWidget: (id: string) => ReactNode;
+  };
+
+  // The default export shape of an `extensions/layout.tsx` module.
+  export type BabyMenuLayout = (props: BabyMenuLayoutProps) => ReactNode;
+
   export type PopoverVisibilityState = {
     visible: boolean;
   };
@@ -137,6 +158,7 @@ declare module "@babymenu/contracts" {
     };
     popover: {
       setContentHeight: (height: number) => Promise<{ ok: boolean }>;
+      setContentSize: (size: { width: number; height: number }) => Promise<{ ok: boolean }>;
       getVisibility: () => Promise<PopoverVisibilityState>;
       onVisibility: (listener: (state: PopoverVisibilityState) => void) => () => void;
     };
