@@ -31,7 +31,7 @@ You ask for a feature in plain English, the agent writes an extension and it hot
 
 ## Quick Start
 
-Requires macOS 13 Ventura or newer, Homebrew, and a supported, already-authenticated agent CLI such as `claude`, `codex`, or `npx` on `PATH`.
+Requires macOS 13 Ventura or newer, Homebrew, and a supported, already-authenticated agent CLI such as `claude` or `codex` on `PATH`.
 
 ```sh
 brew install --cask kunchenguid/tap/baby-menu
@@ -55,7 +55,8 @@ Switching agents resets the current conversation after confirmation.
 ## Install Details
 
 The packaged app stores mutable extensions, the local extension database, caches, agent sessions, custom agent catalog, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets and extension state.
-Baby Menu detects supported agents from the catalog in order: Claude Code (`claude`), Pi (`npx`), then Codex (`codex`).
+Baby Menu detects supported agents from the catalog in order: Claude Code (`claude`), then Codex (`codex`).
+Those built-ins run through bundled clean-room ACP adapters that drive the authenticated local CLIs without inheriting user-level agent settings, skills, MCP servers, or extra rules.
 Use Settings to persist an agent choice across launches.
 Set `BABY_MENU_AGENT=<name>` in the launch environment to override auto-detection before a preference is saved.
 Add `~/.baby-menu/agents.json` to override or append catalog entries; source mode reads `agents.json` from the repo root.
@@ -114,7 +115,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
    ┌─────────────────────┐       ┌──────────────────────┐
    │ active extensions/  │       │   save snapshot or   │
    │  widget.tsx         │◄──────┤   rollback files     │
-   │  server.ts          │       │   safely             │
+   │  components.tsx     │       │   safely             │
+   │  server.ts          │       │                      │
    └──────────┬──────────┘       │                      │
               │ hot-reload       └──────────────────────┘
               ▼
@@ -128,6 +130,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
   Everything goes through `window.babyMenu` exposed in `src/preload/index.ts`.
 - **Recipes are specs, not prompts** - HTML files under `extensions/recipes/` describe a widget's capability, data sources, fallback behavior, and acceptance criteria.
   The agent reads the matching recipe before implementing.
+- **Bundled ACP adapters** - the built-in Claude Code and Codex entries launch `out/adapters/<name>/index.mjs`, which wraps the local authenticated CLI and keeps Baby Menu's embedded agent isolated from user-level agent configuration.
 - **Extension settings sections** - extensions may export `BabyMenuSettingsSection` from `widget.tsx`; the Settings page discovers those renderer-only sections through the same module pipeline as widgets and renders the host-owned frame around each body.
 - **Extension server actions** - privileged work (shell, network, credentials) lives in `<extension-id>/server.ts` and is invoked from widgets and settings sections via `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
   No per-widget IPC channels.
@@ -142,12 +145,13 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 
 | Path                        | What lives here                                                                        |
 | --------------------------- | -------------------------------------------------------------------------------------- |
+| `src/adapters/`             | Bundled clean-room ACP adapters for built-in Claude Code and Codex agents              |
 | `src/main/`                 | Electron lifecycle, tray, popover, IPC, git, agent runtime                             |
 | `src/preload/index.ts`      | The stable `window.babyMenu` bridge                                                    |
 | `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, settings, and app controls                        |
 | `src/ui/`                   | Shared `@babymenu/ui` design system for shell and extension renderer surfaces          |
 | `src/shared/contracts.ts`   | `BabyMenuApi`, `BabyMenuWidget`, `BabyMenuSettingsSection`, `GitSessionSnapshot`, etc. |
-| `extensions/<id>/`          | Tracked extensions (`widget.tsx` widgets/settings, `server.ts`)                        |
+| `extensions/<id>/`          | Tracked extensions (`widget.tsx` descriptors, `components.tsx` views, `server.ts`)      |
 | `extensions/recipes/*.html` | Self-contained widget specs the agent reads                                            |
 | `extensions-dev/`           | Gitignored dev workspace prepared by `scripts/dev.mjs`                                 |
 | `marketing-video/`          | HyperFrames source plus committed MP4/GIF assets for the README hero video             |
@@ -170,11 +174,11 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 ```sh
 pnpm dev          # run Electron + renderer dev server with a gitignored extensions-dev/ sandbox
 pnpm dev:reset    # wipe extensions-dev/ and agent session cache, then start fresh
-pnpm build        # build main + preload + renderer into out/
+pnpm build        # build main + preload + renderer + bundled adapters into out/
 pnpm package:mac  # clean release/ and create an ad-hoc-signed Baby Menu Dev.app
 pnpm dist:mac     # build Baby Menu Dev.app and create a universal DMG in release/
 pnpm test         # run all Vitest tests
-pnpm test:e2e     # only e2e tests (spawn real acpx/runtime against acp-mock)
+pnpm test:e2e     # only e2e tests (including acpx/runtime plus bundled adapter coverage)
 pnpm typecheck    # tsc --noEmit
 pnpm lint         # tsc --noEmit (same as typecheck)
 ```

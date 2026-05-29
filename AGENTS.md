@@ -5,13 +5,13 @@ Embedded agents launched from baby-menu should work from the active extension wo
 
 ## Commands
 
-- `pnpm dev` - runs `scripts/dev.mjs`, prepares a gitignored `extensions-dev/` workspace by copying `extensions/AGENTS.md` and `extensions/recipes/`, and runs `electron-vite dev` from the current checkout. The app itself sees current uncommitted changes, while the embedded agent is launched inside `extensions-dev/`.
+- `pnpm dev` - runs `scripts/dev.mjs`, prepares a gitignored `extensions-dev/` workspace by copying `extensions/AGENTS.md` and `extensions/recipes/`, builds bundled ACP adapters into `out/adapters/`, and runs `electron-vite dev` from the current checkout. The app itself sees current uncommitted changes, while the embedded agent is launched inside `extensions-dev/`.
 - `pnpm dev:reset` - removes `extensions-dev/` and `.cache/baby-menu/acp-sessions`, recreates the dev workspace with the latest `extensions/AGENTS.md` and `extensions/recipes/`, and starts dev mode.
-- `pnpm build` - build main, preload, and renderer bundles into `out/`.
+- `pnpm build` - build main, preload, renderer, and bundled ACP adapter bundles into `out/`.
 - `pnpm package:mac` - cleans `release/`, builds the app, packages `release/mac-universal/Baby Menu Dev.app`, and ad-hoc signs it for local testing. Local/dev packaging uses `electron-builder.dev.yml`, which overrides `appId` to `com.kunchenguid.baby-menu.dev` and `productName` to `Baby Menu Dev` so locally-built bundles never collide with the released app (`com.kunchenguid.baby-menu`) in macOS LaunchServices. The CI release workflow builds from `electron-builder.yml` directly and keeps the production identity.
 - `pnpm dist:mac` - runs `package:mac` and creates `release/Baby-Menu-<version>-universal.dmg` from the dev bundle.
 - `pnpm test` - run all Vitest tests.
-- `pnpm test:e2e` - run only `tests/e2e-*.test.ts` (these spawn the real `acpx/runtime` against the `acp-mock` CLI in `node_modules/acp-mock/dist/cli.js`).
+- `pnpm test:e2e` - run only `tests/e2e-*.test.ts` (these include real `acpx/runtime` coverage against `acp-mock` plus bundled adapter coverage against fake local CLIs).
 - `pnpm typecheck` / `pnpm lint` - both run `tsc --noEmit` against `tsconfig.json`.
 - Single test: `pnpm vitest run tests/<name>.test.ts` (or `pnpm vitest run -t "<name pattern>"`).
 
@@ -75,6 +75,10 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 - `extension-database.ts` - owns the shared local SQLite database exposed to extension server actions, background tasks, and widgets through the bridge.
 - `notifier.ts` - backs `context.notify` for server actions and background tasks with native notifications.
 
+`src/adapters/` contains the bundled clean-room ACP adapters for built-in agents.
+Claude Code and Codex are exposed to `acpx/runtime` as local adapter processes, while the adapters drive the real authenticated `claude` and `codex` CLIs in the active extension workspace.
+The adapters intentionally run lean: they do not inherit user-level agent settings, skills, MCP servers, or extra rules.
+
 `src/renderer/` extension loading modules:
 
 - `extension-modules.ts` - shared runtime loader for extension `widget.tsx` modules, including dynamic import and packaged-mode stylesheet injection for widgets and settings sections.
@@ -87,6 +91,10 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 - `main` entry: `src/main/app.ts` -> `out/main/index.js` (this is `package.json#main`).
 - `preload` entry: `src/preload/index.ts` -> `out/preload/index.js`.
 - `renderer` root: `src/renderer/` -> `out/renderer/`. In dev, main loads `process.env.ELECTRON_RENDERER_URL`; in production it loads `out/renderer/index.html` via `loadFile`.
+
+`scripts/build-adapters.mjs` bundles `src/adapters/claude/index.ts` and `src/adapters/codex/index.ts` to `out/adapters/<name>/index.mjs` after `electron-vite build`.
+`pnpm dev` runs the same adapter build before launching Electron because dev runtime paths also resolve adapters from `out/adapters/`.
+Packaged builds keep `out/adapters/**` in `app.asar.unpacked` because adapter processes are spawned as standalone Node programs and cannot execute from inside `app.asar`.
 
 `typescript` is intentionally externalized from the production main bundle because `extension-module-compiler.ts` imports it at runtime to compile packaged extensions.
 Keep `typescript` in runtime dependencies unless that compiler path changes.
@@ -110,7 +118,7 @@ Keep credential and token work in extension server actions.
 
 ### Agent runtime + change sessions
 
-`BabyMenuAgentRuntime` (`src/main/agent-runtime.ts`) wraps `acpx/runtime`. It allows only one active `send()` call at a time; overlapping sends return an "already running" assistant response before any change session begins. The active agent comes from the persisted Settings choice, then `BABY_MENU_AGENT`, then catalog auto-detection. The catalog defaults to Claude Code, Pi, and Codex, and may be extended by `agents.json` under the active app data root (`~/.baby-menu/agents.json` when packaged, repo-root `agents.json` in source mode). Switching agents through Settings is blocked while an agent turn is running or while a change session can still be saved or rolled back; a successful switch closes the current persistent session with `discardPersistentState` so the next turn starts a fresh conversation.
+`BabyMenuAgentRuntime` (`src/main/agent-runtime.ts`) wraps `acpx/runtime`. It allows only one active `send()` call at a time; overlapping sends return an "already running" assistant response before any change session begins. The active agent comes from the persisted Settings choice, then `BABY_MENU_AGENT`, then catalog auto-detection. The catalog defaults to Claude Code and Codex, and may be extended by `agents.json` under the active app data root (`~/.baby-menu/agents.json` when packaged, repo-root `agents.json` in source mode). Built-in Claude Code and Codex entries are registered as `acpx` overrides that launch the bundled adapters, while availability still probes the wrapped local CLI (`claude` or `codex`). Switching agents through Settings is blocked while an agent turn is running or while a change session can still be saved or rolled back; a successful switch closes the current persistent session with `discardPersistentState` so the next turn starts a fresh conversation.
 Every accepted `send()` call:
 
 1. Resolves the active extension workspace from runtime paths. Source mode honors `BABY_MENU_EXTENSIONS_DIR` or defaults to `extensions/`; packaged mode uses `~/.baby-menu/extensions` after seeding bundled templates. Dev/source Tailwind utility generation scans only `extensions/` and `extensions-dev/` unless `src/ui/styles.css` or `src/ui/styles.dev.css` is given an additional `@source` path, so custom overrides outside those directories may load widget modules without their utility CSS.
@@ -143,7 +151,7 @@ Do not write generated extension files, the local extension database, compiled m
 
 - Recipes must be self-contained implementation specs.
 - Do not tell the agent to inspect another repository, website, blog post, or external implementation guide before it can implement the recipe.
-- It is fine to mention inspiration or provenance, but copy the actionable details into the recipe itself: commands, endpoints, local file paths, parser expectations, fallback order, security notes, IPC shape, files to edit, tests to add, and acceptance criteria.
+- It is fine to mention inspiration or provenance, but copy the actionable details into the recipe itself: commands, endpoints, local file paths, parser expectations, fallback order, security notes, IPC shape, files to edit, live verification steps, and acceptance criteria.
 - A recipe should let an agent implement the feature from the recipe plus this repo alone.
 - Each recipe should include a clear capability statement, expected user-facing behavior, recommended data-source order, implementation contract, error handling, security constraints, interactive demo, and acceptance criteria.
 - For privileged work, explicitly say that filesystem, shell, network, credential, and token access belongs in extension-owned server actions behind `window.babyMenu.capabilities.invoke`.

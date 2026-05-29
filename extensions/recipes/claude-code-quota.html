@@ -134,7 +134,7 @@ anthropic-beta: oauth-2025-04-20</code></pre>
         <h2>Implementation Contract</h2>
         <p>All data acquisition lives in <code>claude-code-quota/server.ts</code>: token reads, the CLI probe, network calls, timeouts, and parsing. Expose it as a <code>getQuota</code> server action invoked from the renderer with <code>window.babyMenu.capabilities.invoke("claude-code-quota", "getQuota", input)</code>. Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</p>
         <p>The data is safe to refresh roughly every 5 minutes; how and when the widget triggers a refresh is the widget's concern, not this recipe's.</p>
-        <p>Colocate parser and fallback tests inside the extension as <code>claude-code-quota/&lt;name&gt;.test.ts</code>.</p>
+        <p>Do not add test or documentation files for the extension. Verify by reasoning through the parser paths, the server action response shape, and the widget's rendered unavailable, stale, and live states.</p>
         <p>Server action response shape:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>type QuotaResult&lt;T&gt; =
   | { ok: true; data: T }
@@ -148,7 +148,7 @@ anthropic-beta: oauth-2025-04-20</code></pre>
           <li>If no token or CLI is available, return an unavailable error (<code>Claude quota unavailable</code>). Do not return mock data.</li>
           <li>If a request times out, return the previous successful snapshot marked <code>stale: true</code> when one exists.</li>
           <li>If credentials are expired, return an error of <code>Claude sign-in required</code> rather than silently using a stale token.</li>
-          <li>Never log, echo, or return token or cookie values in errors, logs, or tests.</li>
+          <li>Never log, echo, or return token or cookie values in errors or logs.</li>
         </ul>
       </section>
     </main>

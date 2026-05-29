@@ -128,10 +128,8 @@ const rows: Row[] = [
   { name: "queue", status: "warn", load: 88 },
 ];
 
-export const serviceWidget = {
-  id: "service-status",
-  title: "SERVICES",
-  render: () => (
+export function ServiceStatusView() {
+  return (
     <div className="flex flex-col gap-3">
       <DataTable
         rows={rows}
@@ -181,8 +179,8 @@ export const serviceWidget = {
         </DialogContent>
       </Dialog>
     </div>
-  ),
-};
+  );
+}
 ```
 
 ### Style with Tailwind tokens
@@ -227,10 +225,8 @@ Spacing, flex, and grid utilities are standard Tailwind.
 ```tsx
 import { Progress, StatusDot } from "@babymenu/ui";
 
-export const quotaWidget = {
-  id: "quota",
-  title: "QUOTA",
-  render: () => (
+export function QuotaView() {
+  return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between">
         <span className="text-2xl font-light tracking-value text-ink-strong">
@@ -246,8 +242,8 @@ export const quotaWidget = {
         <span>cli</span>
       </div>
     </div>
-  ),
-};
+  );
+}
 ```
 
 ### Onboarding widgets are not data widgets
@@ -266,17 +262,21 @@ Export a `BabyMenuSettingsSection` from `widget.tsx` alongside the widget - it i
 ```tsx
 import { Button, Field, Input, Switch } from "@babymenu/ui";
 
-export const calendarSettings = {
-  extensionId: "calendar", // must match the extension directory id; used as the section key and sort order
-  title: "CALENDAR", // terse tracked-caps label, like a widget title
-  render: () => (
+function CalendarSettingsView() {
+  return (
     <div className="flex flex-col gap-3">
       <Field label="account">
         <Input placeholder="you@example.com" />
       </Field>
       <Switch aria-label="show all-day events" />
     </div>
-  ),
+  );
+}
+
+export const calendarSettings = {
+  extensionId: "calendar", // must match the extension directory id; used as the section key and sort order
+  title: "CALENDAR", // terse tracked-caps label, like a widget title
+  render: () => <CalendarSettingsView />,
 };
 ```
 
