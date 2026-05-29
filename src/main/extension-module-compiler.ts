@@ -251,7 +251,7 @@ function assertSupportedExternalImport(
   filePath: string,
 ) {
   if (
-    kind === "widget" &&
+    (kind === "widget" || kind === "layout") &&
     (specifier === "react" ||
       specifier === "react/jsx-runtime" ||
       specifier === "react/jsx-dev-runtime" ||

@@ -91,6 +91,33 @@ describe("extension module compiler", () => {
     await expect(readFile(compiled.outputPath, "utf8")).resolves.not.toContain("@babymenu/contracts");
   });
 
+  it("compiles TSX layouts with host React and UI shims", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-compiler-"));
+    tempDirs.push(rootDir);
+    const extensionDir = join(rootDir, "extensions");
+    const entryFile = join(extensionDir, "layout.tsx");
+    await mkdir(extensionDir, { recursive: true });
+    await writeFile(
+      entryFile,
+      `import { useState } from "react";
+      import { Button } from "@babymenu/ui";
+      export default function Layout() { return <Button>{useState("Ready")[0]}</Button>; }`,
+    );
+
+    const compiled = await compileExtensionModule({
+      kind: "layout",
+      extensionId: "__layout",
+      extensionDir,
+      entryFile,
+      cacheRoot: join(rootDir, "cache", "widgets"),
+    });
+
+    const output = await readFile(compiled.outputPath, "utf8");
+    expect(output).toContain(`from "baby-menu-host://react/index.mjs"`);
+    expect(output).toContain(`from "baby-menu-host://ui/index.mjs"`);
+    expect(output).toContain(`from "baby-menu-host://react-jsx-runtime/index.mjs"`);
+  });
+
   it("reuses cached output for unchanged extension modules", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-compiler-"));
     tempDirs.push(rootDir);
