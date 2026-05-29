@@ -213,3 +213,8 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 
 TDD is required for bug fixes and new features.
 Tests live in `tests/` at the repo root, not co-located.
+
+## License
+
+Baby Menu is released under the MIT License.
+See [LICENSE](LICENSE) for details.
