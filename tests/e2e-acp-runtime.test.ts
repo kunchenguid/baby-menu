@@ -127,6 +127,55 @@ describe("BabyMenuAgentRuntime ACP e2e", () => {
   );
 
   it.skipIf(process.platform === "win32")(
+    "recovers a stale persisted session after a restart instead of failing the turn",
+    async () => {
+      const repo = await createRepo();
+      tempDirs.push(repo);
+      // Source mode gitignores runtime state; without this the untracked .cache
+      // files (turn logs, session store) would dirty the tree before the restart.
+      await writeFile(join(repo, ".gitignore"), ".cache/\n");
+      await git(repo, ["add", ".gitignore"]);
+      await git(repo, ["commit", "-m", "ignore runtime cache"]);
+      const logDir = await mkdtemp(join(tmpdir(), "baby-menu-acp-logs-"));
+      tempDirs.push(logDir);
+      const mockLogPath = join(logDir, "mock-acp.jsonl");
+
+      const makeRuntime = () =>
+        new BabyMenuAgentRuntime(repo, {
+          agentName: "mock-target",
+          registryOverrides: { "mock-target": buildMockCommand(mockLogPath) },
+        });
+
+      // First launch: run a turn and accept it so the tree is clean for the restart.
+      const first = makeRuntime();
+      await first.send("first turn");
+      await first.save("accept first");
+      await first.close();
+
+      // acpx persisted the session record to disk; a fresh process will try to resume it.
+      const sessionFile = join(repo, ".cache", "baby-menu", "acp-sessions", "sessions", "baby-menu-agent-chat.json");
+      expect(existsSync(sessionFile)).toBe(true);
+
+      // Restart: acp-mock reports loadSession:false, so resuming the stale record
+      // fails with SESSION_RESUME_REQUIRED. The runtime must discard it and start
+      // fresh rather than surfacing "Agent unavailable".
+      const second = makeRuntime();
+      const result = await second.send("second turn after restart");
+      await second.close();
+
+      expect(result.assistantText).toContain("mock acp turn completed");
+
+      const turnLogs = await readTurnLogs(repo);
+      const failed = turnLogs.find((log) => log.status === "failed");
+      // The failed attempt proves the restart actually hit the resume path (not that
+      // resume silently worked) and that the reason is now recorded in the log.
+      expect(failed?.error).toMatchObject({ detailCode: "SESSION_RESUME_REQUIRED" });
+      expect(turnLogs.filter((log) => log.status === "completed")).toHaveLength(2);
+    },
+    30_000,
+  );
+
+  it.skipIf(process.platform === "win32")(
     "rolls back changes produced through acpx and acp-mock",
     async () => {
       const repo = await createRepo();

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
   createAcpRuntime,
@@ -48,6 +48,17 @@ type ResolveDefaultAgentNameOptions = {
 
 const DEFAULT_AGENT_TIMEOUT_MS = 300_000;
 
+// One persistent conversation per app, keyed for the file session store. The
+// persisted record outlives the app process, so a fresh launch tries to resume
+// it - see SESSION_KEY use below and the resume-recovery path in runSend.
+const SESSION_KEY = "baby-menu-agent-chat";
+
+// acpx flags a failed turn with this detailCode when a persisted session cannot
+// be resumed because the agent reports loadSession:false. The bundled adapters
+// mint a fresh session per process and never support session/load, so every
+// launch with a leftover persisted record hits this until we drop the record.
+const SESSION_RESUME_REQUIRED_DETAIL_CODE = "SESSION_RESUME_REQUIRED";
+
 function telemetryAgentName(agentName: string): string {
   return BUILT_IN_AGENT_NAMES.has(agentName) ? agentName : "custom";
 }
@@ -69,6 +80,34 @@ export class AgentTimeoutError extends Error {
     super(`Agent request timed out after ${timeoutMs}ms while ${phase}.`);
     this.name = "AgentTimeoutError";
   }
+}
+
+// Carries the acpx turn-result error so callers can branch on the structured
+// detailCode (for example to recover from SESSION_RESUME_REQUIRED) instead of
+// string-matching a flattened message.
+export class AgentTurnFailedError extends Error {
+  readonly code?: string;
+  readonly detailCode?: string;
+  readonly retryable?: boolean;
+
+  constructor(error: { message?: string; code?: string; detailCode?: string; retryable?: boolean }) {
+    super(error.message || "Agent turn failed");
+    this.name = "AgentTurnFailedError";
+    this.code = error.code;
+    this.detailCode = error.detailCode;
+    this.retryable = error.retryable;
+  }
+}
+
+function isSessionResumeRequiredError(error: unknown): boolean {
+  return error instanceof AgentTurnFailedError && error.detailCode === SESSION_RESUME_REQUIRED_DETAIL_CODE;
+}
+
+function turnFailureDetail(error: unknown): { message: string; code?: string; detailCode?: string } {
+  if (error instanceof AgentTurnFailedError) {
+    return { message: error.message, code: error.code, detailCode: error.detailCode };
+  }
+  return { message: error instanceof Error ? error.message : String(error) };
 }
 
 export function commandExists(command: string): boolean {
@@ -189,7 +228,7 @@ export function collectAgentTurnOutput(
 
     const result = await turn.result;
     if (result.status === "failed") {
-      throw new Error(result.error.message || "Agent turn failed");
+      throw new AgentTurnFailedError(result.error);
     }
     if (result.status === "cancelled") {
       throw new Error("Agent turn was cancelled");
@@ -388,6 +427,35 @@ export class BabyMenuAgentRuntime {
       };
     }
 
+    try {
+      return await this.runTurnAttempt(prompt, options, agentCwd, changeSession, telemetryAgent);
+    } catch (error) {
+      // A persisted session that the bundled (loadSession:false) adapter cannot
+      // resume after a restart fails the FIRST turn with SESSION_RESUME_REQUIRED.
+      // Drop the stale record and start a fresh session once so the agent does
+      // not look permanently "unavailable" until the cache is cleared by hand.
+      if (isSessionResumeRequiredError(error)) {
+        await this.discardPersistedSession("session-resume-required");
+        try {
+          return await this.runTurnAttempt(prompt, options, agentCwd, changeSession, telemetryAgent);
+        } catch (retryError) {
+          throw this.reportTurnError(retryError, telemetryAgent);
+        }
+      }
+      throw this.reportTurnError(error, telemetryAgent);
+    }
+  }
+
+  // Runs exactly one agent turn. Timeouts are terminal and resolved here into a
+  // user-facing result; any other failure throws (carrying the structured
+  // AgentTurnFailedError) so runSend can decide whether to recover and retry.
+  private async runTurnAttempt(
+    prompt: string,
+    options: BabyMenuAgentRuntimeSendOptions,
+    agentCwd: string,
+    changeSession: AgentChangeSession,
+    telemetryAgent: string,
+  ): Promise<AgentChatResult> {
     let runtime: AcpxRuntime | null = null;
     let handle: AcpRuntimeHandle | null = null;
     let turnLog: AgentTurnLogRecorder | null = null;
@@ -396,7 +464,7 @@ export class BabyMenuAgentRuntime {
       runtime = await this.ensureRuntime(agentCwd);
       handle = await withAgentTimeout(
         runtime.ensureSession({
-          sessionKey: "baby-menu-agent-chat",
+          sessionKey: SESSION_KEY,
           agent: this.agentName,
           mode: "persistent",
           cwd: agentCwd,
@@ -436,8 +504,7 @@ export class BabyMenuAgentRuntime {
       };
     } catch (error) {
       if (!(error instanceof AgentTimeoutError)) {
-        await turnLog?.finish("failed").catch(() => undefined);
-        this.telemetry?.track("agent_turn", { agent: telemetryAgent, status: "error" });
+        await turnLog?.finishFailed(turnFailureDetail(error)).catch(() => undefined);
         throw error;
       }
       await turnLog?.recordTimeout(error).catch(() => undefined);
@@ -453,6 +520,27 @@ export class BabyMenuAgentRuntime {
         session: changeSession.snapshot("Agent timed out. Review any partial repo changes, then Save or Rollback."),
       };
     }
+  }
+
+  private reportTurnError(error: unknown, telemetryAgent: string): unknown {
+    this.telemetry?.track("agent_turn", { agent: telemetryAgent, status: "error" });
+    return error;
+  }
+
+  /**
+   * Drops the persisted ACP session so the next turn starts a fresh one. The
+   * acpx file session store exposes no delete, and runtime.close's
+   * discardPersistentState does NOT remove the on-disk record, so we close the
+   * live runtime and delete the persisted session file ourselves.
+   */
+  private async discardPersistedSession(reason: string): Promise<void> {
+    await this.closeRuntime(reason, true, true);
+    await rm(this.persistedSessionFilePath(), { force: true }).catch(() => undefined);
+  }
+
+  private persistedSessionFilePath(): string {
+    const stateDir = this.paths?.agentStateDir ?? getAgentStateDir(this.rootDir);
+    return join(stateDir, "sessions", `${SESSION_KEY}.json`);
   }
 
   async save(message?: string) {

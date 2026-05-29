@@ -115,12 +115,12 @@ export function useAgentRuntime() {
       const nextChange = sessionNoticeForResult(result.assistantText, trimmed, result.session);
       setPendingChange(nextChange.kind === "pending" ? nextChange : null);
       setNotice(nextChange.kind === "pending" ? null : nextChange);
-    } catch {
+    } catch (error) {
       setPendingChange(null);
       setNotice({
         kind: "error",
         summary: "Agent unavailable",
-        hint: unavailableText,
+        hint: failureReason(error) ?? unavailableText,
       });
     } finally {
       setRun(null);
@@ -201,6 +201,15 @@ function sessionNoticeForSnapshot(snapshot: GitSessionSnapshot): AgentSessionNot
     canKeep: snapshot.canSave,
     canUndo: snapshot.canRollback,
   };
+}
+
+// Surfaces the real reason a send failed instead of a blanket "unavailable".
+// Electron wraps IPC rejections as "Error invoking remote method '...': Error: <real>",
+// so we keep only the trailing message the main process actually threw.
+function failureReason(error: unknown): string | null {
+  if (!(error instanceof Error)) return null;
+  const message = error.message.replace(/^Error invoking remote method '[^']*':\s*/, "").replace(/^Error:\s*/, "").trim();
+  return message || null;
 }
 
 function summarizeAgentResult(assistantText: string, prompt: string): string {

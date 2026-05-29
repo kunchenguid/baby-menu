@@ -1,10 +1,12 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { AcpRuntimeEvent, AcpRuntimeTurn } from "acpx/runtime";
 import {
   AgentTimeoutError,
+  AgentTurnFailedError,
   BabyMenuAgentRuntime,
   agentRuntimeStatusForEvent,
   buildBabyMenuAgentPrompt,
@@ -586,5 +588,124 @@ describe("agent runtime telemetry", () => {
       name: "agent_turn",
       fields: { agent: "custom", status: "error" },
     });
+  });
+});
+
+describe("agent runtime session resume recovery", () => {
+  function failedTurn(error: {
+    message: string;
+    code?: string;
+    detailCode?: string;
+    retryable?: boolean;
+  }): AcpRuntimeTurn {
+    return {
+      requestId: "failed-turn",
+      events: (async function* () {})(),
+      result: Promise.resolve({ status: "failed", error }),
+      cancel: vi.fn(async () => undefined),
+      closeStream: vi.fn(async () => undefined),
+    };
+  }
+
+  it("throws a structured AgentTurnFailedError carrying the acpx detail code", async () => {
+    const turn = failedTurn({
+      message: "Persistent ACP session 810619c3 could not be resumed: agent does not support session/load",
+      code: "RUNTIME",
+      detailCode: "SESSION_RESUME_REQUIRED",
+      retryable: true,
+    });
+
+    await expect(collectAgentTurnOutput(turn, { idleTimeoutMs: 50 })).rejects.toMatchObject({
+      name: "AgentTurnFailedError",
+      detailCode: "SESSION_RESUME_REQUIRED",
+      retryable: true,
+    });
+  });
+
+  type RecoveryInternals = {
+    ensureAgentRuntimeCwd: () => Promise<string>;
+    beginChangeSession: () => Promise<unknown>;
+    ensureRuntime: () => Promise<unknown>;
+    collectTurnOutput: () => Promise<string>;
+  };
+
+  async function buildRecoveryRuntime(collectImpls: Array<() => Promise<string>>) {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-resume-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    const agentStateDir = join(rootDir, ".cache", "acp-sessions");
+    const sessionFile = join(agentStateDir, "sessions", "baby-menu-agent-chat.json");
+    await mkdir(join(agentStateDir, "sessions"), { recursive: true });
+    await writeFile(sessionFile, JSON.stringify({ stale: true }), "utf8");
+
+    const telemetry: Array<{ name: string; fields: Record<string, unknown> }> = [];
+    const runtime = new BabyMenuAgentRuntime(rootDir, {
+      agentName: "codex",
+      telemetry: {
+        track: (name: string, fields: Record<string, unknown> = {}) => telemetry.push({ name, fields }),
+        pageview: () => {},
+        close: async () => {},
+      },
+      paths: { extensionsDir, agentStateDir, snapshotDir: join(rootDir, ".cache", "snapshots") },
+    });
+
+    const internals = runtime as unknown as RecoveryInternals;
+    internals.ensureAgentRuntimeCwd = vi.fn(async () => extensionsDir);
+    internals.beginChangeSession = vi.fn(async () => ({
+      startedClean: true,
+      canSave: true,
+      canRollback: true,
+      snapshot: (message?: string) => ({ startedClean: true, canSave: true, canRollback: true, head: "HEAD", message }),
+      save: vi.fn(async () => ({ ok: true })),
+      rollback: vi.fn(async () => ({ ok: true })),
+    }));
+    internals.ensureRuntime = vi.fn(async () => ({
+      ensureSession: vi.fn(async () => ({})),
+      startTurn: vi.fn(() => fakeTurn({ events: (async function* () {})() })),
+    }));
+    const collect = vi.fn();
+    for (const impl of collectImpls) collect.mockImplementationOnce(impl);
+    internals.collectTurnOutput = collect;
+
+    return { runtime, telemetry, sessionFile, collect };
+  }
+
+  it("recovers from SESSION_RESUME_REQUIRED by discarding the persisted session and retrying once", async () => {
+    const { runtime, telemetry, sessionFile, collect } = await buildRecoveryRuntime([
+      async () => {
+        throw new AgentTurnFailedError({
+          message: "Persistent ACP session could not be resumed: agent does not support session/load",
+          code: "RUNTIME",
+          detailCode: "SESSION_RESUME_REQUIRED",
+          retryable: true,
+        });
+      },
+      async () => "built the widget after a fresh session",
+    ]);
+
+    expect(existsSync(sessionFile)).toBe(true);
+
+    const result = await runtime.send("add a widget");
+
+    expect(result.assistantText).toContain("built the widget after a fresh session");
+    expect(collect).toHaveBeenCalledTimes(2);
+    // The stale persisted session record is deleted so the retry starts fresh.
+    expect(existsSync(sessionFile)).toBe(false);
+    // A recovered turn reports success, not error.
+    expect(telemetry).toContainEqual({ name: "agent_turn", fields: { agent: "codex", status: "success" } });
+    expect(telemetry).not.toContainEqual({ name: "agent_turn", fields: { agent: "codex", status: "error" } });
+  });
+
+  it("does not discard the session or retry for an unrelated turn failure", async () => {
+    const { runtime, telemetry, sessionFile, collect } = await buildRecoveryRuntime([
+      async () => {
+        throw new AgentTurnFailedError({ message: "model error", code: "RUNTIME", detailCode: "ACP_TURN_FAILED" });
+      },
+    ]);
+
+    await expect(runtime.send("add a widget")).rejects.toThrow("model error");
+
+    expect(collect).toHaveBeenCalledTimes(1);
+    expect(existsSync(sessionFile)).toBe(true);
+    expect(telemetry).toContainEqual({ name: "agent_turn", fields: { agent: "codex", status: "error" } });
   });
 });

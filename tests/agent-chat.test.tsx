@@ -143,6 +143,20 @@ describe("AgentChat", () => {
     expect(screen.getByText("Review the generated changes, then Save or Rollback.")).toBeTruthy();
   });
 
+  it("surfaces the real failure reason when a send rejects", async () => {
+    installBabyMenuAgentMock();
+    window.babyMenu!.agent.send = vi.fn(async () => {
+      throw new Error("codex CLI exited with code 127");
+    });
+    render(<AgentChat />);
+
+    const composer = screen.getByPlaceholderText("talk to the baby");
+    fireEvent.change(composer, { target: { value: "add a widget" } });
+    fireEvent.submit(composer.closest("form")!);
+
+    expect(await screen.findByText("codex CLI exited with code 127")).toBeTruthy();
+  });
+
   it("does not show a prompt when no change session is open on mount", async () => {
     const agent = installBabyMenuAgentMock({ session: null });
     render(<AgentChat />);

@@ -21,6 +21,12 @@ type AgentTurnLogEvent = {
 
 type AgentTurnLogStatus = "started" | "completed" | "failed" | "timed_out";
 
+type FailureDetails = {
+  message: string;
+  code?: string;
+  detailCode?: string;
+};
+
 type AgentTurnLogRecord = {
   schemaVersion: 1;
   agentName: string;
@@ -32,6 +38,7 @@ type AgentTurnLogRecord = {
   status: AgentTurnLogStatus;
   events: AgentTurnLogEvent[];
   timeout?: TimeoutDetails;
+  error?: FailureDetails;
   gitStatusBeforeTimeout: string | null;
   gitStatusAfterTimeout?: string | null;
 };
@@ -100,6 +107,15 @@ export class AgentTurnLogRecorder {
   async finish(status: Exclude<AgentTurnLogStatus, "started" | "timed_out">): Promise<void> {
     this.record.status = status;
     this.record.endedAt = new Date().toISOString();
+    await this.write();
+  }
+
+  // Records why a turn failed so a swallowed runtime error (for example the
+  // adapter rejecting a stale persisted session) is diagnosable from the log.
+  async finishFailed(error: FailureDetails): Promise<void> {
+    this.record.status = "failed";
+    this.record.endedAt = new Date().toISOString();
+    this.record.error = error;
     await this.write();
   }
 

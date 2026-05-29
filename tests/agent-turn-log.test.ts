@@ -69,6 +69,36 @@ describe("AgentTurnLogRecorder", () => {
     ]);
   });
 
+  it("records the failure error detail when a turn fails", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-turn-log-"));
+    tempDirs.push(rootDir);
+
+    const recorder = await AgentTurnLogRecorder.start({
+      rootDir,
+      agentName: "codex",
+      requestId: "request-failed",
+      prompt: "do the thing",
+    });
+
+    await recorder.finishFailed({
+      message: "Persistent ACP session abc could not be resumed: agent does not support session/load",
+      code: "RUNTIME",
+      detailCode: "SESSION_RESUME_REQUIRED",
+    });
+
+    const log = await readLog(recorder.filePath);
+
+    expect(log).toMatchObject({
+      status: "failed",
+      error: {
+        message: expect.stringContaining("could not be resumed"),
+        code: "RUNTIME",
+        detailCode: "SESSION_RESUME_REQUIRED",
+      },
+    });
+    expect(log.endedAt).toEqual(expect.any(String));
+  });
+
   it("records git status before and after an idle timeout", async () => {
     const repo = await createRepo();
     tempDirs.push(repo);
