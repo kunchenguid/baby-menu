@@ -522,6 +522,15 @@ describe("agent runtime telemetry", () => {
     expect(telemetry.events).toContainEqual({ name: "agent_switch", fields: { agent: "codex" } });
   });
 
+  it("reports custom instead of user-defined agent names", async () => {
+    const telemetry = recordingTelemetry();
+    const runtime = new BabyMenuAgentRuntime("/repo", { agentName: "claude", telemetry: telemetry.client });
+
+    await runtime.setAgent("my-private-agent");
+
+    expect(telemetry.events).toContainEqual({ name: "agent_switch", fields: { agent: "custom" } });
+  });
+
   it("does not report agent_switch for a no-op switch", async () => {
     const telemetry = recordingTelemetry();
     const runtime = new BabyMenuAgentRuntime("/repo", { agentName: "claude", telemetry: telemetry.client });
@@ -550,7 +559,7 @@ describe("agent runtime telemetry", () => {
 
     expect(telemetry.events).toContainEqual({
       name: "agent_turn",
-      fields: { agent: "mock-agent", status: "success" },
+      fields: { agent: "custom", status: "success" },
     });
   });
 
@@ -575,7 +584,7 @@ describe("agent runtime telemetry", () => {
 
     expect(telemetry.events).toContainEqual({
       name: "agent_turn",
-      fields: { agent: "mock-agent", status: "error" },
+      fields: { agent: "custom", status: "error" },
     });
   });
 });

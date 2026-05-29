@@ -13,7 +13,7 @@ import {
 } from "acpx/runtime";
 import type { AgentActiveTurn, AgentChatResult, GitActionResult, GitSessionSnapshot } from "../shared/contracts";
 import type { AgentRuntimeStatus } from "../shared/contracts";
-import { type AgentDefinition, resolveAgentCatalog } from "./agent-catalog";
+import { BUILT_IN_AGENT_NAMES, type AgentDefinition, resolveAgentCatalog } from "./agent-catalog";
 import { getAgentStateDir, getDevExtensionSnapshotDir, getExtensionsDir } from "../shared/paths";
 import { AgentTurnLogRecorder } from "./agent-turn-log";
 import { DevExtensionChangeSession } from "./dev-extension-change-session";
@@ -47,6 +47,10 @@ type ResolveDefaultAgentNameOptions = {
 };
 
 const DEFAULT_AGENT_TIMEOUT_MS = 300_000;
+
+function telemetryAgentName(agentName: string): string {
+  return BUILT_IN_AGENT_NAMES.has(agentName) ? agentName : "custom";
+}
 
 type AgentChangeSession = {
   readonly startedClean: boolean;
@@ -348,7 +352,7 @@ export class BabyMenuAgentRuntime {
     await this.closeRuntime("agent-switch", true, true);
     this.activeSession = null;
     this.agentName = next;
-    this.telemetry?.track("agent_switch", { agent: next });
+    this.telemetry?.track("agent_switch", { agent: telemetryAgentName(next) });
   }
 
   async send(prompt: string, options: BabyMenuAgentRuntimeSendOptions = {}): Promise<AgentChatResult> {
@@ -373,9 +377,10 @@ export class BabyMenuAgentRuntime {
     const agentCwd = await this.ensureAgentRuntimeCwd();
     const changeSession = await this.beginChangeSession(agentCwd);
     this.activeSession = changeSession;
+    const telemetryAgent = telemetryAgentName(this.agentName);
 
     if (!changeSession.startedClean) {
-      this.telemetry?.track("agent_turn", { agent: this.agentName, status: "blocked_dirty" });
+      this.telemetry?.track("agent_turn", { agent: telemetryAgent, status: "blocked_dirty" });
       return {
         assistantText:
           "I cannot start an editing session because the git working tree is already dirty. Commit or stash those changes first so Save and Rollback can stay safe.",
@@ -424,7 +429,7 @@ export class BabyMenuAgentRuntime {
       const output = await this.collectTurnOutput(turn, turnLog, options);
       await turnLog.finish("completed").catch(() => undefined);
 
-      this.telemetry?.track("agent_turn", { agent: this.agentName, status: "success" });
+      this.telemetry?.track("agent_turn", { agent: telemetryAgent, status: "success" });
       return {
         assistantText: output.trim() || "Agent finished without a text response.",
         session: changeSession.snapshot("Review the generated repo changes, then Save or Rollback."),
@@ -432,11 +437,11 @@ export class BabyMenuAgentRuntime {
     } catch (error) {
       if (!(error instanceof AgentTimeoutError)) {
         await turnLog?.finish("failed").catch(() => undefined);
-        this.telemetry?.track("agent_turn", { agent: this.agentName, status: "error" });
+        this.telemetry?.track("agent_turn", { agent: telemetryAgent, status: "error" });
         throw error;
       }
       await turnLog?.recordTimeout(error).catch(() => undefined);
-      this.telemetry?.track("agent_turn", { agent: this.agentName, status: "timeout" });
+      this.telemetry?.track("agent_turn", { agent: telemetryAgent, status: "timeout" });
 
       if (runtime && handle) {
         await runtime.close({ handle, reason: "timeout" }).catch(() => undefined);
