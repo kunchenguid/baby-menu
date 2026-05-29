@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { generateExtensionDts } from "../scripts/generate-extension-dts.mjs";
@@ -55,5 +55,31 @@ describe("@babymenu/contracts public surface contract", () => {
     const starter = await readFile(join(repoRoot, "extensions", "hello-world", "widget.tsx"), "utf8");
     expect(starter).toMatch(/from\s+["']@babymenu\/contracts["']/);
     expect(starter).not.toMatch(/from\s+["'][^"']*src\/shared\/contracts["']/);
+  });
+
+  it("keeps source extension contract imports within the generated public surface", async () => {
+    const extensionRoot = join(repoRoot, "extensions");
+    const extensionDirs = await readdir(extensionRoot, { withFileTypes: true });
+    const importedNames = new Set<string>();
+
+    for (const entry of extensionDirs) {
+      if (!entry.isDirectory()) continue;
+
+      for (const file of await readdir(join(extensionRoot, entry.name), { withFileTypes: true })) {
+        if (!file.isFile() || !/\.[cm]?[tj]sx?$/.test(file.name)) continue;
+
+        const source = await readFile(join(extensionRoot, entry.name, file.name), "utf8");
+        for (const match of source.matchAll(/import\s+(?:type\s+)?\{([^}]+)\}\s+from\s+["']@babymenu\/contracts["']/g)) {
+          for (const specifier of match[1].split(",")) {
+            const name = specifier.replace(/^\s*type\s+/, "").trim().split(/\s+as\s+|\s+/)[0];
+            if (name) importedNames.add(name);
+          }
+        }
+      }
+    }
+
+    const publicNames = new Set<string>(EXTENSION_CONTRACT_NAMES);
+    const nonPublicImports = [...importedNames].filter((name) => !publicNames.has(name));
+    expect(nonPublicImports).toEqual([]);
   });
 });
