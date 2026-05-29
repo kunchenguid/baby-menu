@@ -79,8 +79,8 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
 }
 
 async function togglePopover(trayBounds: Rectangle): Promise<void> {
-  const window = await createPopoverWindow();
   latestTrayBounds = trayBounds;
+  const window = await createPopoverWindow();
   if (window.isVisible()) {
     window.hide();
     return;

@@ -37,6 +37,6 @@ export function measurePopoverContentHeight(shell: HTMLElement): number {
  */
 export function measurePopoverContentSize(shell: HTMLElement): { width: number; height: number } {
   const canvas = document.querySelector<HTMLElement>("[data-bm-canvas]");
-  const width = canvas ? Math.ceil(canvas.scrollWidth) : DEFAULT_POPOVER_CONTENT_WIDTH;
+  const width = canvas ? Math.ceil(Math.max(canvas.scrollWidth, shell.scrollWidth)) : DEFAULT_POPOVER_CONTENT_WIDTH;
   return { width, height: measurePopoverContentHeight(shell) };
 }

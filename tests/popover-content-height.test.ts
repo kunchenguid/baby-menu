@@ -78,4 +78,13 @@ describe("measurePopoverContentSize", () => {
     canvas(840);
     expect(measurePopoverContentSize(shell)).toEqual({ width: 840, height: 360 });
   });
+
+  it("includes shell chrome around a custom layout canvas", () => {
+    const shell = document.createElement("main");
+    stubHeight(shell, 360);
+    Object.defineProperty(shell, "scrollWidth", { value: 870, configurable: true });
+    document.body.appendChild(shell);
+    canvas(840);
+    expect(measurePopoverContentSize(shell)).toEqual({ width: 870, height: 360 });
+  });
 });
