@@ -11,6 +11,26 @@ describe("distribution config", () => {
     expect(packageJson.devDependencies?.["electron-builder"]).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
+  it("uses an electron-builder that handles pnpm deduped dependencies (>= 26.8.2)", () => {
+    // electron-builder <= 26.8.1 misparses pnpm's `pnpm list --json` output once pnpm
+    // (>= 10.29.3) emits "deduped" stubs: a package reached via multiple paths is read as
+    // having no dependencies, so its transitive deps are dropped from the asar. That shipped
+    // a broken 0.1.4 that crashed on launch with ERR_MODULE_NOT_FOUND for @jridgewell/resolve-uri.
+    // electron-builder #9618 (released in 26.8.2) fixes the collector. Never downgrade below it.
+    const version = packageJson.devDependencies?.["electron-builder"] ?? "0.0.0";
+    const [major, minor, patch] = version.split(".").map((part) => Number.parseInt(part, 10));
+    const atLeast = major > 26 || (major === 26 && (minor > 8 || (minor === 8 && patch >= 2)));
+    expect(atLeast).toBe(true);
+  });
+
+  it("packages local/dev mac builds under a distinct bundle identity so they cannot shadow the released app", async () => {
+    expect(packageJson.scripts?.["package:mac"]).toContain("--config electron-builder.dev.yml");
+    const devConfig = await readFile(resolve(import.meta.dirname, "../electron-builder.dev.yml"), "utf8");
+    expect(devConfig).toContain("extends: ./electron-builder.yml");
+    expect(devConfig).toContain("appId: com.kunchenguid.baby-menu.dev");
+    expect(devConfig).toContain("productName: Baby Menu Dev");
+  });
+
   it("declares an unsigned electron-builder mac bundle with extension templates", async () => {
     const config = await readFile(resolve(import.meta.dirname, "../electron-builder.yml"), "utf8");
 
