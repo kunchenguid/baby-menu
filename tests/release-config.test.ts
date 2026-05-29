@@ -65,6 +65,14 @@ describe("distribution config", () => {
     expect(workflow).toContain("git diff --cached --quiet");
     expect(workflow).toContain("xattr");
     expect(workflow).toContain('"~/.baby-menu"');
+    // On `brew upgrade`, Homebrew runs the installed cask's uninstall (quitting the running
+    // app) before installing the new version, so the new postflight can no longer observe that
+    // the app was running. Record a marker in uninstall_preflight while the app is still alive,
+    // then relaunch from postflight only when that marker exists.
+    expect(workflow).toContain("uninstall_preflight do");
+    expect(workflow).toContain("pgrep");
+    expect(workflow).toContain("baby-menu.relaunch");
+    expect(workflow).toContain("/usr/bin/open");
     expect(workflow).not.toContain("tags:");
     await expect(stat(resolve(import.meta.dirname, "../.github/workflows/release.yml"))).rejects.toMatchObject({
       code: "ENOENT",
