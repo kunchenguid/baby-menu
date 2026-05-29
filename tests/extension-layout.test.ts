@@ -4,24 +4,32 @@ import { describe, expect, it } from "vitest";
 
 describe("extension layout", () => {
   it("keeps the hello world widget in the repo-level extensions directory", async () => {
-    const widget = await readFile(
-      resolve(import.meta.dirname, "../extensions/hello-world/widget.tsx"),
-      "utf8",
-    );
+    const dir = resolve(import.meta.dirname, "../extensions/hello-world");
+    const widget = await readFile(resolve(dir, "widget.tsx"), "utf8");
+    // The widget entry exports the descriptor and renders the view from
+    // components.tsx (split so UI edits hot reload while preserving state).
+    const components = await readFile(resolve(dir, "components.tsx"), "utf8");
 
     expect(widget).toContain("helloWorldWidget");
     expect(widget).toContain("RefreshableBabyMenuWidget");
-    expect(widget).toContain("hello world");
-    expect(widget).toContain("tell baby menu what you would like it to become");
-    // The starter widget exemplifies the design system via token utilities.
-    expect(widget).toContain("text-3xl");
-    expect(widget).toContain("text-signal-live");
-    expect(widget).toContain("examples");
-    expect(widget).toContain("add a widget tracking my weekly claude code quota");
-    expect(widget).not.toContain("quick asks");
-    expect(widget).not.toContain("className=\"src\"");
+    expect(widget).toContain("HelloWorldView");
+    expect(widget).toContain("./components");
+    // The descriptor module exports only the descriptor - the React components
+    // live in components.tsx so the entry stays Fast-Refresh-neutral.
+    expect(widget).not.toContain("function HelloWorldView");
+
+    // The starter components exemplify the design system via token utilities.
+    expect(components).toContain("export function HelloWorldView");
+    expect(components).toContain("hello world");
+    expect(components).toContain("tell baby menu what you would like it to become");
+    expect(components).toContain("text-3xl");
+    expect(components).toContain("text-signal-live");
+    expect(components).toContain("examples");
+    expect(components).toContain("add a widget tracking my weekly claude code quota");
+    expect(components).not.toContain("quick asks");
+    expect(components).not.toContain("className=\"src\"");
     // Migrated off legacy inline token styles.
-    expect(widget).not.toContain("var(--fs-");
+    expect(components).not.toContain("var(--fs-");
   });
 
   it("documents extension authoring separately from core development", async () => {
@@ -47,15 +55,18 @@ describe("extension layout", () => {
     expect(instructions).toContain("use web search to confirm the latest information");
   });
 
-  it("tells extension agents to colocate tests inside the extension directory", async () => {
+  it("tells extension agents not to write tests or documentation", async () => {
     const instructions = await readFile(resolve(import.meta.dirname, "../extensions/AGENTS.md"), "utf8");
 
-    expect(instructions).toContain("Colocate tests inside your extension directory");
-    expect(instructions).toContain("<extension-id>/<name>.test.ts");
-    // The old guidance steered agents into the host repo's tests/ directory, which
-    // dangles and breaks the whole suite once the dev workspace is reset.
-    expect(instructions).not.toContain("Add tests under the repo-level `tests/` directory");
-    expect(instructions).not.toContain("pnpm vitest run tests/<name>.test.ts");
+    // Extensions are verified live in the popover; tests/docs slow iteration
+    // without enough payoff in this workflow.
+    expect(instructions).toContain("Do not write tests or documentation");
+    expect(instructions).toContain("verified live through the Baby Menu UI");
+    expect(instructions).toContain("Do not create `*.test.ts`");
+    expect(instructions).toContain("Do not create `README.md`");
+    // The old guidance told agents to colocate tests; that policy is gone.
+    expect(instructions).not.toContain("Colocate tests inside your extension directory");
+    expect(instructions).not.toContain("Use TDD for behavior changes");
   });
 
   it("exposes runtime widget design guidance to extension agents", async () => {

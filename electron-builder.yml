@@ -23,6 +23,12 @@ extraResources:
 
 asar: true
 
+# The clean-room ACP adapters are spawned as standalone Node processes (via
+# Electron-as-node) and cannot be read from inside app.asar, so keep them
+# unpacked alongside the archive.
+asarUnpack:
+  - out/adapters/**
+
 mac:
   category: public.app-category.developer-tools
   icon: assets/app-icon.icns

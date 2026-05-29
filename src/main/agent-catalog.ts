@@ -11,6 +11,13 @@ export type AgentDefinition = {
   installHint?: string;
   /** When set, registered as an acpx registry override so a custom command launches this agent. */
   launchCommand?: string;
+  /**
+   * Built-in clean-room adapter that wraps this agent's CLI. When set, the host
+   * injects a `launchCommand` pointing at the bundled adapter at runtime (the
+   * path differs dev vs packaged), while availability still probes `command`
+   * (the underlying CLI the adapter drives).
+   */
+  adapter?: "claude" | "codex";
 };
 
 export type AgentOption = {
@@ -25,18 +32,14 @@ export const DEFAULT_AGENTS: readonly AgentDefinition[] = [
     name: "claude",
     label: "Claude Code",
     command: "claude",
+    adapter: "claude",
     installHint: "Install the Claude Code CLI, then restart Baby Menu.",
-  },
-  {
-    name: "pi",
-    label: "Pi",
-    command: "npx",
-    installHint: "Install Node.js (provides npx), then restart Baby Menu.",
   },
   {
     name: "codex",
     label: "Codex",
     command: "codex",
+    adapter: "codex",
     installHint: "Install the Codex CLI, then restart Baby Menu.",
   },
 ];
@@ -48,7 +51,7 @@ type ResolveAgentCatalogOptions = {
   defaults?: readonly AgentDefinition[];
 };
 
-function parseAgentDefinitions(config: unknown): AgentDefinition[] {
+export function parseAgentDefinitions(config: unknown): AgentDefinition[] {
   if (!Array.isArray(config)) return [];
   const definitions: AgentDefinition[] = [];
   for (const entry of config) {
@@ -83,6 +86,33 @@ export function resolveAgentCatalog(options: ResolveAgentCatalogOptions = {}): A
   return order.map((name) => byName.get(name)!);
 }
 
+/**
+ * Injects the bundled adapter launchCommand for every built-in adapter agent.
+ * `resolveAdapterPath("claude")` returns the absolute path to the adapter's
+ * bundled entry; the host resolves it differently in dev vs packaged mode.
+ * `launcher` is the command + leading args that run the adapter as a Node
+ * program (e.g. `["node"]`, or `["env", "ELECTRON_RUN_AS_NODE=1", electronPath]`
+ * to run the bundled Electron as Node without depending on a separate install).
+ * Agents that already carry an explicit `launchCommand` (custom agents) are left
+ * untouched.
+ */
+export function withAdapterLaunchCommands(
+  catalog: readonly AgentDefinition[],
+  resolveAdapterPath: (adapter: "claude" | "codex") => string,
+  launcher: string[] = ["node"],
+): AgentDefinition[] {
+  return catalog.map((agent) => {
+    if (!agent.adapter || agent.launchCommand) return { ...agent };
+    const adapterPath = resolveAdapterPath(agent.adapter);
+    return { ...agent, launchCommand: shellJoin([...launcher, adapterPath]) };
+  });
+}
+
+/** Joins command tokens into a single string, quoting tokens with whitespace. */
+function shellJoin(tokens: string[]): string {
+  return tokens.map((token) => (/\s/.test(token) ? `"${token}"` : token)).join(" ");
+}
+
 export function toAgentOptions(
   catalog: readonly AgentDefinition[],
   commandExists: (command: string) => boolean,
@@ -90,7 +120,9 @@ export function toAgentOptions(
   return catalog.map((agent) => ({
     name: agent.name,
     label: agent.label,
-    available: agent.launchCommand ? true : commandExists(agent.command),
+    // Built-in adapter agents probe the wrapped CLI; a custom agent that only
+    // provides a launchCommand is assumed available (we cannot probe it).
+    available: agent.launchCommand && !agent.adapter ? true : commandExists(agent.command),
     installHint: agent.installHint,
   }));
 }

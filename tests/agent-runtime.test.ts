@@ -69,13 +69,13 @@ describe("agent runtime defaults", () => {
     ).toBe("claude");
   });
 
-  it("uses Pi when Claude is unavailable and npx is available", () => {
+  it("uses Codex when Claude is unavailable", () => {
     expect(
       resolveDefaultAgentName({
         env: {},
         commandExists: available(["codex", "npx"]),
       }),
-    ).toBe("pi");
+    ).toBe("codex");
   });
 
   it("uses Codex when it is the only preferred local agent available", () => {

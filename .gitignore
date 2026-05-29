@@ -39,6 +39,11 @@ lerna-debug.log*
 extensions-dev/
 .temp/
 .tmp/
+
+# Source-mode runtime state (userDataDir is the repo root in dev/source mode).
+preferences.json
+agents.json
+baby-menu.db
 tmp/
 temp/
 

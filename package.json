@@ -14,7 +14,7 @@
     "postinstall": "install-electron",
     "dev": "node scripts/dev.mjs",
     "dev:reset": "node scripts/dev.mjs --reset",
-    "build": "electron-vite build",
+    "build": "electron-vite build && node scripts/build-adapters.mjs",
     "package:mac": "rm -rf release && pnpm build && electron-builder --mac dir --universal --config electron-builder.dev.yml && node scripts/adhoc-sign-mac-app.mjs \"release/mac-universal/Baby Menu Dev.app\"",
     "dist:mac": "pnpm package:mac && node scripts/create-dmg.mjs \"release/mac-universal/Baby Menu Dev.app\"",
     "test": "vitest run tests",
@@ -23,6 +23,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "0.21.1",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-progress": "^1.1.8",
@@ -52,6 +53,7 @@
     "acp-mock": "1.1.0",
     "electron": "42.2.0",
     "electron-builder": "26.8.2",
+    "esbuild": "0.28.0",
     "electron-vite": "5.0.0",
     "jsdom": "29.1.1",
     "vite": "8.0.13",

@@ -48,6 +48,9 @@ export function runDev({
   const rootDir = gitRoot(cwd, execFileSyncFn);
   const devExtensionsDir = resolveDevExtensionsDir(rootDir, env);
   prepareDevExtensions({ rootDir, devExtensionsDir, mkdirSyncFn, copyFileSyncFn, cpSyncFn });
+  // electron-vite dev does not build the standalone ACP adapters, but dev-mode
+  // app-paths resolves adaptersDir to <root>/out/adapters, so build them here.
+  execFileSyncFn("node", ["scripts/build-adapters.mjs"], { cwd: rootDir, stdio: "inherit" });
 
   return commandStatus(
     spawnSyncFn("pnpm", ["exec", "electron-vite", "dev"], {

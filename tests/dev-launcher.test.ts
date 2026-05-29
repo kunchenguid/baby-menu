@@ -86,7 +86,10 @@ describe("dev launcher", () => {
       source: join("/repo", "extensions", "recipes"),
       destination: join("/repo", "extensions-dev", "recipes"),
     });
-    expect(harness.execCalls).toEqual([{ command: "git", args: ["rev-parse", "--show-toplevel"], cwd: "/repo" }]);
+    expect(harness.execCalls).toEqual([
+      { command: "git", args: ["rev-parse", "--show-toplevel"], cwd: "/repo" },
+      { command: "node", args: ["scripts/build-adapters.mjs"], cwd: "/repo" },
+    ]);
     expect(harness.spawnCalls).toEqual([
       {
         command: "pnpm",

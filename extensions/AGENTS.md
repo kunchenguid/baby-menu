@@ -11,9 +11,10 @@ Use lowercase kebab-case ids such as `codex-quota`.
 
 Common files are:
 
-- `widget.tsx` for renderer widget and settings-section surfaces.
+- `widget.tsx` - the entry module that exports the `BabyMenuWidget` descriptor (and any settings section).
+- `components.tsx` - the widget's React components, exporting components only so edits hot reload in place.
 - `server.ts` for privileged server actions and background tasks.
-- Additional local helper files used only by this extension.
+- Additional local helper / data files (for example `store.ts`) used only by this extension.
 - Optional notes that make the extension understandable and shareable.
 
 Packaged Baby Menu compiles extension modules before loading them.
@@ -39,6 +40,14 @@ Export a `RefreshableBabyMenuWidget` or `BabyMenuWidget` from `widget.tsx`.
 Only `RefreshableBabyMenuWidget` may declare `viewRefreshIntervalMs`, and it must also declare `refreshView`.
 Plain `BabyMenuWidget` exports must not declare a view refresh interval.
 Keep the widget renderer-only.
+
+Split each widget so editing the UI preserves React state across hot reloads:
+
+- `components.tsx` exports **only React components** (the views and their sub-components). This is the file you edit while iterating on the UI; Vite Fast Refresh hot-swaps it in place and keeps component state (input text, toggles, the current tab).
+- `store.ts` (or any `.ts` helper) holds everything that is **not** a component: data fetching, the shared store, hooks like `useSomething`, and pure helpers such as tone/format functions.
+- `widget.tsx` imports the view from `components.tsx` plus any helpers (for example `refreshView: () => fetchSample()`) and exports the `BabyMenuWidget` descriptor object.
+
+Why: Fast Refresh only hot-swaps a module whose exports are all React components. A module that also exports a non-component (the widget descriptor object, a helper function, a hook) cannot Fast Refresh and forces a full popover reload, dropping state. So never export a non-component from `components.tsx`, and keep the descriptor object in `widget.tsx`. The packaged widget compiler follows these local imports and compiles the whole module graph, so the split works in both dev and packaged builds.
 Do not read files, spawn commands, use credentials, or perform privileged network work from the renderer.
 Do not store tokens or secrets in renderer or browser storage; Baby Menu disables Chromium keychain-backed storage on macOS.
 
@@ -373,9 +382,16 @@ Choosing the right mechanism is the main performance decision:
   Whenever there is no stored baseline yet - the first call, or just after a reset - write the baseline and report a warming-up state rather than a misleading 0 or 100.
 - Guard long work with an in-flight flag and keep stored history bounded.
 
-## Tests
+## Do not write tests or documentation
 
-Use TDD for behavior changes.
-Colocate tests inside your extension directory as `<extension-id>/<name>.test.ts` (or `.test.tsx`), next to the `widget.tsx` and `server.ts` they cover, and import the code under test with relative paths (`./server`, `./widget`).
-Do not add tests under the repo-level `tests/` directory. That directory belongs to the host app and is not wiped when this extension workspace is reset, so a test left there that imports your extension will dangle and break the entire repo test run once your extension is regenerated or removed.
-Run only your extension's tests with `pnpm vitest run <extension-id>` first, then broaden if needed before finishing.
+Extensions are verified live through the Baby Menu UI, not by an automated suite.
+Do not write test files, and do not write README or other documentation files for an extension.
+In this workflow they slow implementation down far more than they help: the user sees the widget render in the tray popover immediately and gives feedback there, so a passing unit test adds little, and docs go stale as the user iterates on the widget by conversation.
+Spend the effort on making the widget correct and good-looking on the first render instead.
+
+Concretely:
+
+- Do not create `*.test.ts` / `*.test.tsx` files for extensions, and do not run a test runner as part of finishing.
+- Do not create `README.md` or other docs inside an extension directory.
+- Keep code self-explanatory with clear names and short, purposeful comments only where intent is non-obvious - not prose documentation.
+- Verify your work by reasoning through the widget's render output and the server action's return shape, then let the user confirm it live in the popover.

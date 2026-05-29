@@ -15,6 +15,8 @@ export type BabyMenuRuntimePaths = {
   bundledExtensionTemplateDir: string | null;
   trayIconPath: string;
   databasePath: string;
+  /** Directory holding the bundled clean-room ACP adapters (out/adapters/<name>/index.js). */
+  adaptersDir: string;
   isPackaged: boolean;
 };
 
@@ -43,6 +45,8 @@ export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOp
       bundledExtensionTemplateDir: null,
       trayIconPath: join(options.sourceRoot, "assets", "tray", "baby_menuTemplate.png"),
       databasePath: join(cacheDir, "baby-menu.db"),
+      // Dev/source: adapters are esbuild-bundled into the checkout's out/.
+      adaptersDir: join(options.sourceRoot, "out", "adapters"),
       isPackaged: false,
     };
   }
@@ -66,6 +70,9 @@ export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOp
     bundledExtensionTemplateDir: join(options.resourcesPath, "extensions-template"),
     trayIconPath: join(options.resourcesPath, "tray", "baby_menuTemplate.png"),
     databasePath: join(appDataRoot, "baby-menu.db"),
+    // Packaged: adapters are asar-unpacked (a standalone Node process cannot read
+    // inside app.asar), so they live alongside the asar in app.asar.unpacked.
+    adaptersDir: join(options.resourcesPath, "app.asar.unpacked", "out", "adapters"),
     isPackaged: true,
   };
 }

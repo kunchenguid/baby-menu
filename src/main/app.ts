@@ -8,6 +8,7 @@ import {
   loadAgentConfigFile,
   resolveAgentCatalog,
   toAgentOptions,
+  withAdapterLaunchCommands,
 } from "./agent-catalog";
 import { BabyMenuAgentRuntime, commandExists } from "./agent-runtime";
 import { resolveBabyMenuRuntimePaths } from "./app-paths";
@@ -147,7 +148,16 @@ export async function startBabyMenuApp(): Promise<void> {
   const persistedPreferences = await preferences.apply();
 
   const agentConfig = await loadAgentConfigFile(join(paths.appDataRoot, "agents.json"));
-  const agentCatalog = resolveAgentCatalog({ config: agentConfig });
+  // Built-in claude/codex agents are driven by the bundled clean-room ACP
+  // adapters. Run them with the bundled Electron as Node (ELECTRON_RUN_AS_NODE)
+  // so there is no dependency on a separately-installed `node` - the same class
+  // of PATH fragility that made the agent look "unavailable" before.
+  const adapterLauncher = ["env", "ELECTRON_RUN_AS_NODE=1", process.execPath];
+  const agentCatalog = withAdapterLaunchCommands(
+    resolveAgentCatalog({ config: agentConfig }),
+    (adapter) => join(paths.adaptersDir, adapter, "index.mjs"),
+    adapterLauncher,
+  );
   const registryOverrides = agentRegistryOverrides(agentCatalog);
 
   const agentRuntime = new BabyMenuAgentRuntime(paths.appDataRoot, {
