@@ -1,6 +1,6 @@
 {
   "name": "baby-menu",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Menu-bar app that writes its own widgets",
   "author": "Kun Chen",
   "license": "MIT",

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.10](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.9...baby-menu-v0.1.10) (2026-05-29)
+
+
+### Features
+
+* support custom popover layouts ([#40](https://github.com/kunchenguid/baby-menu/issues/40)) ([b9296f6](https://github.com/kunchenguid/baby-menu/commit/b9296f6103b471efdbb638e52b82c2e20f4c8ac6))
+
+
+### Bug Fixes
+
+* **main:** record popover opens as pageviews ([#41](https://github.com/kunchenguid/baby-menu/issues/41)) ([5d4e8f5](https://github.com/kunchenguid/baby-menu/commit/5d4e8f580e3ce3b87443c629ceced7d8cf0b8517))
+
 ## [0.1.9](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.8...baby-menu-v0.1.9) (2026-05-29)
 
 
