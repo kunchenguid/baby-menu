@@ -44,7 +44,7 @@ Three processes, kept deliberately separate:
 
 1. **Main** (`src/main/`) - app lifecycle, tray, popover window, IPC, git, agent runtime. Never call agent or git from the renderer directly.
 2. **Preload** (`src/preload/index.ts`) - the stable bridge. Exposes `window.babyMenu` via `contextBridge`. Do not add one-off preload methods for each widget.
-3. **Renderer** (`src/renderer/`) - React UI: `AgentChat`, `WidgetHost`, `SettingsView`, `UpdateIndicator`, and app-shell controls such as Quit. Widgets and extension settings sections should be hot reloadable and should not require an Electron restart for each new capability. The app shell and extension renderer surfaces share one design system, `@babymenu/ui` (`src/ui/`); see "Design system" below.
+3. **Renderer** (`src/renderer/`) - React UI: `AgentChat`, `WidgetHost`, custom popover layouts, `SettingsView`, `UpdateIndicator`, and app-shell controls such as Quit. Widgets, root `layout.tsx`, and extension settings sections should be hot reloadable and should not require an Electron restart for each new capability. The app shell and extension renderer surfaces share one design system, `@babymenu/ui` (`src/ui/`); see "Design system" below.
 4. **Extension server actions and background tasks** - privileged filesystem, shell, network, credential, token, storage, notification, and background work should live behind extension-owned `server.ts` modules.
    Renderer widgets call these actions with `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
    Server actions live in the active extension workspace under `<extension-id>/server.ts` and export an `actions` object; background tasks export `background` from the same file.
@@ -59,7 +59,7 @@ The extension-facing slice of that contract is a generated public surface, treat
 - `app.ts` - Electron lifecycle, popover window creation, packaged path setup, extension seeding, preferences, selectable-agent catalog wiring, protocols, tray, and IPC. `package.json#main` points here via `out/main/index.js`.
 - `app-paths.ts` - resolves source paths versus packaged `~/.baby-menu` paths.
 - `tray.ts` - macOS tray icon and click handling (`createBabyMenuTray`).
-- `popover.ts` - popover `BrowserWindow` options (`createPopoverOptions`), bounds math (`calculatePopoverBounds`), and renderer URL/file loading (`loadPopoverRenderer`).
+- `popover.ts` - popover `BrowserWindow` options (`createPopoverOptions`), adaptive width/height sizing (`responsivePopoverSize`), bounds math (`calculatePopoverBounds`), and renderer URL/file loading (`loadPopoverRenderer`).
 - `ipc.ts` - registers all `ipcMain` handlers exposed via the preload bridge; the single place new generic IPC routes are added.
 - `agent-catalog.ts` - defines built-in agents, parses custom `agents.json`, computes Settings availability, and builds `acpx` registry overrides.
 - `agent-catalog-controller.ts` - owns the live agent catalog, validates Settings-added custom ACP agents, persists `agents.json`, and pushes refreshed registry overrides into the runtime without requiring an app restart.
@@ -68,10 +68,10 @@ The extension-facing slice of that contract is a generated public surface, treat
 - `git-change-session.ts` - the tracked-source Save/Rollback safety boundary (see below).
 - `dev-extension-change-session.ts` - the snapshot Save/Rollback boundary for gitignored dev and packaged extension workspaces.
 - `extension-seeder.ts` - self-heals the packaged extension workspace from the bundled template on every launch: it force-copies the shipped defaults (`AGENTS.md`, `babymenu-env.d.ts`, `recipes/`, and starter extensions) so a stale or edited managed file is restored, while leaving user-created extensions the template does not ship untouched (it never deletes them). Editing a managed default in `~/.baby-menu/extensions` therefore does not persist; change the source under `extensions/` instead.
-- `extension-module-compiler.ts` - compiles extension widget and server modules for production loading; rewrites the `react` and `@babymenu/ui` imports to host protocol modules and rejects any other external import.
-- `widget-tailwind-css.ts` - compiles a widget's authored Tailwind utilities against the `@babymenu/ui` `@theme` (single source of truth, `src/ui/theme.css`) for packaged loading.
-- `widget-module-registry.ts` - discovers widget modules, returning a renderer `/@fs` URL in dev and, in packaged mode, a compiled `baby-menu-widget://` module URL plus a sibling compiled `cssUrl`.
-- `widget-protocol.ts` - registers custom protocols for compiled widget modules, the per-widget `.css`, and the renderer host shims (`react`, `react/jsx-runtime`, and `@babymenu/ui` re-exported from the host global).
+- `extension-module-compiler.ts` - compiles extension widget, root layout, and server modules for production loading; rewrites the `react` and `@babymenu/ui` imports to host protocol modules and rejects any other external import.
+- `widget-tailwind-css.ts` - compiles widget and layout authored Tailwind utilities against the `@babymenu/ui` `@theme` (single source of truth, `src/ui/theme.css`) for packaged loading.
+- `widget-module-registry.ts` - discovers widget modules and the optional root `layout.tsx`, returning renderer `/@fs` URLs in dev and, in packaged mode, compiled `baby-menu-widget://` module URLs plus sibling compiled `cssUrl` files.
+- `widget-protocol.ts` - registers custom protocols for compiled widget and layout modules, their `.css`, and the renderer host shims (`react`, `react/jsx-runtime`, and `@babymenu/ui` re-exported from the host global).
 - `preferences.ts` - stores app preferences, including the selected agent, under the active app data root and applies login-item settings only when login items are allowed, keeping source/dev mode as a no-op for macOS login items.
 - `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs.
 - `update-checker.ts` - checks the latest GitHub Release at most every 4 hours, compares it to the running app version, opens the release page externally, and simulates an available update in source/dev mode so the header indicator can be exercised.
@@ -88,7 +88,7 @@ The adapters intentionally run lean: they do not inherit user-level agent settin
 
 `src/renderer/` extension loading modules:
 
-- `extension-modules.ts` - shared runtime loader for extension `widget.tsx` modules, including dynamic import and packaged-mode stylesheet injection for widgets and settings sections.
+- `extension-modules.ts` - shared runtime loader for extension `widget.tsx` and root `layout.tsx` modules, including dynamic import and packaged-mode stylesheet injection for widgets, layouts, and settings sections.
 - `settings/settings-sections.ts` - extracts `BabyMenuSettingsSection` exports from loaded extension modules and sorts them by extension id for stable Settings page order.
 
 ### Electron build wiring
@@ -105,7 +105,7 @@ Packaged builds keep `out/adapters/**` in `app.asar.unpacked` because adapter pr
 
 `typescript` is intentionally externalized from the production main bundle because `extension-module-compiler.ts` imports it at runtime to compile packaged extensions.
 Keep `typescript` in runtime dependencies unless that compiler path changes.
-`tailwindcss`, `@tailwindcss/postcss`, and `postcss` are externalized for the same reason: `widget-tailwind-css.ts` runs Tailwind in the main process to compile per-widget CSS in packaged mode.
+`tailwindcss`, `@tailwindcss/postcss`, and `postcss` are externalized for the same reason: `widget-tailwind-css.ts` runs Tailwind in the main process to compile widget and layout CSS in packaged mode.
 Keep them in runtime dependencies, and keep the single pinned `postcss` (`pnpm-workspace.yaml` `overrides`) so the Tailwind plugin and the processor share one version.
 Universal macOS packages must run on both Intel and Apple Silicon Macs, so `pnpm-workspace.yaml` keeps Darwin `x64` and `arm64` native prebuilt dependencies installed, and `electron-builder.yml` `x64ArchFiles` must preserve architecture-specific native package files during the universal merge.
 Keep `electron-builder` at `26.8.2` or newer; older releases can omit transitive dependencies from pnpm-deduped package trees and ship broken app bundles.
@@ -114,10 +114,10 @@ The renderer build adds `@tailwindcss/vite` and aliases `@babymenu/ui` to `src/u
 ### Design system (`@babymenu/ui`)
 
 `src/ui/` is a shadcn-derived component kit (Radix + Tailwind v4) restyled to the Monochrome Lab tokens, shared by the app shell and extension widgets.
-`src/ui/theme.css` is the single `@theme` source of truth: it wipes Tailwind's default palette so only token colors exist, and it is consumed by both the renderer build (`src/ui/styles.css`) and the per-widget compiler (imported `?raw` into the main bundle).
+`src/ui/theme.css` is the single `@theme` source of truth: it wipes Tailwind's default palette so only token colors exist, and it is consumed by both the renderer build (`src/ui/styles.css`) and the per-widget/layout compiler (imported `?raw` into the main bundle).
 Delivery mirrors the React shim exactly: `main.tsx` installs the kit on `window.__BABY_MENU_WIDGET_HOST__.ui`, `widget-protocol.ts` serves `baby-menu-host://ui/index.mjs` as a thin re-export, and the compiler rewrites the bare `@babymenu/ui` specifier to that URL - so Radix, cva, and lucide stay inside the host bundle and never reach the widget import allowlist.
 `src/shared/ui-exports.ts` is the public surface contract (treated like the preload bridge): the barrel, the contract list, and the generated host shim are kept in lockstep by `tests/ui-export-contract.test.ts`, so changing a public export is a deliberate, tested act.
-Extension widgets and settings sections may additionally import only `@babymenu/ui`; they author token-scoped Tailwind utilities, and the per-widget stylesheet is compiled and injected automatically.
+Extension widgets, root layouts, and settings sections may additionally import only `@babymenu/ui`; they author token-scoped Tailwind utilities, and their stylesheet is compiled and injected automatically.
 
 `createPopoverOptions` enforces `frame:false`, `contextIsolation:true`, `nodeIntegration:false`, `skipTaskbar:true`, `alwaysOnTop:true`. Do not relax these without a reason.
 On macOS, `app.ts` appends Chromium's `use-mock-keychain` switch before app readiness, so do not rely on Chromium or renderer storage for keychain-backed secrets.
@@ -142,8 +142,9 @@ Do not write generated extension files, the local extension database, compiled m
 ### Recipes and extensions
 
 - Recipes are HTML files in `recipes/` inside the active extension workspace. `recipe-loader.ts` discovers `*.html`, sorts them, and extracts the title from `<title>` or first `<h1>`. They are intentionally HTML so the embedded agent can read them from its cwd and use embedded interactive demos.
-- Extensions live in the active extension workspace under `<extension-id>/` and may include `widget.tsx`, `server.ts`, and local helper files.
-- Packaged widgets, settings sections, and server actions are compiled into `~/.baby-menu/cache` and loaded through custom protocols or cached modules; dev mode keeps Vite `/@fs` loading for renderer modules.
+- Extensions live in the active extension workspace under `<extension-id>/` and may include `widget.tsx`, `server.ts`, and local helper files; the workspace may also include one root `layout.tsx` that arranges active widgets.
+- Packaged widgets, root layouts, settings sections, and server actions are compiled into `~/.baby-menu/cache` and loaded through custom protocols or cached modules; dev mode keeps Vite `/@fs` loading for renderer modules.
+- Root `layout.tsx` default-exports a `BabyMenuLayout`, receives active widget metadata plus `renderWidget(id)`, owns the popover canvas arrangement, and lets the popover adapt in both width and height.
 - Widgets conform to `BabyMenuWidget` / `RefreshableBabyMenuWidget`. The `WidgetHost` owns visible-widget refresh timing via `useViewRefresh`, using the main-process popover visibility signal - widgets should not start their own polling.
 - Settings sections conform to `BabyMenuSettingsSection`, are exported from `widget.tsx`, and own only the section body; `SettingsView` owns the frame and rediscovers sections when settings refresh or the popover reopens.
 - New widgets and capabilities should be built as self-contained extensions behind the stable `window.babyMenu` bridge.

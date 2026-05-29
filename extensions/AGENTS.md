@@ -32,6 +32,7 @@ Use lowercase kebab-case ids such as `codex-quota`.
 
 Common files are:
 
+- `layout.tsx` - optional root workspace layout component that arranges active widgets and controls the popover canvas size.
 - `widget.tsx` - the entry module that exports the `BabyMenuWidget` descriptor (and any settings section).
 - `components.tsx` - the widget's React components, exporting components only so edits hot reload in place.
 - `server.ts` for privileged server actions and background tasks.
@@ -39,7 +40,7 @@ Common files are:
 - Optional notes that make the extension understandable and shareable.
 
 Packaged Baby Menu compiles extension modules before loading them.
-Keep imports package-safe: widget modules may import `react`, `react/jsx-runtime`, `react/jsx-dev-runtime`, the design system `@babymenu/ui`, and local helper files only.
+Keep imports package-safe: widget and layout modules may import `react`, `react/jsx-runtime`, `react/jsx-dev-runtime`, the design system `@babymenu/ui`, and local helper files only.
 Server modules may import Node built-ins such as `node:fs` plus local helper files only.
 Both may additionally use type-only imports from `@babymenu/contracts` (see "Stay inside this workspace"); type-only imports are erased at compile time and do not count as runtime dependencies.
 Do not add arbitrary npm package imports to extension code unless the host compiler is updated to support them.
@@ -265,11 +266,11 @@ export function ServiceStatusView() {
 
 ### Style with Tailwind tokens
 
-Widgets are styled with Tailwind utility classes, and the per-widget stylesheet is compiled for you - you never configure Tailwind.
+Widgets and `layout.tsx` are styled with Tailwind utility classes, and the per-module stylesheet is compiled for you - you never configure Tailwind.
 Prefer Baby Menu token utilities for color, type, radius, and surfaces so widgets match the host app.
 Default Tailwind palette colors such as `bg-red-500` and `text-blue-300` are unavailable, but arbitrary Tailwind values can still compile.
 Use arbitrary color values only when a widget genuinely needs them, and keep them rare.
-Keep class names statically visible in the widget source so the dev stylesheet and packaged per-widget compiler can discover them.
+Keep class names statically visible in the widget or layout source so the dev stylesheet and packaged compiler can discover them.
 Avoid constructing Tailwind class fragments dynamically; choose complete class strings from a small map instead.
 
 Use these token utilities:

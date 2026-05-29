@@ -115,7 +115,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 
 ```
    ┌─────────────────────┐
-   │  macOS tray popover │   (React renderer, 504px wide)
+   │  macOS tray popover │   (React renderer, adaptive size)
    │ + Menu / Settings   │
    │ + Update indicator  │
    │ + Quit              │
@@ -131,15 +131,15 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
               ▼                               ▼
    ┌─────────────────────┐       ┌──────────────────────┐
    │ active extensions/  │       │   save snapshot or   │
-   │  widget.tsx         │◄──────┤   rollback files     │
-   │  components.tsx     │       │   safely             │
-   │  server.ts          │       │                      │
+   │  layout.tsx         │◄──────┤   rollback files     │
+   │  <id>/widget.tsx    │       │   safely             │
+   │  <id>/server.ts     │       │                      │
    └──────────┬──────────┘       │                      │
               │ hot-reload       └──────────────────────┘
               ▼
    ┌─────────────────────┐
    │     WidgetHost      │
-   │  mounts new widget  │
+   │ mounts layout/widget│
    └─────────────────────┘
 ```
 
@@ -153,6 +153,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 - **Release update indicator** - the main process checks the latest GitHub Release at most every four hours, keeps failures silent, and shows a header indicator with `brew update && brew upgrade --cask baby-menu` only when a newer packaged release exists.
   Source/dev mode simulates an available update so the UI can be exercised locally.
   The released Homebrew Cask relaunches Baby Menu after an upgrade only when the old app was running before uninstall started.
+- **Custom popover layouts** - an extension workspace may include a root `layout.tsx` default export that receives active widgets and `renderWidget(id)`, arranges the popover canvas, and lets the window adapt to both width and height.
+  Workspaces without `layout.tsx` keep the built-in stacked column.
 - **Extension settings sections** - extensions may export `BabyMenuSettingsSection` from `widget.tsx`; the Settings page discovers those renderer-only sections through the same module pipeline as widgets and renders the host-owned frame around each body.
 - **Extension server actions** - privileged work (shell, network, credentials) lives in `<extension-id>/server.ts` and is invoked from widgets and settings sections via `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
   No per-widget IPC channels.
@@ -173,11 +175,12 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | `src/adapters/`             | Bundled clean-room ACP adapters for built-in Claude Code and Codex agents              |
 | `src/main/`                 | Electron lifecycle, tray, popover, IPC, git, agent runtime, update checks              |
 | `src/preload/index.ts`      | The stable `window.babyMenu` bridge                                                    |
-| `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, settings, update indicator, and app controls      |
+| `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, custom layouts, settings, updates, app controls   |
 | `src/ui/`                   | Shared `@babymenu/ui` design system for shell and extension renderer surfaces          |
 | `src/shared/contracts.ts`   | `BabyMenuApi`, `BabyMenuWidget`, `BabyMenuSettingsSection`, `GitSessionSnapshot`, etc. |
 | `src/shared/extension-contract-names.ts` | Public type names exported through `@babymenu/contracts`                  |
 | `extensions/babymenu-env.d.ts` | Generated `@babymenu/contracts` declarations copied into extension workspaces       |
+| `extensions/layout.tsx`     | Optional root popover layout component for arranging active widgets                     |
 | `extensions/<id>/`          | Tracked extensions (`widget.tsx` descriptors, `components.tsx` views, `server.ts`)      |
 | `extensions/recipes/*.html` | Self-contained widget specs the agent reads                                            |
 | `extensions-dev/`           | Gitignored dev workspace prepared by `scripts/dev.mjs`                                 |

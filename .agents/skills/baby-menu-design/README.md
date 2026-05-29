@@ -12,7 +12,7 @@ Baby Menu is a tray-popover OS-level utility built around a single moving surfac
 
 When the user sends a request, the composer momentarily becomes a `RunStrip`: a single live affordance with a pulsing mint dot, the agent's current step, and an elapsed timer. **No log, no step history.** When the agent finishes, a `SessionBar` slides in with a plain-language summary of what was added (`Added a CPU temperature widget`) and two buttons: **Keep** and **Undo**. The user never sees commit SHAs, file counts, or the word "git" — those are infrastructure they shouldn't have to think about.
 
-The popover surface is dynamic-height.
+The popover surface is adaptive: 504px wide by default, wider when a root `layout.tsx` owns a custom canvas, and dynamic-height within the host limits.
 On the main menu, the composer is pinned to the bottom; everything above it stacks and grows.
 The header keeps compact update, settings, and quit controls together; the update control appears only when a newer release is available, while quit stays neutral at rest and shifts to danger coral only on hover.
 Settings replaces the menu body and composer, and includes both the `open at login` preference and the embedded-agent picker.
@@ -206,7 +206,7 @@ Easings: `--ease` `cubic-bezier(0.22, 0.61, 0.36, 1)` for entry; `--ease-in-out`
 
 ### Layout rules
 
-- Width is fixed at **504px** in the live popover. Do not design responsive popover widths unless the runtime sizing code changes.
+- Width is **504px by default** in the live popover. A custom root `layout.tsx` may set a wider explicit canvas, and the host resizes the popover to fit within the screen.
 - **Height is auto.** The popover grows to fit. Plan layouts for any height between 220px and 720px. Once the popover reaches its max height, the popover body scrolls; the header and active agent-control surface stay pinned.
 - The **composer** is pinned to the bottom on the main menu and idle agent surface; it is hidden while the settings view is open and replaced by the RunStrip while an agent run is in flight.
 - The **SessionBar** is pinned just above the composer **only when** the agent has just added or undone something and is waiting for the user to decide.
@@ -215,7 +215,9 @@ Easings: `--ease` `cubic-bezier(0.22, 0.61, 0.36, 1)` for entry; `--ease-in-out`
 
 ### Card anatomy (widget)
 
-A widget is a vertical stack inside the popover body, separated from its neighbors by a `1px dashed` divider — *not* a contained card. Top to bottom:
+A default-layout widget is a vertical stack inside the popover body, separated from its neighbors by a `1px dashed` divider - *not* a contained card.
+A custom root `layout.tsx` may arrange widgets in another canvas, but each widget body should still avoid card-like containment.
+Top to bottom:
 
 1. **Head row** — tracked-caps `key` (e.g. `CLAUDE · WEEKLY`) on the left. The host does not render a generic manual refresh button.
 2. **Value row** — the big number (weight 300, 28–36px, tabular numerals, tight tracking) with the unit at small. Optional status word on the right.
