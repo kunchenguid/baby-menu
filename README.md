@@ -57,6 +57,9 @@ Switching agents resets the current conversation after confirmation.
 
 The packaged app stores mutable extensions, the local extension database, caches, agent sessions, custom agent catalog, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets and extension state.
 On launch, packaged Baby Menu refreshes bundled default extension files such as `AGENTS.md`, `babymenu-env.d.ts`, recipes, and starter extensions from the app template while preserving user-created extension directories.
+Packaged release builds send anonymous, best-effort usage telemetry to a self-hosted Umami instance.
+Telemetry records app startup, popover opens, agent turn outcomes, and agent switches; it does not include a user or device id, prompts, file contents, generated code, extension data, or local paths, and network failures are ignored.
+Set `BABY_MENU_TELEMETRY=0` in the launch environment to opt out.
 Baby Menu detects supported agents from the catalog in order: Claude Code (`claude`), then Codex (`codex`).
 Those built-ins run through bundled clean-room ACP adapters that drive the authenticated local CLIs without inheriting user-level agent settings, skills, MCP servers, or extra rules.
 Use Settings to persist an agent choice across launches.
@@ -151,6 +154,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 - **Runtime-specific extension roots** - `pnpm dev` edits gitignored `extensions-dev/`; packaged builds seed and edit `~/.baby-menu/extensions` with internal snapshot save/rollback.
   Tracked `extensions/` remain the source templates for dev and packaged extension workspaces, including the generated `@babymenu/contracts` declaration in `extensions/babymenu-env.d.ts`.
 - **Stable extension contracts** - extension code imports public host types with type-only `import ... from "@babymenu/contracts"`; the generated declaration is shipped into each extension workspace so extensions never need to reach back into `src/shared/contracts.ts`.
+- **Anonymous telemetry** - packaged release builds fire one best-effort Umami event for app start, popover open, agent turn status (`success`, `error`, `timeout`, or `blocked_dirty`), and agent switching.
+  Built-in agent names are reported as `claude` or `codex`; custom agent names are reported only as `custom`.
 
 ## Layout
 
@@ -181,6 +186,9 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | `BABY_MENU_AGENT=<name>`          | Overrides agent auto-detection when no saved Settings choice exists                                                                                                                                               |
 | `BABY_MENU_AGENT_TIMEOUT_MS=<ms>` | Overrides the embedded-agent request timeout                                                                                                                                                                      |
 | `BABY_MENU_EXTENSIONS_DIR=<dir>`  | Overrides the active extension workspace in source/dev runs. Dev Tailwind scans only `extensions/` and `extensions-dev/`, so overrides outside those paths need matching `@source` coverage for widget utilities. |
+| `BABY_MENU_TELEMETRY=0`           | Disables packaged-release telemetry; `false` and `off` are also accepted                                                                                                                                          |
+| `BABY_MENU_UMAMI_HOST=<url>`      | Overrides the self-hosted Umami endpoint used by telemetry. Source/dev/test builds are no-op unless a website id is also configured.                                                                               |
+| `BABY_MENU_UMAMI_WEBSITE_ID=<id>` | Overrides or supplies the Umami website id used by telemetry. The release workflow reads this from the GitHub Actions `vars.*` context, not a secret.                                                             |
 
 ## Development
 
