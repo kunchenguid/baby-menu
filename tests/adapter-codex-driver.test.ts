@@ -44,6 +44,23 @@ describe("CodexDriver (against a fake codex CLI)", () => {
     });
   });
 
+  it("does not pass --color to `exec resume` (codex rejects it with exit 2)", async () => {
+    // Regression: the resume subcommand in codex-cli 0.130.0 does not accept
+    // --color, so reusing the first-turn flag list on resume failed every
+    // follow-up turn with "codex exec exited with code 2". The fake CLI exits 2
+    // if it sees --color on a resume, mirroring real codex.
+    const d = makeDriver();
+    await d.start(tmpdir());
+    const s = new AbortController().signal;
+    await d.prompt("first", () => {}, s);
+    const updates: schema.SessionUpdate[] = [];
+    const stop = await d.prompt("second", (u) => updates.push(u), s);
+    expect(stop).toBe("end_turn");
+    expect(updates.find((u) => u.sessionUpdate === "agent_message_chunk")).toMatchObject({
+      content: { type: "text", text: "resumed:second" },
+    });
+  });
+
   it("surfaces a command tool_call and tool_call_update", async () => {
     const d = makeDriver();
     await d.start(tmpdir());

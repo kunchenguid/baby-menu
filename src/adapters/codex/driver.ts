@@ -57,12 +57,13 @@ export class CodexDriver implements SessionDriver {
       // context comes from the cwd (the workspace) and its AGENTS.md.
       "--ignore-user-config",
       "--ignore-rules",
-      "--color",
-      "never",
     ];
+    // `--color` is valid on `codex exec` but the `resume` subcommand rejects it
+    // (clap exits 2), so it stays off the resume path. Output is `--json`
+    // anyway, so this only suppresses any incidental coloring on the first turn.
     const args = this.threadId
       ? ["exec", "resume", this.threadId, ...common, text]
-      : ["exec", ...common, text];
+      : ["exec", ...common, "--color", "never", text];
 
     logDebug(SCOPE, "spawn", this.command, args.slice(0, -1).join(" "), "<prompt>");
     // codex exec takes the prompt as an arg and ignores stdin, but we pipe all

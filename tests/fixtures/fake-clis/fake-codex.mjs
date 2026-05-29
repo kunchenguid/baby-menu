@@ -10,6 +10,14 @@ const isResume = argv[0] === "exec" && argv[1] === "resume";
 // The prompt is the final positional arg.
 const prompt = argv[argv.length - 1] ?? "";
 
+// Mirror real codex-cli 0.130.0: `--color` is valid on `codex exec` but the
+// `resume` subcommand rejects it with a clap usage error (exit code 2). The
+// driver must not pass `--color` to resume.
+if (isResume && argv.includes("--color")) {
+  process.stderr.write("error: unexpected argument '--color' found\n");
+  process.exit(2);
+}
+
 if (prompt.includes("SLOW_CANCEL")) {
   emit({ type: "thread.started", thread_id: "fake-thread" });
   emit({ type: "turn.started" });
