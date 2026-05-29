@@ -49,7 +49,8 @@ Use Keep to keep it, or Undo to throw it away.
 Extensions can keep local state in Baby Menu's shared SQLite store, contribute settings sections, and register background tasks for work that must continue while the popover is closed.
 The packaged app opens at login by default.
 Use the popover header to open settings or fully quit the app.
-Settings lets you turn `launch at system start` off or back on, choose the embedded agent, and see unavailable agents with install hints.
+Settings opens as an overlay so the menu, widgets, and composer keep their state while you configure the app.
+It lets you turn `launch at system start` off or back on, choose the embedded agent, add/edit/remove custom ACP agents, and see unavailable built-in agents with install hints.
 Switching agents resets the current conversation after confirmation.
 
 ## Install Details
@@ -59,7 +60,7 @@ Baby Menu detects supported agents from the catalog in order: Claude Code (`clau
 Those built-ins run through bundled clean-room ACP adapters that drive the authenticated local CLIs without inheriting user-level agent settings, skills, MCP servers, or extra rules.
 Use Settings to persist an agent choice across launches.
 Set `BABY_MENU_AGENT=<name>` in the launch environment to override auto-detection before a preference is saved.
-Add `~/.baby-menu/agents.json` to override or append catalog entries; source mode reads `agents.json` from the repo root.
+Add `~/.baby-menu/agents.json` to override or append catalog entries manually; source mode reads `agents.json` from the repo root.
 Each entry is an object with `name`, optional `label`, optional `command`, optional `installHint`, and optional `launchCommand`.
 Agents with `launchCommand` are registered as custom [`acpx`](https://github.com/openclaw/acpx) overrides and are shown as available.
 
@@ -77,7 +78,8 @@ The underlying CLI must be installed and authenticated.
 ]
 ```
 
-You can also add, edit, and remove custom agents directly from Settings; changes apply immediately and are saved to the same `agents.json`.
+You can also add, edit, and remove custom agents directly from Settings by entering an id, optional label, and ACP launch command.
+Settings-added agents are saved to the same `agents.json`, apply immediately, and are editable/removable; built-in Claude Code and Codex entries remain read-only.
 
 Update with Homebrew:
 
@@ -136,6 +138,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 - **Recipes are specs, not prompts** - HTML files under `extensions/recipes/` describe a widget's capability, data sources, fallback behavior, and acceptance criteria.
   The agent reads the matching recipe before implementing.
 - **Bundled ACP adapters** - the built-in Claude Code and Codex entries launch `out/adapters/<name>/index.mjs`, which wraps the local authenticated CLI and keeps Baby Menu's embedded agent isolated from user-level agent configuration.
+- **Live custom agent catalog** - Settings-owned custom ACP agents are persisted to `agents.json`, registered as `acpx` overrides immediately, and kept separate from read-only built-ins.
+- **Settings overlay** - Settings covers the default menu without unmounting it, so chat composer, widget, and run state survive opening and closing Settings.
 - **Extension settings sections** - extensions may export `BabyMenuSettingsSection` from `widget.tsx`; the Settings page discovers those renderer-only sections through the same module pipeline as widgets and renders the host-owned frame around each body.
 - **Extension server actions** - privileged work (shell, network, credentials) lives in `<extension-id>/server.ts` and is invoked from widgets and settings sections via `window.babyMenu.capabilities.invoke(extensionId, action, input)`.
   No per-widget IPC channels.
