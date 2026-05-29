@@ -51,7 +51,7 @@ describe("extension module compiler", () => {
     await mkdir(extensionDir, { recursive: true });
     await writeFile(
       entryFile,
-      `import type { RefreshableBabyMenuWidget } from "../../src/shared/contracts";
+      `import type { RefreshableBabyMenuWidget } from "@babymenu/contracts";
       export const widget: RefreshableBabyMenuWidget = { id: "starter", title: "Starter", render: () => "ok", refreshView: async () => undefined };`,
     );
 
@@ -63,7 +63,9 @@ describe("extension module compiler", () => {
       cacheRoot: join(rootDir, "cache", "widgets"),
     });
 
-    await expect(readFile(compiled.outputPath, "utf8")).resolves.not.toContain("../../src/shared/contracts");
+    // The stable contract specifier is type-only, so it is erased at compile time
+    // and never reaches the runtime import allowlist.
+    await expect(readFile(compiled.outputPath, "utf8")).resolves.not.toContain("@babymenu/contracts");
   });
 
   it("reuses cached output for unchanged extension modules", async () => {

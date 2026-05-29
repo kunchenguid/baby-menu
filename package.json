@@ -15,6 +15,7 @@
     "dev": "node scripts/dev.mjs",
     "dev:reset": "node scripts/dev.mjs --reset",
     "build": "electron-vite build && node scripts/build-adapters.mjs",
+    "generate:contracts": "node scripts/generate-extension-dts.mjs",
     "package:mac": "rm -rf release && pnpm build && electron-builder --mac dir --universal --config electron-builder.dev.yml && node scripts/adhoc-sign-mac-app.mjs \"release/mac-universal/Baby Menu Dev.app\"",
     "dist:mac": "pnpm package:mac && node scripts/create-dmg.mjs \"release/mac-universal/Baby Menu Dev.app\"",
     "test": "vitest run tests",

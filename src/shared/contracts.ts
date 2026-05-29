@@ -245,6 +245,38 @@ export type BabyMenuApi = {
   };
 };
 
+// The slice of the window.babyMenu bridge that extension widgets are meant to
+// use: invoking server actions, reading the shared store, reacting to background
+// runs, and the popover visibility signal. Host-only surfaces (git, agent,
+// settings, app, recipes, widgets) are deliberately excluded. This is the value
+// side of the `@babymenu/contracts` public surface; see extensions/babymenu-env.d.ts.
+//
+// Written out explicitly (not Pick<BabyMenuApi, ...>) so the codegen in
+// scripts/generate-extension-dts.mjs can copy it verbatim into the shipped
+// declaration file. A type test in tests/extension-contract-surface.test.ts
+// asserts it stays structurally equal to the matching BabyMenuApi members, so
+// the explicit copy and BabyMenuApi cannot silently drift apart.
+export type BabyMenuExtensionApi = {
+  capabilities: {
+    list: () => Promise<BabyMenuCapabilityDescriptor[]>;
+    invoke: <T = unknown>(extensionId: string, action: string, input?: unknown) => Promise<T>;
+  };
+  db: {
+    query: <T = Record<string, unknown>>(sql: string, params?: SqlParams) => Promise<T[]>;
+    get: <T = Record<string, unknown>>(sql: string, params?: SqlParams) => Promise<T | undefined>;
+    run: (sql: string, params?: SqlParams) => Promise<SqlRunResult>;
+    exec: (sql: string) => Promise<void>;
+  };
+  background: {
+    onUpdate: (listener: (event: BackgroundTaskUpdate) => void) => () => void;
+  };
+  popover: {
+    setContentHeight: (height: number) => Promise<{ ok: boolean }>;
+    getVisibility: () => Promise<PopoverVisibilityState>;
+    onVisibility: (listener: (state: PopoverVisibilityState) => void) => () => void;
+  };
+};
+
 declare global {
   interface Window {
     babyMenu?: BabyMenuApi;

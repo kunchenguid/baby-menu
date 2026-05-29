@@ -1,4 +1,4 @@
-import type { RefreshableBabyMenuWidget } from "../../src/shared/contracts";
+import type { RefreshableBabyMenuWidget } from "@babymenu/contracts";
 import { HelloWorldView } from "./components";
 
 // The widget descriptor is a plain object (not a React component), so editing

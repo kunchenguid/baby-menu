@@ -5,9 +5,10 @@ Embedded agents launched from baby-menu should work from the active extension wo
 
 ## Commands
 
-- `pnpm dev` - runs `scripts/dev.mjs`, prepares a gitignored `extensions-dev/` workspace by copying `extensions/AGENTS.md` and `extensions/recipes/`, builds bundled ACP adapters into `out/adapters/`, and runs `electron-vite dev` from the current checkout. The app itself sees current uncommitted changes, while the embedded agent is launched inside `extensions-dev/`.
-- `pnpm dev:reset` - removes `extensions-dev/` and `.cache/baby-menu/acp-sessions`, recreates the dev workspace with the latest `extensions/AGENTS.md` and `extensions/recipes/`, and starts dev mode.
+- `pnpm dev` - runs `scripts/dev.mjs`, prepares a gitignored `extensions-dev/` workspace by copying `extensions/AGENTS.md`, `extensions/babymenu-env.d.ts`, and `extensions/recipes/`, builds bundled ACP adapters into `out/adapters/`, and runs `electron-vite dev` from the current checkout. The app itself sees current uncommitted changes, while the embedded agent is launched inside `extensions-dev/`.
+- `pnpm dev:reset` - removes `extensions-dev/` and `.cache/baby-menu/acp-sessions`, recreates the dev workspace with the latest `extensions/AGENTS.md`, `extensions/babymenu-env.d.ts`, and `extensions/recipes/`, and starts dev mode.
 - `pnpm build` - build main, preload, renderer, and bundled ACP adapter bundles into `out/`.
+- `pnpm generate:contracts` - regenerates `extensions/babymenu-env.d.ts` (the `@babymenu/contracts` surface) from `src/shared/contracts.ts`. Run after changing any extension-facing type or `src/shared/extension-contract-names.ts`, then commit the result; CI fails on a stale file.
 - `pnpm package:mac` - cleans `release/`, builds the app, packages `release/mac-universal/Baby Menu Dev.app`, and ad-hoc signs it for local testing. Local/dev packaging uses `electron-builder.dev.yml`, which overrides `appId` to `com.kunchenguid.baby-menu.dev` and `productName` to `Baby Menu Dev` so locally-built bundles never collide with the released app (`com.kunchenguid.baby-menu`) in macOS LaunchServices. The CI release workflow builds from `electron-builder.yml` directly and keeps the production identity.
 - `pnpm dist:mac` - runs `package:mac` and creates `release/Baby-Menu-<version>-universal.dmg` from the dev bundle.
 - `pnpm test` - run all Vitest tests.
@@ -50,6 +51,8 @@ Three processes, kept deliberately separate:
 
 Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`, `BabyMenuSettingsSection`, `GitSessionSnapshot`, etc. The `Window.babyMenu` global is declared here.
 
+The extension-facing slice of that contract is a generated public surface, treated like the preload bridge and `@babymenu/ui` (see "Design system"). Extensions cannot see `src/shared/contracts.ts` (it lives inside the app bundle, not in the extension workspace), so the host ships those types into the workspace as the `@babymenu/contracts` virtual module, declared in `extensions/babymenu-env.d.ts`. That `.d.ts` is generated from `contracts.ts` by `scripts/generate-extension-dts.mjs` (run `pnpm generate:contracts`); the selected names live in `src/shared/extension-contract-names.ts`, and `BabyMenuExtensionApi` is the window-bridge subset extensions may use. Do not hand-edit `extensions/babymenu-env.d.ts`. After changing any extension-facing type in `contracts.ts`, or the name list, regenerate and commit the result - `tests/extension-contract-surface.test.ts` and the `ci.yml` "Verify generated contract types are up to date" step both fail on a stale file. Extensions import these types with a type-only `import ... from "@babymenu/contracts"`, which the compiler erases and never validates against the runtime import allowlist; importing a value from that specifier is rejected. The committed `babymenu-env.d.ts` is intentionally tracked (not release-only) because typecheck, `pnpm dev`, and packaging all read it. Never tell an extension or its agent to reach back into `../../src/shared/contracts`; that relative path resolves in source mode but does not exist in a packaged install, and chasing it is what previously sent the embedded agent scanning protected home-directory folders.
+
 `src/main/` module index:
 
 - `app.ts` - Electron lifecycle, popover window creation, packaged path setup, extension seeding, preferences, selectable-agent catalog wiring, protocols, tray, and IPC. `package.json#main` points here via `out/main/index.js`.
@@ -63,7 +66,7 @@ Shared types live in `src/shared/contracts.ts` - `BabyMenuApi`, `BabyMenuWidget`
 - `agent-turn-log.ts` - structured per-turn transcript log used by the renderer and tests.
 - `git-change-session.ts` - the tracked-source Save/Rollback safety boundary (see below).
 - `dev-extension-change-session.ts` - the snapshot Save/Rollback boundary for gitignored dev and packaged extension workspaces.
-- `extension-seeder.ts` - seeds bundled extension templates into the packaged extension workspace.
+- `extension-seeder.ts` - self-heals the packaged extension workspace from the bundled template on every launch: it force-copies the shipped defaults (`AGENTS.md`, `babymenu-env.d.ts`, `recipes/`, and starter extensions) so a stale or edited managed file is restored, while leaving user-created extensions the template does not ship untouched (it never deletes them). Editing a managed default in `~/.baby-menu/extensions` therefore does not persist; change the source under `extensions/` instead.
 - `extension-module-compiler.ts` - compiles extension widget and server modules for production loading; rewrites the `react` and `@babymenu/ui` imports to host protocol modules and rejects any other external import.
 - `widget-tailwind-css.ts` - compiles a widget's authored Tailwind utilities against the `@babymenu/ui` `@theme` (single source of truth, `src/ui/theme.css`) for packaged loading.
 - `widget-module-registry.ts` - discovers widget modules, returning a renderer `/@fs` URL in dev and, in packaged mode, a compiled `baby-menu-widget://` module URL plus a sibling compiled `cssUrl`.

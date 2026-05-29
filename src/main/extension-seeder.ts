@@ -10,7 +10,12 @@ export async function seedExtensionWorkspace(options: SeedExtensionWorkspaceOpti
   if (!(await pathExists(options.templateDir))) return false;
 
   await mkdir(options.extensionsDir, { recursive: true });
-  await cp(options.templateDir, options.extensionsDir, { recursive: true, force: false, errorOnExist: false });
+  // Self-heal the bundled defaults: every file the template ships (AGENTS.md,
+  // recipes, starter extensions) is force-copied so a stale or edited managed
+  // file is restored on launch. cp only writes paths present in the template,
+  // so user-created extensions the template does not ship are left untouched
+  // and are never deleted.
+  await cp(options.templateDir, options.extensionsDir, { recursive: true, force: true });
   return true;
 }
 

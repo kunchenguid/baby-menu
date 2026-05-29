@@ -31,6 +31,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify generated contract types are up to date
+        run: |
+          set -eu
+          pnpm generate:contracts
+          if ! git diff --quiet -- extensions/babymenu-env.d.ts; then
+            {
+              echo "::error file=extensions/babymenu-env.d.ts::Generated contract types are out of date."
+              echo "extensions/babymenu-env.d.ts no longer matches src/shared/contracts.ts."
+              echo "Run 'pnpm generate:contracts' locally and commit the result."
+              echo
+              git --no-pager diff -- extensions/babymenu-env.d.ts
+            } >&2
+            exit 1
+          fi
+          echo "Generated contract types are up to date."
+
       - name: Typecheck
         run: pnpm typecheck
 

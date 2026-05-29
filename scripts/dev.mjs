@@ -29,6 +29,7 @@ function resolveDevExtensionsDir(rootDir, env) {
 function prepareDevExtensions({ rootDir, devExtensionsDir, mkdirSyncFn, copyFileSyncFn, cpSyncFn }) {
   mkdirSyncFn(devExtensionsDir, { recursive: true });
   copyFileSyncFn(join(rootDir, "extensions", "AGENTS.md"), join(devExtensionsDir, "AGENTS.md"));
+  copyFileSyncFn(join(rootDir, "extensions", "babymenu-env.d.ts"), join(devExtensionsDir, "babymenu-env.d.ts"));
   cpSyncFn(join(rootDir, "extensions", "recipes"), join(devExtensionsDir, "recipes"), { recursive: true });
 }
 

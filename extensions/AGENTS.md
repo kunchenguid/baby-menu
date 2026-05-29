@@ -4,6 +4,27 @@ This directory is for self-contained baby-menu extensions.
 An embedded agent launched from baby-menu should prefer editing files here instead of changing Electron core infrastructure.
 Do not modify files outside this directory unless the user explicitly asks.
 
+## Stay inside this workspace
+
+This extension workspace is your working directory, and you should keep every read, search, and edit inside it.
+Do not `cd` above this workspace, and do not run recursive `find`, `grep -r`, `rg`, or `ls -R` against your home directory, `/Users/<you>`, or any parent path.
+On macOS those parent paths include the protected `Documents`, `Downloads`, `Desktop`, `Music`, `Movies`, and `Pictures` folders, and traversing them makes the operating system pop a permission prompt for each one - a slow, alarming experience for the user that a widget task never needs.
+If a search returns nothing inside this workspace, stop and rely on the contracts documented below rather than widening the search outward.
+
+The Baby Menu host source is not present in this workspace.
+Files such as `src/shared/contracts` and the `@babymenu/ui` source live inside the installed app bundle, not on disk next to your extensions, so there is nothing to find by searching for them.
+Do not go hunting for them, and never import host-only paths like `../../src/shared/contracts` - that path does not exist in a packaged install and is exactly what sends a search outward.
+
+Instead, import the contract types from the stable `@babymenu/contracts` specifier:
+
+```tsx
+import type { RefreshableBabyMenuWidget, BabyMenuServerContext } from "@babymenu/contracts";
+```
+
+The full set of available types is declared in `babymenu-env.d.ts` at the root of this workspace - read that file when you need the exact shape of a widget descriptor, settings section, server `context`, `db`, background task, or the `window.babyMenu` bridge (`BabyMenuExtensionApi`).
+These are type-only imports, so the host erases them at compile time; they are always allowed and add no runtime dependency.
+Do not import a *value* from `@babymenu/contracts` - it carries types only.
+
 ## Extension Shape
 
 Each extension should live in its own directory under `<extension-id>/` inside this extension workspace.
@@ -20,6 +41,7 @@ Common files are:
 Packaged Baby Menu compiles extension modules before loading them.
 Keep imports package-safe: widget modules may import `react`, `react/jsx-runtime`, `react/jsx-dev-runtime`, the design system `@babymenu/ui`, and local helper files only.
 Server modules may import Node built-ins such as `node:fs` plus local helper files only.
+Both may additionally use type-only imports from `@babymenu/contracts` (see "Stay inside this workspace"); type-only imports are erased at compile time and do not count as runtime dependencies.
 Do not add arbitrary npm package imports to extension code unless the host compiler is updated to support them.
 
 When you need current details about a dependency, CLI, local credential layout, or an external API a widget talks to - package versions, command flags, endpoints, request headers, or response shapes - use web search to confirm the latest information before relying on it. APIs and tools change; do not guess field names, versions, or endpoints from memory when a quick search can verify them.

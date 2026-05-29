@@ -82,6 +82,10 @@ describe("dev launcher", () => {
       source: join("/repo", "extensions", "AGENTS.md"),
       destination: join("/repo", "extensions-dev", "AGENTS.md"),
     });
+    expect(harness.copiedFiles).toContainEqual({
+      source: join("/repo", "extensions", "babymenu-env.d.ts"),
+      destination: join("/repo", "extensions-dev", "babymenu-env.d.ts"),
+    });
     expect(harness.copiedDirectories).toContainEqual({
       source: join("/repo", "extensions", "recipes"),
       destination: join("/repo", "extensions-dev", "recipes"),

@@ -54,7 +54,7 @@ describe("Baby Menu runtime paths", () => {
     });
   });
 
-  it("seeds missing packaged extension templates without overwriting user files", async () => {
+  it("refreshes bundled template files while preserving user-created extensions", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-seed-"));
     tempDirs.push(rootDir);
     const templateDir = join(rootDir, "Resources", "extensions-template");
@@ -70,17 +70,30 @@ describe("Baby Menu runtime paths", () => {
     expect(seeded).toBe(true);
     await expect(readFile(join(extensionsDir, "AGENTS.md"), "utf8")).resolves.toBe("template rules\n");
 
-    await writeFile(join(extensionsDir, "AGENTS.md"), "user rules\n");
+    // The user (via the embedded agent) creates their own extension and edits a
+    // managed default file. The template also gains a new recipe and the
+    // managed files change between launches.
+    await mkdir(join(extensionsDir, "system-usage"), { recursive: true });
+    await writeFile(join(extensionsDir, "system-usage", "widget.tsx"), "export const systemUsageWidget = {};\n");
+    await writeFile(join(extensionsDir, "AGENTS.md"), "user edited rules\n");
+    await writeFile(join(templateDir, "AGENTS.md"), "template rules v2\n");
     await mkdir(join(templateDir, "goodbye-world"), { recursive: true });
     await writeFile(join(templateDir, "recipes", "new.html"), "<title>New</title>\n");
     await writeFile(join(templateDir, "goodbye-world", "widget.tsx"), "export const goodbyeWorldWidget = {};\n");
+
     const reseeded = await seedExtensionWorkspace({ extensionsDir, templateDir });
 
     expect(reseeded).toBe(true);
-    await expect(readFile(join(extensionsDir, "AGENTS.md"), "utf8")).resolves.toBe("user rules\n");
+    // Managed default files self-heal back to the bundled template, even if edited.
+    await expect(readFile(join(extensionsDir, "AGENTS.md"), "utf8")).resolves.toBe("template rules v2\n");
+    // New bundled defaults are added.
     await expect(readFile(join(extensionsDir, "recipes", "new.html"), "utf8")).resolves.toBe("<title>New</title>\n");
     await expect(readFile(join(extensionsDir, "goodbye-world", "widget.tsx"), "utf8")).resolves.toBe(
       "export const goodbyeWorldWidget = {};\n",
+    );
+    // User-created extensions the template does not ship are left untouched.
+    await expect(readFile(join(extensionsDir, "system-usage", "widget.tsx"), "utf8")).resolves.toBe(
+      "export const systemUsageWidget = {};\n",
     );
   });
 });
