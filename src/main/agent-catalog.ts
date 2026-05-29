@@ -80,7 +80,7 @@ export function resolveAgentCatalog(options: ResolveAgentCatalogOptions = {}): A
   for (const definition of parseAgentDefinitions(options.config)) {
     const existing = byName.get(definition.name);
     if (!existing) order.push(definition.name);
-    byName.set(definition.name, existing ? { ...existing, ...definition } : definition);
+    byName.set(definition.name, existing ? { ...existing, ...definition, adapter: definition.launchCommand ? undefined : existing.adapter } : definition);
   }
 
   return order.map((name) => byName.get(name)!);
@@ -120,7 +120,7 @@ export function toAgentOptions(
   return catalog.map((agent) => ({
     name: agent.name,
     label: agent.label,
-    available: agent.launchCommand ? true : commandExists(agent.command),
+    available: agent.launchCommand && !agent.adapter ? true : commandExists(agent.command),
     installHint: agent.installHint,
   }));
 }

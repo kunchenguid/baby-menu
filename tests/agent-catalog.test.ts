@@ -78,6 +78,13 @@ describe("agent-catalog", () => {
     expect(options.find((option) => option.name === "claude")?.available).toBe(true);
   });
 
+  it("keeps probing wrapped CLIs for adapter-wired built-ins", () => {
+    const wired = withAdapterLaunchCommands(DEFAULT_AGENTS, (a) => `/o/${a}.js`, ["node"]);
+    const options = toAgentOptions(wired, (command) => command === "claude");
+    const byName = Object.fromEntries(options.map((o) => [o.name, o.available]));
+    expect(byName).toEqual({ claude: true, codex: false });
+  });
+
   it("builds registry overrides from launchCommand (adapter-wired and custom)", () => {
     const wired = withAdapterLaunchCommands(DEFAULT_AGENTS, (a) => `/o/${a}.js`, ["node"]);
     const overrides = agentRegistryOverrides([...wired, { name: "custom", label: "Custom", command: "c", launchCommand: "node custom.js" }]);
