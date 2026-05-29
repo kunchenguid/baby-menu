@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/renderer/App";
 import { SettingsView } from "../src/renderer/settings/SettingsView";
-import type { BabyMenuApi, BabyMenuSettings, PopoverVisibilityState } from "../src/shared/contracts";
+import type { BabyMenuApi, BabyMenuCustomAgentInput, BabyMenuSettings, PopoverVisibilityState } from "../src/shared/contracts";
 
 function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
   const base: BabyMenuSettings = {
@@ -41,6 +41,29 @@ function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
         current = { ...current, agentName };
         return current;
       }),
+      addAgent: vi.fn(async (input: BabyMenuCustomAgentInput) => {
+        current = {
+          ...current,
+          agents: [
+            ...current.agents,
+            { name: input.name, label: input.label ?? input.name, available: true, custom: true, command: input.command },
+          ],
+        };
+        return current;
+      }),
+      updateAgent: vi.fn(async (name: string, input: { label?: string; command: string }) => {
+        current = {
+          ...current,
+          agents: current.agents.map((agent) =>
+            agent.name === name ? { ...agent, label: input.label ?? agent.label, command: input.command } : agent,
+          ),
+        };
+        return current;
+      }),
+      removeAgent: vi.fn(async (name: string) => {
+        current = { ...current, agents: current.agents.filter((agent) => agent.name !== name) };
+        return current;
+      }),
     },
     app: { quit: vi.fn(async () => ({ ok: true })) },
   };
@@ -67,8 +90,10 @@ describe("settings view", () => {
     expect(await screen.findByText("launch at system start")).toBeTruthy();
     const toggle = screen.getByRole("switch", { name: "launch at system start" });
     expect(toggle).toBeTruthy();
-    // The agent composer is hidden in the settings context.
-    expect(screen.queryByPlaceholderText("talk to the baby")).toBeNull();
+    // Settings is an overlay: the agent composer stays mounted underneath (so its
+    // state survives), but the covered default view is made inert.
+    expect(screen.getByPlaceholderText("talk to the baby")).toBeTruthy();
+    expect(document.querySelector(".app-view")?.hasAttribute("inert")).toBe(true);
 
     // Toggle the setting.
     fireEvent.click(toggle);
@@ -179,6 +204,71 @@ describe("settings view", () => {
     // The extension's section title (host-drawn frame) and body both appear.
     expect(await screen.findByText("CALENDAR")).toBeTruthy();
     expect(screen.getByText("which calendar")).toBeTruthy();
+  });
+
+  async function openSettings() {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "open settings" }));
+    await screen.findByText("launch at system start");
+  }
+
+  it("adds a custom ACP agent through the dialog", async () => {
+    const api = installBabyMenuApi({ agents: [{ name: "claude", label: "Claude Code", available: true }] });
+    await openSettings();
+
+    fireEvent.click(screen.getByRole("button", { name: /add agent/i }));
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "gemini" } });
+    fireEvent.change(screen.getByLabelText(/^command$/i), { target: { value: "gemini acp" } });
+    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() =>
+      expect(api.settings.addAgent).toHaveBeenCalledWith({ name: "gemini", label: undefined, command: "gemini acp" }),
+    );
+    expect(await screen.findByRole("radio", { name: /Gemini/i })).toBeTruthy();
+  });
+
+  it("shows edit/remove controls only for custom agents", async () => {
+    installBabyMenuApi({
+      agents: [
+        { name: "claude", label: "Claude Code", available: true },
+        { name: "gemini", label: "Gemini", available: true, custom: true, command: "gemini acp" },
+      ],
+    });
+    await openSettings();
+
+    expect(screen.queryByRole("button", { name: /remove Claude Code/i })).toBeNull();
+    expect(await screen.findByRole("button", { name: /remove Gemini/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /edit Gemini/i })).toBeTruthy();
+  });
+
+  it("removes a custom agent", async () => {
+    const api = installBabyMenuApi({
+      agents: [
+        { name: "claude", label: "Claude Code", available: true },
+        { name: "gemini", label: "Gemini", available: true, custom: true, command: "gemini acp" },
+      ],
+    });
+    await openSettings();
+
+    fireEvent.click(await screen.findByRole("button", { name: /remove Gemini/i }));
+    await waitFor(() => expect(api.settings.removeAgent).toHaveBeenCalledWith("gemini"));
+    await waitFor(() => expect(screen.queryByRole("radio", { name: /Gemini/i })).toBeNull());
+  });
+
+  it("surfaces the error when adding an invalid agent and keeps the dialog open", async () => {
+    const api = installBabyMenuApi({ agents: [{ name: "claude", label: "Claude Code", available: true }] });
+    api.settings.addAgent = vi.fn(async () => {
+      throw new Error('"claude" is a built-in agent name. Choose a different name.');
+    });
+    await openSettings();
+
+    fireEvent.click(screen.getByRole("button", { name: /add agent/i }));
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "claude" } });
+    fireEvent.change(screen.getByLabelText(/^command$/i), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(await screen.findByText(/built-in agent name/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^save$/i })).toBeTruthy();
   });
 
   it("rediscovers extension settings sections when the popover reopens", async () => {

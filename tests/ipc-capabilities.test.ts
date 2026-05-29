@@ -223,6 +223,9 @@ describe("capabilities IPC", () => {
       get: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
       setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin, agentName: "claude", agents: [] })),
       setAgent: vi.fn(async (agentName: string) => ({ openAtLogin: false, agentName, agents: [] })),
+      addAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
+      updateAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
+      removeAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
     };
 
     registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, settings);
@@ -232,5 +235,31 @@ describe("capabilities IPC", () => {
     expect(settings.setOpenAtLogin).toHaveBeenCalledWith(true);
     await expect(handlers.get("baby-menu:settings:set-agent")?.({}, "codex")).resolves.toEqual({ openAtLogin: false, agentName: "codex", agents: [] });
     expect(settings.setAgent).toHaveBeenCalledWith("codex");
+  });
+
+  it("registers settings channels for custom agent management", async () => {
+    const { registerIpcHandlers } = await import("../src/main/ipc");
+    const agentRuntime = { send: vi.fn(), save: vi.fn(), rollback: vi.fn(), currentSessionSnapshot: vi.fn(), currentTurn: vi.fn() };
+    const result = { openAtLogin: false, agentName: "claude", agents: [] };
+    const settings = {
+      get: vi.fn(async () => result),
+      setOpenAtLogin: vi.fn(async () => result),
+      setAgent: vi.fn(async () => result),
+      addAgent: vi.fn(async () => result),
+      updateAgent: vi.fn(async () => result),
+      removeAgent: vi.fn(async () => result),
+    };
+
+    registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, settings);
+
+    const input = { name: "gemini", label: "Gemini", command: "gemini acp" };
+    await expect(handlers.get("baby-menu:settings:add-agent")?.({}, input)).resolves.toEqual(result);
+    expect(settings.addAgent).toHaveBeenCalledWith(input);
+
+    await expect(handlers.get("baby-menu:settings:update-agent")?.({}, "gemini", { command: "gemini acp --beta" })).resolves.toEqual(result);
+    expect(settings.updateAgent).toHaveBeenCalledWith("gemini", { command: "gemini acp --beta" });
+
+    await expect(handlers.get("baby-menu:settings:remove-agent")?.({}, "gemini")).resolves.toEqual(result);
+    expect(settings.removeAgent).toHaveBeenCalledWith("gemini");
   });
 });

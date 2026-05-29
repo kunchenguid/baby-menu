@@ -51,6 +51,7 @@ button:disabled,
 }
 
 .app-shell {
+  position: relative;
   width: 504px;
   height: auto;
   /* A fixed cap, not a viewport-relative one: the viewport height equals the
@@ -66,6 +67,30 @@ button:disabled,
   box-shadow: var(--shadow-pop);
   color: var(--ink);
   font-family: var(--font-mono);
+}
+
+/* The default view fills the shell as its own flex column so the header pins,
+   the body scrolls, and the composer stays at the bottom - mirroring the shell
+   layout it used to be inlined into. It stays mounted under .settings-overlay. */
+.app-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Settings is a full-surface overlay, not a separate route: it covers the
+   default view (which stays mounted underneath) with an opaque background and
+   the same header/body layout. Absolutely positioned so it does not contribute
+   to the shell's auto-height; the shell stays sized to the default view, and
+   the shell's overflow:hidden clips these square corners to the rounded card. */
+.settings-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-stage);
 }
 
 .pop-head {

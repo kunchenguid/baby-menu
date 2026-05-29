@@ -364,6 +364,19 @@ describe("agent runtime switching", () => {
     await runtime.setAgent("codex");
     expect(runtime.currentAgent).toBe("codex");
   });
+
+  it("setRegistryOverrides replaces the overrides used to build the next runtime", () => {
+    const runtime = new BabyMenuAgentRuntime("/repo", { agentName: "claude", registryOverrides: { claude: "old" } });
+    const internals = runtime as unknown as { registryOverrides: Record<string, string> | undefined };
+    expect(internals.registryOverrides).toEqual({ claude: "old" });
+
+    runtime.setRegistryOverrides({ claude: "old", gemini: "gemini acp" });
+    expect(internals.registryOverrides).toEqual({ claude: "old", gemini: "gemini acp" });
+
+    // Empty/undefined collapses to undefined so createAgentRegistry gets no overrides.
+    runtime.setRegistryOverrides({});
+    expect(internals.registryOverrides).toBeUndefined();
+  });
 });
 
 describe("agent runtime change-session snapshot", () => {

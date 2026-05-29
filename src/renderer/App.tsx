@@ -3,6 +3,7 @@ import { Power, Settings, X } from "lucide-react";
 import { Button, Tooltip } from "../ui";
 import { AgentChat } from "./agent/AgentChat";
 import { MenuSurface } from "./menu/MenuSurface";
+import { measurePopoverContentHeight } from "./popover-content-height";
 import { SettingsView } from "./settings/SettingsView";
 
 type AppView = "menu" | "settings";
@@ -10,19 +11,16 @@ type AppView = "menu" | "settings";
 export function App() {
   const [view, setView] = useState<AppView>("menu");
   const shellRef = useRef<HTMLElement>(null);
-  // Hold the popover at the menu's height while in settings so toggling never
-  // resizes the window or shrinks the visible card to the smaller settings body.
-  const [frozenHeight, setFrozenHeight] = useState<number | null>(null);
   usePopoverContentHeight();
   useDropHeaderAutoFocus();
 
+  const settingsOpen = view === "settings";
+
   function openSettings() {
-    setFrozenHeight(shellRef.current?.offsetHeight ?? null);
     setView("settings");
   }
 
   function closeSettings() {
-    setFrozenHeight(null);
     setView("menu");
   }
 
@@ -31,27 +29,16 @@ export function App() {
   }
 
   return (
-    <main
-      ref={shellRef}
-      className="app-shell"
-      aria-label="baby_menu tray popover"
-      style={view === "settings" && frozenHeight ? { minHeight: `${frozenHeight}px` } : undefined}
-    >
-      <header className="pop-head">
-        {view === "settings" ? (
-          <span className="mark">settings</span>
-        ) : (
+    <main ref={shellRef} className="app-shell" aria-label="baby_menu tray popover">
+      {/* The default view stays mounted underneath settings so its React state
+          (agent chat, widgets) survives opening and closing settings. It is made
+          inert while covered so focus and pointer events cannot reach behind the
+          overlay. */}
+      <div className="app-view" inert={settingsOpen}>
+        <header className="pop-head">
           <span className="mark">
             baby<span className="sep">_</span>menu
           </span>
-        )}
-        {view === "settings" ? (
-          <Tooltip content="Close settings">
-            <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="close settings" onClick={closeSettings}>
-              <X className="size-4" />
-            </Button>
-          </Tooltip>
-        ) : (
           <div className="flex items-center gap-1">
             <Tooltip content="Open settings">
               <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="open settings" onClick={openSettings}>
@@ -70,33 +57,30 @@ export function App() {
               </Button>
             </Tooltip>
           </div>
-        )}
-      </header>
-      {view === "settings" ? (
+        </header>
         <div className="pop-body">
-          <SettingsView />
+          <MenuSurface />
         </div>
-      ) : (
-        <>
+        <AgentChat />
+      </div>
+
+      {settingsOpen ? (
+        <div className="settings-overlay" role="dialog" aria-modal="true" aria-label="settings">
+          <header className="pop-head">
+            <span className="mark">settings</span>
+            <Tooltip content="Close settings">
+              <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="close settings" onClick={closeSettings}>
+                <X className="size-4" />
+              </Button>
+            </Tooltip>
+          </header>
           <div className="pop-body">
-            <MenuSurface />
+            <SettingsView />
           </div>
-          <AgentChat />
-        </>
-      )}
+        </div>
+      ) : null}
     </main>
   );
-}
-
-// Matches MAX_POPOVER_HEIGHT in src/main/popover.ts. While a design-system
-// overlay is open we ask for the full window so the overlay has room rather than
-// clipping; the main process clamps to the same max, so the value is stable.
-const OVERLAY_POPOVER_HEIGHT = 720;
-
-function measurePopoverContentHeight(shell: HTMLElement): number {
-  const shellHeight = Math.ceil(shell.getBoundingClientRect().height);
-  const overlayOpen = document.querySelector("[data-bm-overlay]") !== null;
-  return overlayOpen ? Math.max(shellHeight, OVERLAY_POPOVER_HEIGHT) : shellHeight;
 }
 
 // The popover opens focused (main calls window.focus()); if that focus lands on a
@@ -138,9 +122,27 @@ function usePopoverContentHeight() {
 
     const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(report);
     resizeObserver?.observe(element);
+
     // Overlays (Dialog/Select/Dropdown) portal outside .app-shell, so watch the
-    // body subtree to react when one opens or closes.
-    const mutationObserver = typeof MutationObserver === "undefined" ? null : new MutationObserver(report);
+    // body subtree to react when one opens or closes. Also observe the overlay
+    // itself: a tall overlay can be max-h-clamped while the window is small, then
+    // expand once the window grows, so we need to re-measure until it settles.
+    let observedOverlay: Element | null = null;
+    const syncOverlayObservation = () => {
+      const overlay = document.querySelector("[data-bm-overlay]");
+      if (overlay === observedOverlay) return;
+      if (observedOverlay) resizeObserver?.unobserve(observedOverlay);
+      observedOverlay = overlay;
+      if (overlay) resizeObserver?.observe(overlay);
+    };
+    syncOverlayObservation();
+    const mutationObserver =
+      typeof MutationObserver === "undefined"
+        ? null
+        : new MutationObserver(() => {
+            syncOverlayObservation();
+            report();
+          });
     mutationObserver?.observe(document.body, { childList: true, subtree: true });
 
     return () => {

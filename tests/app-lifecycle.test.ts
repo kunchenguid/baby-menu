@@ -57,6 +57,7 @@ vi.mock("../src/main/ipc", () => ({
 
 vi.mock("../src/main/agent-runtime", () => ({
   BabyMenuAgentRuntime: vi.fn(),
+  commandExists: vi.fn(() => false),
 }));
 
 vi.mock("../src/main/extension-seeder", () => ({

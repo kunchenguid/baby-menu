@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUILT_IN_AGENT_NAMES,
   DEFAULT_AGENTS,
+  customAgentToDefinition,
   resolveAgentCatalog,
   toAgentOptions,
   agentRegistryOverrides,
+  validateCustomAgentInput,
   withAdapterLaunchCommands,
   loadAgentConfigFile,
   parseAgentDefinitions,
@@ -97,5 +100,73 @@ describe("agent-catalog", () => {
 
   it("loadAgentConfigFile returns undefined for a missing or malformed file", async () => {
     expect(await loadAgentConfigFile("/no/such/file.json")).toBeUndefined();
+  });
+
+  it("registers the README's documented custom agent example as an available acpx override", () => {
+    // Mirrors the agents.json example in README.md. Keep them in sync.
+    const config = [{ name: "pi", label: "Pi", launchCommand: "npx pi-acp" }];
+    const catalog = withAdapterLaunchCommands(resolveAgentCatalog({ config }), (a) => `/o/${a}.js`, ["node"]);
+
+    expect(agentRegistryOverrides(catalog).pi).toBe("npx pi-acp");
+    // No CLI on PATH, yet a launchCommand-only custom agent is still available.
+    const pi = toAgentOptions(catalog, () => false).find((option) => option.name === "pi");
+    expect(pi).toMatchObject({ name: "pi", label: "Pi", available: true, custom: true, command: "npx pi-acp" });
+  });
+
+  it("exposes the built-in agent names", () => {
+    expect(BUILT_IN_AGENT_NAMES).toEqual(new Set(["claude", "codex"]));
+  });
+
+  it("toAgentOptions flags custom agents and exposes their launch command", () => {
+    const wired = withAdapterLaunchCommands(DEFAULT_AGENTS, (a) => `/o/${a}.js`, ["node"]);
+    const catalog = [...wired, { name: "gemini", label: "Gemini", command: "gemini", launchCommand: "gemini acp" }];
+    const options = toAgentOptions(catalog, () => false);
+    const claude = options.find((o) => o.name === "claude")!;
+    const gemini = options.find((o) => o.name === "gemini")!;
+    expect(claude.custom).toBe(false);
+    expect(claude.command).toBeUndefined();
+    expect(gemini.custom).toBe(true);
+    expect(gemini.command).toBe("gemini acp");
+    expect(gemini.available).toBe(true);
+  });
+
+  describe("validateCustomAgentInput", () => {
+    it("normalizes a valid input (trims, defaults label to name)", () => {
+      expect(validateCustomAgentInput({ name: "  gemini ", command: "  gemini acp " }, [])).toEqual({
+        name: "gemini",
+        label: "gemini",
+        command: "gemini acp",
+      });
+      expect(validateCustomAgentInput({ name: "g", label: " My G ", command: "g acp" }, []).label).toBe("My G");
+    });
+
+    it("rejects an empty name or command", () => {
+      expect(() => validateCustomAgentInput({ name: "   ", command: "x" }, [])).toThrow(/name/i);
+      expect(() => validateCustomAgentInput({ name: "x", command: "  " }, [])).toThrow(/command/i);
+    });
+
+    it("rejects names that collide with a built-in", () => {
+      expect(() => validateCustomAgentInput({ name: "claude", command: "x" }, [])).toThrow(/built-in/i);
+      expect(() => validateCustomAgentInput({ name: "Codex", command: "x" }, [])).toThrow(/built-in/i);
+    });
+
+    it("rejects a duplicate custom name (case-insensitive)", () => {
+      expect(() => validateCustomAgentInput({ name: "gemini", command: "x" }, ["gemini"])).toThrow(/already/i);
+      expect(() => validateCustomAgentInput({ name: "Gemini", command: "x" }, ["gemini"])).toThrow(/already/i);
+    });
+
+    it("rejects an invalid id pattern", () => {
+      expect(() => validateCustomAgentInput({ name: "has space", command: "x" }, [])).toThrow(/letters|invalid/i);
+      expect(() => validateCustomAgentInput({ name: "-bad", command: "x" }, [])).toThrow(/letters|invalid/i);
+    });
+
+    it("customAgentToDefinition maps command to launchCommand with no adapter", () => {
+      expect(customAgentToDefinition({ name: "gemini", label: "Gemini", command: "gemini acp" })).toEqual({
+        name: "gemini",
+        label: "Gemini",
+        command: "gemini",
+        launchCommand: "gemini acp",
+      });
+    });
   });
 });

@@ -61,18 +61,23 @@ Use Settings to persist an agent choice across launches.
 Set `BABY_MENU_AGENT=<name>` in the launch environment to override auto-detection before a preference is saved.
 Add `~/.baby-menu/agents.json` to override or append catalog entries; source mode reads `agents.json` from the repo root.
 Each entry is an object with `name`, optional `label`, optional `command`, optional `installHint`, and optional `launchCommand`.
-Agents with `launchCommand` are registered as custom `acpx` overrides and are shown as available.
+Agents with `launchCommand` are registered as custom [`acpx`](https://github.com/openclaw/acpx) overrides and are shown as available.
+
+`launchCommand` is any Agent Client Protocol (ACP) server command - `acpx` (the ACP client Baby Menu runs agents through) supports a wide range of coding agents, so you can point an entry at the same command `acpx` uses for one of them.
+For example: `npx pi-acp` (Pi), `gemini --acp` (Gemini CLI), `cursor-agent acp` (Cursor), `copilot --acp --stdio` (GitHub Copilot), `qwen --acp` (Qwen Code), or `npx -y opencode-ai acp` (OpenCode).
+The underlying CLI must be installed and authenticated.
 
 ```json
 [
   {
-    "name": "gemini",
-    "label": "Gemini",
-    "command": "gemini",
-    "installHint": "Install the Gemini CLI, then restart Baby Menu."
+    "name": "pi",
+    "label": "Pi",
+    "launchCommand": "npx pi-acp"
   }
 ]
 ```
+
+You can also add, edit, and remove custom agents directly from Settings; changes apply immediately and are saved to the same `agents.json`.
 
 Update with Homebrew:
 

@@ -1,16 +1,20 @@
 import { useEffect, useState } from "react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Button,
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Field,
+  Input,
   StatusDot,
   Switch,
   cn,
 } from "../../ui";
-import type { BabyMenuAgentOption, BabyMenuSettingsSection } from "../../shared/contracts";
+import type { BabyMenuAgentOption, BabyMenuSettings, BabyMenuSettingsSection } from "../../shared/contracts";
 import { importRuntimeModule, type RuntimeModuleImporter } from "../extension-modules";
 import { loadRuntimeSettingsSections } from "./settings-sections";
 
@@ -28,6 +32,10 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
   const [agentName, setAgentName] = useState("");
   const [agentSwitchDisabledReason, setAgentSwitchDisabledReason] = useState<string | undefined>();
   const [pendingAgent, setPendingAgent] = useState<BabyMenuAgentOption | null>(null);
+  const [agentForm, setAgentForm] = useState<AgentFormState | null>(null);
+  const [agentFormError, setAgentFormError] = useState<string | null>(null);
+  const [savingAgent, setSavingAgent] = useState(false);
+  const [agentListError, setAgentListError] = useState<string | null>(null);
   const runtimeSections = useRuntimeSettingsSections({ enabled: sections === undefined, importer: runtimeImporter });
   const visibleSections = sections ?? runtimeSections;
 
@@ -51,13 +59,58 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
     setOpenAtLogin(result.openAtLogin);
   }
 
-  async function confirmSwitch() {
-    if (!window.babyMenu?.settings || !pendingAgent) return;
-    const result = await window.babyMenu.settings.setAgent(pendingAgent.name);
+  function applySettings(result: BabyMenuSettings) {
     setAgentName(result.agentName);
     setAgents(result.agents);
     setAgentSwitchDisabledReason(result.agentSwitchDisabledReason);
+  }
+
+  async function confirmSwitch() {
+    if (!window.babyMenu?.settings || !pendingAgent) return;
+    applySettings(await window.babyMenu.settings.setAgent(pendingAgent.name));
     setPendingAgent(null);
+  }
+
+  function openAddAgentForm() {
+    setAgentListError(null);
+    setAgentFormError(null);
+    setAgentForm({ mode: "add", name: "", label: "", command: "" });
+  }
+
+  function openEditAgentForm(agent: BabyMenuAgentOption) {
+    setAgentListError(null);
+    setAgentFormError(null);
+    setAgentForm({ mode: "edit", name: agent.name, label: agent.label, command: agent.command ?? "" });
+  }
+
+  async function submitAgentForm() {
+    if (!window.babyMenu?.settings || !agentForm) return;
+    setSavingAgent(true);
+    setAgentFormError(null);
+    try {
+      const label = agentForm.label.trim() || undefined;
+      const command = agentForm.command.trim();
+      const result =
+        agentForm.mode === "add"
+          ? await window.babyMenu.settings.addAgent({ name: agentForm.name.trim(), label, command })
+          : await window.babyMenu.settings.updateAgent(agentForm.name, { label, command });
+      applySettings(result);
+      setAgentForm(null);
+    } catch (error) {
+      setAgentFormError(error instanceof Error ? error.message : "Could not save the agent.");
+    } finally {
+      setSavingAgent(false);
+    }
+  }
+
+  async function removeAgent(agent: BabyMenuAgentOption) {
+    if (!window.babyMenu?.settings) return;
+    setAgentListError(null);
+    try {
+      applySettings(await window.babyMenu.settings.removeAgent(agent.name));
+    } catch (error) {
+      setAgentListError(error instanceof Error ? error.message : "Could not remove the agent.");
+    }
   }
 
   return (
@@ -79,31 +132,101 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
           const active = agent.name === agentName;
           const switchBlocked = Boolean(agentSwitchDisabledReason && !active);
           return (
-            <button
-              key={agent.name}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              disabled={!agent.available || active || switchBlocked}
-              onClick={() => setPendingAgent(agent)}
-              className={cn(
-                "flex items-center justify-between gap-3 rounded-sm border px-3 py-2 text-left outline-none transition-colors",
-                active ? "border-signal-live bg-elevated" : "border-line hover:bg-pressed",
-                !agent.available && "cursor-not-allowed opacity-50 hover:bg-transparent",
-              )}
-            >
-              <span className="flex flex-col gap-0.5">
-                <span className="text-sm text-ink">{agent.label}</span>
-                {!agent.available && agent.installHint ? (
-                  <span className="text-xs text-ink-soft">{agent.installHint}</span>
-                ) : null}
-                {agent.available && switchBlocked ? <span className="text-xs text-ink-soft">{agentSwitchDisabledReason}</span> : null}
-              </span>
-              {active ? <StatusDot tone="live" /> : null}
-            </button>
+            <div key={agent.name} className="flex items-center gap-1.5">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={active}
+                disabled={!agent.available || active || switchBlocked}
+                onClick={() => setPendingAgent(agent)}
+                className={cn(
+                  "flex flex-1 items-center justify-between gap-3 rounded-sm border px-3 py-2 text-left outline-none transition-colors",
+                  active ? "border-signal-live bg-elevated" : "border-line hover:bg-pressed",
+                  !agent.available && "cursor-not-allowed opacity-50 hover:bg-transparent",
+                )}
+              >
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-sm text-ink">{agent.label}</span>
+                  {!agent.available && agent.installHint ? (
+                    <span className="text-xs text-ink-soft">{agent.installHint}</span>
+                  ) : null}
+                  {agent.available && switchBlocked ? <span className="text-xs text-ink-soft">{agentSwitchDisabledReason}</span> : null}
+                </span>
+                {active ? <StatusDot tone="live" /> : null}
+              </button>
+              {agent.custom ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-7 px-0"
+                    aria-label={`edit ${agent.label}`}
+                    onClick={() => openEditAgentForm(agent)}
+                  >
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-7 px-0 hover:text-signal-danger"
+                    aria-label={`remove ${agent.label}`}
+                    onClick={() => void removeAgent(agent)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </>
+              ) : null}
+            </div>
           );
         })}
+        {agentListError ? <span className="text-xs text-signal-danger">{agentListError}</span> : null}
+        <Button variant="ghost" size="sm" className="mt-1 gap-1.5 self-start" onClick={openAddAgentForm}>
+          <Plus className="size-3.5" /> add agent
+        </Button>
       </section>
+
+      <Dialog open={agentForm !== null} onOpenChange={(open) => !open && setAgentForm(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogTitle>{agentForm?.mode === "edit" ? "edit agent" : "add agent"}</DialogTitle>
+          <DialogDescription>
+            Configure a custom ACP agent. The launch command is run as the ACP server; bake any env vars or args
+            into it (e.g. <code className="text-ink">env KEY=… my-acp</code>).
+          </DialogDescription>
+          <DialogBody className="flex flex-col gap-3">
+            <Field label="name" hint="Unique id: letters, numbers, dot, dash, or underscore.">
+              <Input
+                value={agentForm?.name ?? ""}
+                disabled={agentForm?.mode === "edit"}
+                placeholder="gemini"
+                onChange={(event) => setAgentForm((form) => (form ? { ...form, name: event.target.value } : form))}
+              />
+            </Field>
+            <Field label="label" hint="Optional display name; defaults to the id.">
+              <Input
+                value={agentForm?.label ?? ""}
+                placeholder="Gemini"
+                onChange={(event) => setAgentForm((form) => (form ? { ...form, label: event.target.value } : form))}
+              />
+            </Field>
+            <Field label="command" hint="The ACP launch command.">
+              <Input
+                value={agentForm?.command ?? ""}
+                placeholder="gemini acp"
+                onChange={(event) => setAgentForm((form) => (form ? { ...form, command: event.target.value } : form))}
+              />
+            </Field>
+            {agentFormError ? <span className="text-xs text-signal-danger">{agentFormError}</span> : null}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAgentForm(null)}>
+              cancel
+            </Button>
+            <Button variant="primary" disabled={savingAgent} onClick={() => void submitAgentForm()}>
+              save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={pendingAgent !== null} onOpenChange={(open) => !open && setPendingAgent(null)}>
         <DialogContent className="max-w-sm">
@@ -132,6 +255,14 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
     </div>
   );
 }
+
+type AgentFormState = {
+  mode: "add" | "edit";
+  /** Immutable in edit mode (it is the acpx registry id). */
+  name: string;
+  label: string;
+  command: string;
+};
 
 function useRuntimeSettingsSections({
   enabled,

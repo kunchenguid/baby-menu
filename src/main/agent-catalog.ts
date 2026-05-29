@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import type { BabyMenuCustomAgentInput } from "../shared/contracts";
 
 export type AgentDefinition = {
   /** acpx agent name and registry key. */
@@ -25,6 +26,8 @@ export type AgentOption = {
   label: string;
   available: boolean;
   installHint?: string;
+  custom?: boolean;
+  command?: string;
 };
 
 export const DEFAULT_AGENTS: readonly AgentDefinition[] = [
@@ -43,6 +46,50 @@ export const DEFAULT_AGENTS: readonly AgentDefinition[] = [
     installHint: "Install the Codex CLI, then restart Baby Menu.",
   },
 ];
+
+/** Names of the code-defined built-in agents; these are read-only in the UI. */
+export const BUILT_IN_AGENT_NAMES: ReadonlySet<string> = new Set(DEFAULT_AGENTS.map((agent) => agent.name));
+
+/** A custom agent id is a slug: starts alphanumeric, then letters/digits/._- */
+const CUSTOM_AGENT_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/i;
+
+/**
+ * Validates and normalizes a custom-agent form input. Throws an Error with a
+ * user-facing message when invalid. `existingCustomNames` are the names of other
+ * custom agents already configured (case-insensitive duplicate check); built-in
+ * names are rejected separately with a clearer message.
+ */
+export function validateCustomAgentInput(
+  input: BabyMenuCustomAgentInput,
+  existingCustomNames: Iterable<string>,
+): Required<Pick<BabyMenuCustomAgentInput, "name" | "command">> & { label: string } {
+  const name = (input.name ?? "").trim();
+  const command = (input.command ?? "").trim();
+  const label = (input.label ?? "").trim() || name;
+
+  if (!name) throw new Error("Enter a name for the agent.");
+  if (!CUSTOM_AGENT_NAME_PATTERN.test(name)) {
+    throw new Error("Name must start with a letter or number and use only letters, numbers, dot, dash, or underscore.");
+  }
+  if (BUILT_IN_AGENT_NAMES.has(name.toLowerCase())) {
+    throw new Error(`"${name}" is a built-in agent name. Choose a different name.`);
+  }
+  const taken = new Set([...existingCustomNames].map((existing) => existing.toLowerCase()));
+  if (taken.has(name.toLowerCase())) {
+    throw new Error(`An agent named "${name}" already exists.`);
+  }
+  if (!command) throw new Error("Enter the launch command for the agent.");
+
+  return { name, label, command };
+}
+
+/** Maps a (validated) custom-agent input to an AgentDefinition. The launch command
+ * becomes the acpx registry override; `command` (availability probe) is unused for
+ * customs (no adapter + launchCommand => always available) so it defaults to name. */
+export function customAgentToDefinition(input: BabyMenuCustomAgentInput): AgentDefinition {
+  const label = (input.label ?? "").trim() || input.name;
+  return { name: input.name, label, command: input.name, launchCommand: input.command };
+}
 
 type ResolveAgentCatalogOptions = {
   /** Parsed contents of agents.json (an array of agent definitions). */
@@ -117,12 +164,18 @@ export function toAgentOptions(
   catalog: readonly AgentDefinition[],
   commandExists: (command: string) => boolean,
 ): AgentOption[] {
-  return catalog.map((agent) => ({
-    name: agent.name,
-    label: agent.label,
-    available: agent.launchCommand && !agent.adapter ? true : commandExists(agent.command),
-    installHint: agent.installHint,
-  }));
+  return catalog.map((agent) => {
+    const custom = !BUILT_IN_AGENT_NAMES.has(agent.name);
+    return {
+      name: agent.name,
+      label: agent.label,
+      available: agent.launchCommand && !agent.adapter ? true : commandExists(agent.command),
+      installHint: agent.installHint,
+      custom,
+      // Only customs surface their launch command (so the edit form can prefill it).
+      ...(custom && agent.launchCommand ? { command: agent.launchCommand } : {}),
+    };
+  });
 }
 
 export function agentRegistryOverrides(catalog: readonly AgentDefinition[]): Record<string, string> {

@@ -1,15 +1,9 @@
 import { app, BrowserWindow, screen, type Rectangle } from "electron";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { BabyMenuSettings } from "../shared/contracts";
+import type { BabyMenuCustomAgentInput, BabyMenuSettings } from "../shared/contracts";
 import { getRepoRoot } from "../shared/paths";
-import {
-  agentRegistryOverrides,
-  loadAgentConfigFile,
-  resolveAgentCatalog,
-  toAgentOptions,
-  withAdapterLaunchCommands,
-} from "./agent-catalog";
+import { createAgentCatalogController } from "./agent-catalog-controller";
 import { BabyMenuAgentRuntime, commandExists } from "./agent-runtime";
 import { resolveBabyMenuRuntimePaths } from "./app-paths";
 import { seedExtensionWorkspace } from "./extension-seeder";
@@ -147,22 +141,29 @@ export async function startBabyMenuApp(): Promise<void> {
   });
   const persistedPreferences = await preferences.apply();
 
-  const agentConfig = await loadAgentConfigFile(join(paths.appDataRoot, "agents.json"));
   // Built-in claude/codex agents are driven by the bundled clean-room ACP
   // adapters. Run them with the bundled Electron as Node (ELECTRON_RUN_AS_NODE)
   // so there is no dependency on a separately-installed `node` - the same class
   // of PATH fragility that made the agent look "unavailable" before.
   const adapterLauncher = ["env", "ELECTRON_RUN_AS_NODE=1", process.execPath];
-  const agentCatalog = withAdapterLaunchCommands(
-    resolveAgentCatalog({ config: agentConfig }),
-    (adapter) => join(paths.adaptersDir, adapter, "index.mjs"),
+  // The catalog is a live runtime service: it owns agents.json and pushes
+  // rebuilt registry overrides into the runtime so UI-added custom agents apply
+  // immediately. agentRuntime is referenced through closures (assigned just below)
+  // and only invoked after startup, so the forward reference is safe.
+  let agentRuntime: BabyMenuAgentRuntime;
+  const agentCatalog = createAgentCatalogController({
+    agentsJsonPath: join(paths.appDataRoot, "agents.json"),
+    resolveAdapterPath: (adapter) => join(paths.adaptersDir, adapter, "index.mjs"),
     adapterLauncher,
-  );
-  const registryOverrides = agentRegistryOverrides(agentCatalog);
+    commandExists,
+    getActiveAgentName: () => agentRuntime.currentAgent,
+    onOverridesChange: (overrides) => agentRuntime.setRegistryOverrides(overrides),
+  });
+  await agentCatalog.load();
 
-  const agentRuntime = new BabyMenuAgentRuntime(paths.appDataRoot, {
+  agentRuntime = new BabyMenuAgentRuntime(paths.appDataRoot, {
     agentName: persistedPreferences.agentName,
-    registryOverrides: Object.keys(registryOverrides).length > 0 ? registryOverrides : undefined,
+    registryOverrides: Object.keys(agentCatalog.overrides).length > 0 ? agentCatalog.overrides : undefined,
     paths: {
       extensionsDir: paths.extensionsDir,
       agentStateDir: paths.agentStateDir,
@@ -179,7 +180,7 @@ export async function startBabyMenuApp(): Promise<void> {
       openAtLogin: current.openAtLogin,
       agentName: agentRuntime.currentAgent,
       agentSwitchDisabledReason: agentRuntime.agentSwitchDisabledReason,
-      agents: toAgentOptions(agentCatalog, commandExists),
+      agents: agentCatalog.options(),
     };
   }
 
@@ -192,6 +193,18 @@ export async function startBabyMenuApp(): Promise<void> {
     async setAgent(agentName: string) {
       await agentRuntime.setAgent(agentName);
       await preferences.setAgent(agentName);
+      return buildSettings();
+    },
+    async addAgent(input: BabyMenuCustomAgentInput) {
+      await agentCatalog.addAgent(input);
+      return buildSettings();
+    },
+    async updateAgent(name: string, input: { label?: string; command: string }) {
+      await agentCatalog.updateAgent(name, input);
+      return buildSettings();
+    },
+    async removeAgent(name: string) {
+      await agentCatalog.removeAgent(name);
       return buildSettings();
     },
   };

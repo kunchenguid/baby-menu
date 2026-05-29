@@ -259,7 +259,7 @@ export class BabyMenuAgentRuntime {
   private activeTurn = false;
   private activeTurnInfo: AgentActiveTurn | null = null;
   private agentName: string;
-  private readonly registryOverrides: Record<string, string> | undefined;
+  private registryOverrides: Record<string, string> | undefined;
   private readonly requestTimeoutMs: number;
   private readonly paths: BabyMenuAgentRuntimePaths | undefined;
 
@@ -306,6 +306,16 @@ export class BabyMenuAgentRuntime {
 
   get currentAgent(): string {
     return this.agentName;
+  }
+
+  /**
+   * Replaces the acpx registry overrides used to launch agents. Read lazily when
+   * the runtime is next (re)built in ensureRuntime, so a custom agent added or
+   * edited at runtime applies on the next switch/turn without an app restart and
+   * without tearing down an in-flight session.
+   */
+  setRegistryOverrides(overrides: Record<string, string> | undefined): void {
+    this.registryOverrides = overrides && Object.keys(overrides).length > 0 ? overrides : undefined;
   }
 
   get agentSwitchDisabledReason(): string | undefined {

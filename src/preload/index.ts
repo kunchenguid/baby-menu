@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type {
   AgentRuntimeStatus,
   BabyMenuApi,
+  BabyMenuCustomAgentInput,
   BackgroundTaskUpdate,
   PopoverVisibilityState,
   SqlParams,
@@ -59,6 +60,10 @@ const api: BabyMenuApi = {
     get: () => ipcRenderer.invoke("baby-menu:settings:get"),
     setOpenAtLogin: (openAtLogin: boolean) => ipcRenderer.invoke("baby-menu:settings:set-open-at-login", openAtLogin),
     setAgent: (agentName: string) => ipcRenderer.invoke("baby-menu:settings:set-agent", agentName),
+    addAgent: (input: BabyMenuCustomAgentInput) => ipcRenderer.invoke("baby-menu:settings:add-agent", input),
+    updateAgent: (name: string, input: { label?: string; command: string }) =>
+      ipcRenderer.invoke("baby-menu:settings:update-agent", name, input),
+    removeAgent: (name: string) => ipcRenderer.invoke("baby-menu:settings:remove-agent", name),
   },
   app: {
     quit: () => ipcRenderer.invoke("baby-menu:app:quit"),

@@ -49,6 +49,20 @@ export type BabyMenuAgentOption = {
   label: string;
   available: boolean;
   installHint?: string;
+  /** True for user-configured ACP agents (editable/removable); false for built-ins. */
+  custom?: boolean;
+  /** The configured ACP launch command; only present for custom agents (for the edit form). */
+  command?: string;
+};
+
+/** Fields collected by the Settings UI when adding a custom ACP agent. */
+export type BabyMenuCustomAgentInput = {
+  /** acpx registry id; must be unique and not collide with a built-in. */
+  name: string;
+  /** Display label; defaults to the name when omitted. */
+  label?: string;
+  /** The ACP launch command string (acpx splits it into argv). */
+  command: string;
 };
 
 export type BabyMenuSettings = {
@@ -218,6 +232,12 @@ export type BabyMenuApi = {
     setOpenAtLogin: (openAtLogin: boolean) => Promise<BabyMenuSettings>;
     /** Switches the embedded agent; callers should confirm because this resets the current conversation. */
     setAgent: (agentName: string) => Promise<BabyMenuSettings>;
+    /** Adds a custom ACP agent. Rejects with an Error(message) on invalid input. */
+    addAgent: (input: BabyMenuCustomAgentInput) => Promise<BabyMenuSettings>;
+    /** Updates an existing custom agent's label/command (the name/id is immutable). */
+    updateAgent: (name: string, input: { label?: string; command: string }) => Promise<BabyMenuSettings>;
+    /** Removes a custom agent. Rejects if the agent is currently active. */
+    removeAgent: (name: string) => Promise<BabyMenuSettings>;
   };
   app: {
     /** Fully quits the Electron app from the popover shell. */

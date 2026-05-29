@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import type {
   AgentActiveTurn,
   AgentChatResult,
+  BabyMenuCustomAgentInput,
   BabyMenuSettings,
   GitActionResult,
   GitSessionSnapshot,
@@ -33,6 +34,9 @@ type SettingsController = {
   get: () => Promise<BabyMenuSettings> | BabyMenuSettings;
   setOpenAtLogin: (openAtLogin: boolean) => Promise<BabyMenuSettings> | BabyMenuSettings;
   setAgent: (agentName: string) => Promise<BabyMenuSettings> | BabyMenuSettings;
+  addAgent: (input: BabyMenuCustomAgentInput) => Promise<BabyMenuSettings> | BabyMenuSettings;
+  updateAgent: (name: string, input: { label?: string; command: string }) => Promise<BabyMenuSettings> | BabyMenuSettings;
+  removeAgent: (name: string) => Promise<BabyMenuSettings> | BabyMenuSettings;
 };
 
 type AppController = {
@@ -54,6 +58,9 @@ export function registerIpcHandlers(
     get: () => ({ openAtLogin: false, agentName: "", agents: [] }),
     setOpenAtLogin: (openAtLogin) => ({ openAtLogin, agentName: "", agents: [] }),
     setAgent: (agentName) => ({ openAtLogin: false, agentName, agents: [] }),
+    addAgent: () => ({ openAtLogin: false, agentName: "", agents: [] }),
+    updateAgent: () => ({ openAtLogin: false, agentName: "", agents: [] }),
+    removeAgent: () => ({ openAtLogin: false, agentName: "", agents: [] }),
   },
   appController: AppController = { quit: () => electronApp.quit() },
   runtimeOptions: IpcRuntimeOptions = {},
@@ -134,6 +141,18 @@ export function registerIpcHandlers(
 
   ipcMain.handle("baby-menu:settings:set-agent", async (_event, agentName: string) => {
     return settings.setAgent(agentName);
+  });
+
+  ipcMain.handle("baby-menu:settings:add-agent", async (_event, input: BabyMenuCustomAgentInput) => {
+    return settings.addAgent(input);
+  });
+
+  ipcMain.handle("baby-menu:settings:update-agent", async (_event, name: string, input: { label?: string; command: string }) => {
+    return settings.updateAgent(name, input);
+  });
+
+  ipcMain.handle("baby-menu:settings:remove-agent", async (_event, name: string) => {
+    return settings.removeAgent(name);
   });
 
   ipcMain.handle("baby-menu:app:quit", async () => {
