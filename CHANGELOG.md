@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.6](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.5...baby-menu-v0.1.6) (2026-05-29)
+
+
+### Features
+
+* **adapters:** bundle Claude and Codex ACP adapters ([#26](https://github.com/kunchenguid/baby-menu/issues/26)) ([b2189f7](https://github.com/kunchenguid/baby-menu/commit/b2189f7a5e4f0761d4b7d6992b86d3ea7a262123))
+* add custom ACP agent settings ([#28](https://github.com/kunchenguid/baby-menu/issues/28)) ([d9742f2](https://github.com/kunchenguid/baby-menu/commit/d9742f2bfdb45f38ded311b55be1fdd0b68befcf))
+
 ## [0.1.5](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.4...baby-menu-v0.1.5) (2026-05-29)
 
 
