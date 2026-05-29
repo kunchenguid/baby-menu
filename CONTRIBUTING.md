@@ -31,7 +31,9 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 - Tests live in `tests/` at the repo root.
 - Run `pnpm typecheck`, `pnpm test`, and `pnpm build` before pushing.
 - Run `pnpm package:mac` when changing packaging, runtime paths, extension compilation, native dependencies, or release behavior.
+- Local `pnpm package:mac` builds intentionally produce `Baby Menu Dev.app` with bundle id `com.kunchenguid.baby-menu.dev`; release automation uses `electron-builder.yml` directly for the production `Baby Menu.app` identity.
 - Keep universal macOS packaging compatible with both Intel and Apple Silicon Macs; native prebuilt packages must be installed for `x64` and `arm64` and preserved in `electron-builder.yml` `x64ArchFiles` when electron-builder merges the app.
+- Keep `electron-builder` at `26.8.2` or newer so pnpm-deduped dependencies are included correctly in packaged builds.
 - Keep `pnpm-lock.yaml` changes with dependency changes.
 - Do not commit generated build output, release artifacts, runtime caches, or dev extension workspaces.
 - Do not hand-edit release-please metadata such as `CHANGELOG.md` or `.release-please-manifest.json`.

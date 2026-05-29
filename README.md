@@ -168,8 +168,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 pnpm dev          # run Electron + renderer dev server with a gitignored extensions-dev/ sandbox
 pnpm dev:reset    # wipe extensions-dev/ and agent session cache, then start fresh
 pnpm build        # build main + preload + renderer into out/
-pnpm package:mac  # build and create an ad-hoc-signed universal .app in release/mac-universal/
-pnpm dist:mac     # build the universal .app and create a universal DMG in release/
+pnpm package:mac  # clean release/ and create an ad-hoc-signed Baby Menu Dev.app
+pnpm dist:mac     # build Baby Menu Dev.app and create a universal DMG in release/
 pnpm test         # run all Vitest tests
 pnpm test:e2e     # only e2e tests (spawn real acpx/runtime against acp-mock)
 pnpm typecheck    # tsc --noEmit
@@ -180,7 +180,9 @@ Use `pnpm dev` for source iteration in a throwaway sandbox - the agent edits the
 Use `pnpm dev:reset` when recipe or extension guidance changes; it also clears `.cache/baby-menu/acp-sessions` so the embedded agent re-reads the fresh copied specs instead of continuing from prior conversation state.
 Source/dev mode never touches macOS login items, including Electron's `setLoginItemSettings` API.
 Use `pnpm package:mac` when you want to test the actual packaged app from `release/mac-universal/Baby Menu Dev.app`.
+Local packaging uses the `Baby Menu Dev` product name and `com.kunchenguid.baby-menu.dev` bundle id so local builds do not shadow the released `/Applications/Baby Menu.app` in macOS LaunchServices.
 The universal package is expected to run on both Intel and Apple Silicon Macs, so macOS native prebuilt dependencies must stay installed for `x64` and `arm64` and must stay covered by `electron-builder.yml` `x64ArchFiles` when new native packages are added.
+Keep `electron-builder` at `26.8.2` or newer so pnpm-deduped dependencies are included correctly in packaged builds.
 
 Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pattern>"`.
 
