@@ -112,6 +112,10 @@ jobs:
 
               system_command "/usr/bin/nohup", args: ["/bin/sh", "-c", <<~RELAUNCH_SCRIPT], must_succeed: false
                 (
+                  while [ -e "#{appdir}/Baby Menu.app" ]; do
+                    /bin/sleep 1
+                  done
+
                   for _ in \$(/usr/bin/seq 1 60); do
                     if [ -x "#{appdir}/Baby Menu.app/Contents/MacOS/Baby Menu" ]; then
                       /usr/bin/open -a "#{appdir}/Baby Menu.app"

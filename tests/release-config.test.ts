@@ -69,6 +69,7 @@ describe("distribution config", () => {
     expect(workflow).toContain("uninstall_preflight do");
     expect(workflow).toContain('system("/usr/bin/pgrep", "-x", "Baby Menu"');
     expect(workflow).toContain('nohup", args: ["/bin/sh", "-c"');
+    expect(workflow).toContain('while [ -e "#{appdir}/Baby Menu.app" ]; do');
     expect(workflow).toContain('/usr/bin/open -a "#{appdir}/Baby Menu.app"');
     expect(workflow).not.toContain("baby-menu.relaunch");
     expect(workflow).not.toContain("/tmp/com.kunchenguid.baby-menu");
