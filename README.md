@@ -179,7 +179,7 @@ pnpm lint         # tsc --noEmit (same as typecheck)
 Use `pnpm dev` for source iteration in a throwaway sandbox - the agent edits the gitignored `extensions-dev/` copy and your tracked tree stays clean.
 Use `pnpm dev:reset` when recipe or extension guidance changes; it also clears `.cache/baby-menu/acp-sessions` so the embedded agent re-reads the fresh copied specs instead of continuing from prior conversation state.
 Source/dev mode never touches macOS login items, including Electron's `setLoginItemSettings` API.
-Use `pnpm package:mac` when you want to test the actual packaged app from `release/mac-universal/Baby Menu.app`.
+Use `pnpm package:mac` when you want to test the actual packaged app from `release/mac-universal/Baby Menu Dev.app`.
 The universal package is expected to run on both Intel and Apple Silicon Macs, so macOS native prebuilt dependencies must stay installed for `x64` and `arm64` and must stay covered by `electron-builder.yml` `x64ArchFiles` when new native packages are added.
 
 Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pattern>"`.
