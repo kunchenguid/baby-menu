@@ -378,7 +378,7 @@ describe("agent runtime switching", () => {
     expect(internals.registryOverrides).toBeUndefined();
   });
 
-  it("setRegistryOverrides closes an active runtime so edited launch commands apply", async () => {
+  it("setRegistryOverrides closes an active runtime without discarding persistent state", async () => {
     const { runtime, internals } = buildRuntime();
     const close = vi.fn(async () => undefined);
     internals.runtime = { close };
@@ -389,7 +389,7 @@ describe("agent runtime switching", () => {
     expect(close).toHaveBeenCalledWith({
       handle: { sessionKey: "baby-menu-agent-chat" },
       reason: "registry-overrides-change",
-      discardPersistentState: true,
+      discardPersistentState: undefined,
     });
     expect(internals.runtime).toBeNull();
     expect(internals.handle).toBeNull();
@@ -415,7 +415,7 @@ describe("agent runtime switching", () => {
     expect(close).toHaveBeenCalledWith({
       handle: { sessionKey: "baby-menu-agent-chat" },
       reason: "registry-overrides-change",
-      discardPersistentState: true,
+      discardPersistentState: undefined,
     });
     expect(internals.runtime).toBeNull();
     expect(internals.handle).toBeNull();

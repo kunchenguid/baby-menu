@@ -318,7 +318,7 @@ export class BabyMenuAgentRuntime {
       this.registryOverridesStale = true;
       return;
     }
-    await this.closeRuntime("registry-overrides-change", true, true);
+    await this.closeRuntime("registry-overrides-change", undefined, true);
   }
 
   get agentSwitchDisabledReason(): string | undefined {
@@ -488,7 +488,7 @@ export class BabyMenuAgentRuntime {
 
   private async refreshRuntimeAfterRegistryChange(): Promise<void> {
     if (!this.registryOverridesStale) return;
-    await this.closeRuntime("registry-overrides-change", true, true);
+    await this.closeRuntime("registry-overrides-change", undefined, true);
   }
 
   private async ensureAgentRuntimeCwd(): Promise<string> {
