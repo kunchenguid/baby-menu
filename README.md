@@ -9,15 +9,23 @@
 
 <h3 align="center">Adopt a baby menu and help it grow.</h3>
 
+<p align="center">
+  <img
+    alt="Ask baby-menu to build a cpu and a claude usage widget and watch them appear in your menu bar"
+    src="marketing-video/baby-menu-marketing-square.gif"
+    width="960"
+  />
+</p>
+
 Every menu-bar app ships a fixed set of widgets.
-Want your CPU temp next to your Claude usage next to your next calendar event?
+Want your CPU usage next to your Claude usage next to your next calendar event?
 Good luck waiting for someone to build exactly that.
 
 baby-menu flips it.
 The popover menu can run your coding agent to edit the menu on the fly.
 You ask for a feature in plain English, the agent writes an extension and it hot reloads into the menu in real time.
 
-- **Personal self-evolving software** - this is a glimpse into a future where every piece of software is personal and self-evolving towards your exact needs.
+- **Personal self-evolving software** - jump into the future where every piece of software is personal and self-evolving towards your exact needs.
 - **Ask, don't configure** - tweak the menu using natural language, not configuration.
 - **Worry-free** - every agent turn can be kept or undone.
 
@@ -33,7 +41,7 @@ open -a "Baby Menu"
 Click the tray icon, then ask for a widget in the composer such as:
 
 ```text
-add a CPU temp widget that shows current temperature and fan status
+add a CPU usage widget that shows current load in %
 ```
 
 Baby Menu writes the extension under `~/.baby-menu/extensions`, mounts the widget live, and shows Keep / Undo controls for the turn.
@@ -61,12 +69,6 @@ Agents with `launchCommand` are registered as custom `acpx` overrides and are sh
     "label": "Gemini",
     "command": "gemini",
     "installHint": "Install the Gemini CLI, then restart Baby Menu."
-  },
-  {
-    "name": "local-mock",
-    "label": "Local Mock",
-    "command": "node",
-    "launchCommand": "node ./agents/local-mock.js"
   }
 ]
 ```
@@ -102,13 +104,13 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
    └──────────┬──────────┘
               │  send()
               ▼
-   ┌─────────────────────┐       ┌──────────────────────┐
-   │  BabyMenuAgentRuntime├──────►│    Change Session    │
-   │   wraps acpx/runtime │       │   git or snapshot    │
-   └──────────┬──────────┘       │   by runtime mode    │
-              │                   └──────────┬───────────┘
-              │ edits files                  │ save / rollback
-              ▼                              ▼
+   ┌───────────────────────┐       ┌──────────────────────┐
+   │  BabyMenuAgentRuntime ├──────►│    Change Session    │
+   │   wraps acpx/runtime  │       │   git or snapshot    │
+   └──────────┬────────────┘       │   by runtime mode    │
+              │                    └──────────┬───────────┘
+              │ edits files                   │ save / rollback
+              ▼                               ▼
    ┌─────────────────────┐       ┌──────────────────────┐
    │ active extensions/  │       │   save snapshot or   │
    │  widget.tsx         │◄──────┤   rollback files     │
@@ -138,29 +140,29 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 
 ## Layout
 
-| Path                        | What lives here                                             |
-| --------------------------- | ----------------------------------------------------------- |
-| `src/main/`                 | Electron lifecycle, tray, popover, IPC, git, agent runtime  |
-| `src/preload/index.ts`      | The stable `window.babyMenu` bridge                         |
-| `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, settings, and app controls |
-| `src/ui/`                   | Shared `@babymenu/ui` design system for shell and extension renderer surfaces |
+| Path                        | What lives here                                                                        |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| `src/main/`                 | Electron lifecycle, tray, popover, IPC, git, agent runtime                             |
+| `src/preload/index.ts`      | The stable `window.babyMenu` bridge                                                    |
+| `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, settings, and app controls                        |
+| `src/ui/`                   | Shared `@babymenu/ui` design system for shell and extension renderer surfaces          |
 | `src/shared/contracts.ts`   | `BabyMenuApi`, `BabyMenuWidget`, `BabyMenuSettingsSection`, `GitSessionSnapshot`, etc. |
-| `extensions/<id>/`          | Tracked extensions (`widget.tsx` widgets/settings, `server.ts`) |
-| `extensions/recipes/*.html` | Self-contained widget specs the agent reads                 |
-| `extensions-dev/`           | Gitignored dev workspace prepared by `scripts/dev.mjs`      |
-| `~/.baby-menu/extensions/`  | Packaged app extension workspace                            |
-| `~/.baby-menu/baby-menu.db`  | Packaged app's shared local SQLite store for extensions      |
-| `~/.baby-menu/cache/`       | Packaged widget, server-action, snapshot, and agent caches  |
-| `tests/`                    | Vitest tests (e2e specs are `tests/e2e-*.test.ts`)          |
+| `extensions/<id>/`          | Tracked extensions (`widget.tsx` widgets/settings, `server.ts`)                        |
+| `extensions/recipes/*.html` | Self-contained widget specs the agent reads                                            |
+| `extensions-dev/`           | Gitignored dev workspace prepared by `scripts/dev.mjs`                                 |
+| `~/.baby-menu/extensions/`  | Packaged app extension workspace                                                       |
+| `~/.baby-menu/baby-menu.db` | Packaged app's shared local SQLite store for extensions                                |
+| `~/.baby-menu/cache/`       | Packaged widget, server-action, snapshot, and agent caches                             |
+| `tests/`                    | Vitest tests (e2e specs are `tests/e2e-*.test.ts`)                                     |
 
 ## Environment Flags
 
-| Var                              | Effect                                                       |
-| -------------------------------- | ------------------------------------------------------------ |
-| `BABY_MENU_KEEP_POPOVER_OPEN=1`  | Disables blur-to-hide so devtools / external windows stay up |
-| `BABY_MENU_AGENT=<name>`         | Overrides agent auto-detection when no saved Settings choice exists |
-| `BABY_MENU_AGENT_TIMEOUT_MS=<ms>` | Overrides the embedded-agent request timeout                 |
-| `BABY_MENU_EXTENSIONS_DIR=<dir>` | Overrides the active extension workspace in source/dev runs. Dev Tailwind scans only `extensions/` and `extensions-dev/`, so overrides outside those paths need matching `@source` coverage for widget utilities. |
+| Var                               | Effect                                                                                                                                                                                                            |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BABY_MENU_KEEP_POPOVER_OPEN=1`   | Disables blur-to-hide so devtools / external windows stay up                                                                                                                                                      |
+| `BABY_MENU_AGENT=<name>`          | Overrides agent auto-detection when no saved Settings choice exists                                                                                                                                               |
+| `BABY_MENU_AGENT_TIMEOUT_MS=<ms>` | Overrides the embedded-agent request timeout                                                                                                                                                                      |
+| `BABY_MENU_EXTENSIONS_DIR=<dir>`  | Overrides the active extension workspace in source/dev runs. Dev Tailwind scans only `extensions/` and `extensions-dev/`, so overrides outside those paths need matching `@source` coverage for widget utilities. |
 
 ## Development
 

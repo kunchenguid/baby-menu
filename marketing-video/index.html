@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="41"
+      data-width="1080"
+      data-height="1080"
+    >
+      <!-- ===================== STAGE (camera) ===================== -->
+      <div class="stage" id="stage">
+        <!-- ===================== DESKTOP ===================== -->
+        <div class="desktop" id="desktop"></div>
+
+        <!-- ===================== MENU BAR ===================== -->
+        <div class="menubar" id="menubar">
+          <span class="apple"></span>
+          <span class="app">Finder</span>
+          <span class="mb-item">File</span>
+          <span class="mb-item">Edit</span>
+          <span class="mb-item">View</span>
+          <span class="mb-item">Go</span>
+          <div class="right">
+            <button class="tray-btn open" id="tray-b"><span class="tray-glyph">b</span></button>
+            <span class="pct">78%</span>
+            <span class="ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none"
+                stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+                stroke-linejoin="round">
+                <rect x="2" y="8" width="17" height="9" rx="2.2"></rect>
+                <rect x="4" y="10.5" width="11" height="4" rx="1" fill="currentColor" stroke="none"></rect>
+                <path d="M21.5 11v3"></path>
+              </svg>
+            </span>
+            <span class="ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M2 8.5a15 15 0 0 1 20 0"></path>
+                <path d="M5 12a10 10 0 0 1 14 0"></path>
+                <path d="M8.5 15.5a5 5 0 0 1 7 0"></path>
+                <circle cx="12" cy="19" r="0.6" fill="currentColor" stroke="none"></circle>
+              </svg>
+            </span>
+            <span class="clock">Thu 2:57</span>
+          </div>
+        </div>
+
+        <!-- ===================== POPOVER ===================== -->
+        <div class="pop-scale" id="pop-scale" data-layout-allow-overflow>
+          <div class="popover" id="popover">
+            <div class="pop-head">
+              <span class="mark">baby<span class="us">_</span>menu</span>
+              <span class="head-right">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                  <line x1="12" y1="2" x2="12" y2="12"></line>
+                </svg>
+              </span>
+            </div>
+
+            <div class="pop-body" id="pop-body">
+              <!-- hello-world widget (mirrors extensions/hello-world/widget.tsx) -->
+              <div class="collapser" id="c-hello" data-layout-allow-overflow>
+                <div class="widget hello-widget" id="hello">
+                  <div class="w-head"><span class="w-key">getting started</span></div>
+                  <div class="hello-view">
+                    <div class="hello-greet">
+                      <span class="hello-h1">hello world</span>
+                      <p class="hs-strong">tell baby menu what you would like it to become</p>
+                    </div>
+                    <div class="hello-ex">
+                      <span class="hello-ex-label">examples</span>
+                      <div class="hello-ex-list">
+                        <span class="ex-row"><span class="ex-arrow">›</span><span class="ex-text">add a widget tracking my weekly claude code quota</span></span>
+                        <span class="ex-row"><span class="ex-arrow">›</span><span class="ex-text">add a widget showing current cpu and memory usage %</span></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- cpu / memory widget (values tick live once added) -->
+              <div class="collapser" id="c-cpu" style="height: 0; opacity: 0" data-layout-allow-overflow>
+                <div class="widget" id="w-cpu">
+                  <div class="w-head">
+                    <span class="w-key">cpu <span class="dot">·</span> memory</span>
+                  </div>
+                  <div class="metric">
+                    <div class="row">
+                      <span class="ml">cpu</span>
+                      <span class="mv"><span class="mv-num" id="cpu-num">18</span><small>%</small></span>
+                    </div>
+                    <div class="progress"><div class="fill" id="cpu-fill" style="width: 18%"></div></div>
+                  </div>
+                  <div class="metric">
+                    <div class="row">
+                      <span class="ml">memory</span>
+                      <span class="mv"><span class="mv-num" id="mem-num">23</span><small>%</small></span>
+                    </div>
+                    <div class="progress"><div class="fill" id="mem-fill" style="width: 23%"></div></div>
+                  </div>
+                  <div class="w-foot">
+                    <span>updated just now</span>
+                    <span class="src">host</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- claude code usage widget -->
+              <div class="collapser" id="c-claude" style="height: 0; opacity: 0" data-layout-allow-overflow>
+                <div class="widget" id="w-claude">
+                  <div class="w-head">
+                    <span class="w-key">claude <span class="dot">·</span> weekly</span>
+                  </div>
+                  <div class="metric">
+                    <div class="row">
+                      <span class="ml">used</span>
+                      <span class="mv">68<small>%</small></span>
+                    </div>
+                    <div class="progress"><div class="fill" style="width: 68%"></div></div>
+                  </div>
+                  <div class="models">
+                    <div class="mrow">
+                      <span class="mname">session</span>
+                      <span class="mpct">41%</span>
+                    </div>
+                    <div class="collapser" id="c-sonnet" style="height: 0; opacity: 0">
+                      <div class="mrow spaced" id="sonnet-inner">
+                        <span class="mname">sonnet</span>
+                        <span class="mpct">73%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="w-foot">
+                    <span>last sync 2:57</span>
+                    <span class="src">oauth</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===================== DOCK ===================== -->
+            <div class="dock" id="dock">
+              <!-- composer -->
+              <div class="dock-cell" id="composer">
+                <div class="composer">
+                  <span class="prompt">›</span>
+                  <div class="field" id="cfield">
+                    <span class="ctext" id="cplaceholder"><span class="ph">talk to the baby</span></span>
+                  </div>
+                  <span class="send" id="send">send</span>
+                </div>
+              </div>
+
+              <!-- runstrip -->
+              <div class="dock-cell" id="runstrip" style="opacity: 0">
+                <div class="runstrip">
+                  <span class="rdot" id="rdot"></span>
+                  <div class="lines">
+                    <span class="task" id="run-task"></span>
+                    <span class="step"><span id="run-steps"></span></span>
+                  </div>
+                  <span class="timer" id="run-timer"></span>
+                </div>
+              </div>
+
+              <!-- sessionbar -->
+              <div class="dock-cell" id="sessionbar" style="opacity: 0">
+                <div class="sessionbar">
+                  <span class="sdot"></span>
+                  <span class="smsg">
+                    <span class="sb-msg-wrap" id="sb-msg-wrap"></span>
+                    <span class="shint" id="sb-hint">keep it, or undo</span>
+                  </span>
+                  <button class="btn btn-primary" id="sb-keep">Keep</button>
+                  <button class="btn btn-danger" id="sb-undo">Undo</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- /stage -->
+
+      <!-- ===================== CURSOR / CLICK ===================== -->
+      <div class="cursor" id="cursor" style="opacity: 0">
+        <svg viewBox="0 0 32 32">
+          <path d="M5 3 L5 25 L11 19.5 L14.5 27 L18.5 25 L15 17.5 L23 17.5 Z"
+            fill="#0E1525" stroke="#FFFFFF" stroke-width="1.4" stroke-linejoin="round" />
+        </svg>
+      </div>
+      <div class="click-ring" id="click-ring"></div>
+
+      <!-- ===================== OUTRO (also the looping thumbnail) ===================== -->
+      <div class="outro" id="outro">
+        <div class="glyph" id="o-glyph" data-layout-allow-overflow>
+          <svg viewBox="0 0 1024 1024" width="128" height="128" aria-label="baby menu">
+            <defs>
+              <filter id="mintglow" x="-30%" y="-300%" width="160%" height="700%" color-interpolation-filters="sRGB">
+                <feGaussianBlur stdDeviation="18" result="blur" />
+                <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.416 0 0 0 0 0.890 0 0 0 0 0.714 0 0 0 0.55 0" result="glow" />
+                <feMerge>
+                  <feMergeNode in="glow" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <rect width="1024" height="1024" fill="#0B0B0C" />
+            <text x="515" y="696" text-anchor="middle"
+              font-family="Arial Black, Helvetica Neue, Helvetica, Arial, sans-serif"
+              font-size="690" font-weight="900" letter-spacing="-34" fill="#F4F4F4">b</text>
+            <rect x="225" y="874" width="574" height="9" rx="1" fill="#6AE3B6" filter="url(#mintglow)" />
+          </svg>
+        </div>
+        <div class="wordmark" id="o-wordmark">baby<span class="us">_</span>menu</div>
+        <div class="tag" id="o-tag">build your menu bar by asking. nothing else.</div>
+        <div class="cmd" id="o-cmd">
+          <span class="dollar">$</span>
+          <span>brew install --cask kunchenguid/tap/baby-menu</span>
+        </div>
+      </div>
+
+      <!-- ===================== WIPE ===================== -->
+      <div class="wipe" id="wipe"></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {}
+      window.__timelines['main'] = window.__timelines['main'] || null
+    </script>
+    <script src="./timeline.js"></script>
+  </body>
+</html>
