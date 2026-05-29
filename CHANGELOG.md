@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.4...baby-menu-v0.1.5) (2026-05-29)
+
+
+### Bug Fixes
+
+* separate local mac app bundle identity ([#23](https://github.com/kunchenguid/baby-menu/issues/23)) ([98d7da0](https://github.com/kunchenguid/baby-menu/commit/98d7da0fe3bb36c9d1cac2a7589b98da7cce6730))
+
 ## [0.1.4](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.3...baby-menu-v0.1.4) (2026-05-28)
 
 
