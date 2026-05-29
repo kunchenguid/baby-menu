@@ -20,6 +20,14 @@ if (prompt.includes("SLOW_CANCEL")) {
   await new Promise(() => {});
 }
 
+if (prompt.includes("SLOW_FORCE_KILL")) {
+  emit({ type: "system", subtype: "init", session_id: "fake-session", model: "fake", cwd: process.cwd() });
+  emit({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "ready" }] } });
+  process.on("SIGTERM", () => setTimeout(() => process.exit(0), 2000));
+  setInterval(() => {}, 1000);
+  await new Promise(() => {});
+}
+
 // Real claude emits SessionStart hook noise + an init line carrying session_id.
 emit({ type: "system", subtype: "hook_started", hook_name: "SessionStart" });
 emit({ type: "system", subtype: "init", session_id: "fake-session", model: "fake", cwd: process.cwd() });

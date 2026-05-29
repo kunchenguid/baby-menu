@@ -83,4 +83,49 @@ describe("ClaudeDriver (against a fake claude CLI)", () => {
     expect(early).toBe("still-running");
     expect(await prompt).toBe("cancelled");
   });
+
+  it("waits for the child process to exit before resolving disposal", async () => {
+    const d = makeDriver();
+    await d.start(tmpdir());
+    let ready!: () => void;
+    const readyPromise = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    const prompt = d.prompt(
+      "SLOW_CANCEL",
+      (u) => {
+        if (u.sessionUpdate === "agent_message_chunk") ready();
+      },
+      new AbortController().signal,
+    );
+    await readyPromise;
+
+    const disposal = d.dispose();
+    const early = await Promise.race([disposal.then(() => "disposed"), delay(20).then(() => "still-running")]);
+    expect(early).toBe("still-running");
+    await disposal;
+    expect(await prompt).toBe("cancelled");
+  });
+
+  it("force-kills a child that outlives the termination grace period", async () => {
+    const d = makeDriver();
+    await d.start(tmpdir());
+    let ready!: () => void;
+    const readyPromise = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    const prompt = d.prompt(
+      "SLOW_FORCE_KILL",
+      (u) => {
+        if (u.sessionUpdate === "agent_message_chunk") ready();
+      },
+      new AbortController().signal,
+    );
+    await readyPromise;
+
+    const disposal = d.dispose();
+    const result = await Promise.race([disposal.then(() => "disposed"), delay(1500).then(() => "still-running")]);
+    expect(result).toBe("disposed");
+    expect(await prompt).toBe("cancelled");
+  });
 });

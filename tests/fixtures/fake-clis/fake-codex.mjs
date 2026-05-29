@@ -19,6 +19,15 @@ if (prompt.includes("SLOW_CANCEL")) {
   await new Promise(() => {});
 }
 
+if (prompt.includes("SLOW_FORCE_KILL")) {
+  emit({ type: "thread.started", thread_id: "fake-thread" });
+  emit({ type: "turn.started" });
+  emit({ type: "item.completed", item: { id: "item_1", type: "agent_message", text: "ready" } });
+  process.on("SIGTERM", () => setTimeout(() => process.exit(0), 2000));
+  setInterval(() => {}, 1000);
+  await new Promise(() => {});
+}
+
 if (!isResume) {
   emit({ type: "thread.started", thread_id: "fake-thread" });
 }

@@ -7,6 +7,7 @@ import { childEnv } from "../shared/child-env.js";
 import { mapClaudeEvent, type ClaudeEvent } from "./mapper.js";
 
 const SCOPE = "claude-adapter";
+const TERMINATION_GRACE_MS = 1000;
 
 export type ClaudeDriverOptions = {
   /** Override the claude binary (tests inject a fake). Defaults to "claude". */
@@ -35,6 +36,8 @@ export class ClaudeDriver implements SessionDriver {
   private cwd: string | null = null;
   private sessionId: string | null = null;
   private child: ChildProcessWithoutNullStreams | null = null;
+  private activePrompt: Promise<schema.StopReason> | null = null;
+  private activeCancel: (() => void) | null = null;
 
   constructor(options: ClaudeDriverOptions = {}) {
     this.command = options.command ?? "claude";
@@ -79,22 +82,29 @@ export class ClaudeDriver implements SessionDriver {
     child.stdin.end();
     const reader = new LineReader();
 
-    return new Promise<schema.StopReason>((resolve, reject) => {
+    const activePrompt = new Promise<schema.StopReason>((resolve, reject) => {
       let settled = false;
       let stopReason: schema.StopReason | null = null;
       let cancelled = false;
+      let forceKillTimer: ReturnType<typeof setTimeout> | null = null;
 
       const settle = (reason: schema.StopReason) => {
         if (settled) return;
         settled = true;
+        if (forceKillTimer) clearTimeout(forceKillTimer);
         this.child = null;
+        this.activePrompt = null;
+        this.activeCancel = null;
         signal.removeEventListener("abort", onAbort);
         resolve(reason);
       };
       const fail = (err: Error) => {
         if (settled) return;
         settled = true;
+        if (forceKillTimer) clearTimeout(forceKillTimer);
         this.child = null;
+        this.activePrompt = null;
+        this.activeCancel = null;
         signal.removeEventListener("abort", onAbort);
         reject(err);
       };
@@ -104,7 +114,9 @@ export class ClaudeDriver implements SessionDriver {
         cancelled = true;
         logDebug(SCOPE, "cancel: killing claude");
         child.kill("SIGTERM");
+        forceKillTimer = setTimeout(() => child.kill("SIGKILL"), TERMINATION_GRACE_MS);
       };
+      this.activeCancel = onAbort;
 
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (chunk: string) => {
@@ -145,11 +157,20 @@ export class ClaudeDriver implements SessionDriver {
       if (signal.aborted) onAbort();
       else signal.addEventListener("abort", onAbort, { once: true });
     });
+    this.activePrompt = activePrompt;
+    return activePrompt;
   }
 
   async dispose(): Promise<void> {
-    const child = this.child;
-    this.child = null;
-    if (child) child.kill("SIGTERM");
+    const activePrompt = this.activePrompt;
+    const activeCancel = this.activeCancel;
+    if (activePrompt && activeCancel) {
+      activeCancel();
+      await activePrompt.catch(() => undefined);
+      return;
+    }
+    if (this.child) {
+      this.child.kill("SIGTERM");
+    }
   }
 }
