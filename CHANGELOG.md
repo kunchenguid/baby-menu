@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.12](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.11...baby-menu-v0.1.12) (2026-06-03)
+
+
+### Bug Fixes
+
+* **adapters:** preserve configured Codex model ([#48](https://github.com/kunchenguid/baby-menu/issues/48)) ([bf798ce](https://github.com/kunchenguid/baby-menu/commit/bf798cedd68f3aae69dbf5b2b256c0ee8fe97572))
+* label agent changes from workspace diffs ([#46](https://github.com/kunchenguid/baby-menu/issues/46)) ([7f0bc32](https://github.com/kunchenguid/baby-menu/commit/7f0bc32d45c6fdc7fad4fdcadfa86c0773bba773))
+
 ## [0.1.11](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.10...baby-menu-v0.1.11) (2026-06-03)
 
 
