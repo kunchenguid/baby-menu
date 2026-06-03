@@ -40,7 +40,7 @@ function makePrompt(text) {
   return { wrap, caret, chars: wrap.children, n: text.length }
 }
 
-// Typed prompts mirror the hello-world widget's example prompts.
+// Typed prompts are the requests shown after the simplified hello-world screen.
 const P1 = makePrompt('add a widget showing current cpu and memory usage %')
 const P2 = makePrompt('add a widget tracking my weekly claude code quota')
 const P3 = makePrompt('drop the sonnet quota line')
