@@ -96,6 +96,41 @@ describe("DevExtensionChangeSession", () => {
     await expect(pathExists(join(extensionsDir, "cloned"))).resolves.toBe(false);
   });
 
+  it("preserves an existing .git file on rollback", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-dev-extension-session-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    await mkdir(extensionsDir, { recursive: true });
+    await writeFile(join(extensionsDir, ".git"), "gitdir: ../.git/worktrees/extensions-dev\n");
+    await writeFile(join(extensionsDir, "existing.txt"), "before\n");
+
+    const session = await DevExtensionChangeSession.begin(extensionsDir, join(rootDir, ".cache", "snapshots"));
+    await writeFile(join(extensionsDir, "existing.txt"), "after\n");
+
+    const result = await session.rollback();
+
+    expect(result.ok).toBe(true);
+    await expect(readFile(join(extensionsDir, "existing.txt"), "utf8")).resolves.toBe("before\n");
+    await expect(readFile(join(extensionsDir, ".git"), "utf8")).resolves.toBe(
+      "gitdir: ../.git/worktrees/extensions-dev\n",
+    );
+  });
+
+  it("preserves empty directories that existed in the snapshot", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-dev-extension-session-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    await mkdir(join(extensionsDir, "alpha", "assets", "empty"), { recursive: true });
+    await writeFile(join(extensionsDir, "alpha", "widget.tsx"), "before\n");
+
+    const session = await DevExtensionChangeSession.begin(extensionsDir, join(rootDir, ".cache", "snapshots"));
+    await writeFile(join(extensionsDir, "alpha", "widget.tsx"), "after\n");
+
+    const result = await session.rollback();
+
+    expect(result.ok).toBe(true);
+    await expect(readFile(join(extensionsDir, "alpha", "widget.tsx"), "utf8")).resolves.toBe("before\n");
+    expect((await lstat(join(extensionsDir, "alpha", "assets", "empty"))).isDirectory()).toBe(true);
+  });
+
   it("restores binary files without changing their bytes", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-dev-extension-session-"));
     const extensionsDir = join(rootDir, "extensions-dev");

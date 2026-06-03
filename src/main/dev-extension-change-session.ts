@@ -1,5 +1,5 @@
 import type { Dirent } from "node:fs";
-import { cp, mkdir, readdir, realpath, rm } from "node:fs/promises";
+import { cp, mkdir, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join, relative, sep } from "node:path";
 import type { GitActionResult, GitSessionSnapshot, WorkspaceChange } from "../shared/contracts";
@@ -38,7 +38,7 @@ export class DevExtensionChangeSession {
       force: true,
       filter: (entry) => basename(entry) !== ".git",
     });
-    await markIgnoredDirs(source, snapshotDir, source);
+    await markIgnoredEntries(source, snapshotDir, source);
     return new DevExtensionChangeSession(extensionsDir, snapshotDir);
   }
 
@@ -82,7 +82,7 @@ export class DevExtensionChangeSession {
   }
 }
 
-async function markIgnoredDirs(sourceRoot: string, snapshotRoot: string, current: string): Promise<void> {
+async function markIgnoredEntries(sourceRoot: string, snapshotRoot: string, current: string): Promise<void> {
   let entries: Dirent[];
   try {
     entries = await readdir(current, { withFileTypes: true });
@@ -90,14 +90,14 @@ async function markIgnoredDirs(sourceRoot: string, snapshotRoot: string, current
     return;
   }
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
     const full = join(current, entry.name);
     if (entry.name === ".git") {
       const target = join(snapshotRoot, relative(sourceRoot, full).split(sep).join("/"));
       await mkdir(dirname(target), { recursive: true });
-      await mkdir(target);
+      if (entry.isDirectory()) await mkdir(target);
+      else await writeFile(target, "");
       continue;
     }
-    await markIgnoredDirs(sourceRoot, snapshotRoot, full);
+    if (entry.isDirectory()) await markIgnoredEntries(sourceRoot, snapshotRoot, full);
   }
 }

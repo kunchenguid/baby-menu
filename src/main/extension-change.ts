@@ -1,5 +1,5 @@
 import type { Dirent } from "node:fs";
-import { mkdir, readdir, readFile, readlink, rm, rmdir, stat, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import type { WorkspaceChange, WorkspaceChangeKind } from "../shared/contracts";
 
@@ -74,11 +74,12 @@ async function readFileOrNull(target: string): Promise<string | null> {
 }
 
 type FileTreeEntry =
+  | { kind: "dir" }
   | { kind: "file"; content: Buffer }
   | { kind: "symlink"; target: string };
 
-// Builds a flat map of relative file path -> file entry for every file under
-// `dir`, so two snapshots of the same directory can be compared byte for byte.
+// Builds a flat map of relative path -> entry under `dir`, so two snapshots of
+// the same directory can be compared byte for byte.
 async function readFileTree(dir: string): Promise<Map<string, FileTreeEntry>> {
   const files = new Map<string, FileTreeEntry>();
   async function walk(current: string): Promise<void> {
@@ -89,9 +90,10 @@ async function readFileTree(dir: string): Promise<Map<string, FileTreeEntry>> {
       return;
     }
     for (const entry of entries) {
-      if (entry.isDirectory() && IGNORED_DIRS.has(entry.name)) continue;
+      if (IGNORED_DIRS.has(entry.name)) continue;
       const full = join(current, entry.name);
       if (entry.isDirectory()) {
+        files.set(relative(dir, full).split(sep).join("/"), { kind: "dir" });
         await walk(full);
       } else if (entry.isFile()) {
         files.set(relative(dir, full).split(sep).join("/"), { kind: "file", content: await readFile(full) });
@@ -116,12 +118,12 @@ async function readFileTree(dir: string): Promise<Map<string, FileTreeEntry>> {
 export async function restoreSnapshot(snapshotDir: string, workspaceDir: string): Promise<void> {
   const [before, after] = await Promise.all([readFileTree(snapshotDir), readFileTree(workspaceDir)]);
 
-  await removeCreatedIgnoredDirs(snapshotDir, workspaceDir, workspaceDir);
+  await removeCreatedIgnoredEntries(snapshotDir, workspaceDir, workspaceDir);
 
-  // Remove files the turn created (present now, absent from the snapshot).
+  // Remove entries the turn created (present now, absent from the snapshot).
   for (const relativePath of after.keys()) {
     if (!before.has(relativePath)) {
-      await rm(join(workspaceDir, relativePath), { force: true });
+      await rm(join(workspaceDir, relativePath), { recursive: true, force: true });
     }
   }
 
@@ -133,18 +135,19 @@ export async function restoreSnapshot(snapshotDir: string, workspaceDir: string)
     if (!afterEntry || afterEntry.kind !== entry.kind || entry.kind === "symlink") {
       await rm(target, { recursive: true, force: true });
     }
-    await mkdir(dirname(target), { recursive: true });
-    if (entry.kind === "file") {
+    if (entry.kind === "dir") {
+      await mkdir(target, { recursive: true });
+    } else if (entry.kind === "file") {
+      await mkdir(dirname(target), { recursive: true });
       await writeFile(target, entry.content);
     } else {
+      await mkdir(dirname(target), { recursive: true });
       await symlink(entry.target, target);
     }
   }
-
-  await pruneEmptyDirs(workspaceDir);
 }
 
-async function removeCreatedIgnoredDirs(snapshotRoot: string, workspaceRoot: string, current: string): Promise<void> {
+async function removeCreatedIgnoredEntries(snapshotRoot: string, workspaceRoot: string, current: string): Promise<void> {
   let entries: Dirent[];
   try {
     entries = await readdir(current, { withFileTypes: true });
@@ -152,32 +155,13 @@ async function removeCreatedIgnoredDirs(snapshotRoot: string, workspaceRoot: str
     return;
   }
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
     const full = join(current, entry.name);
     if (IGNORED_DIRS.has(entry.name)) {
       const relativePath = relative(workspaceRoot, full).split(sep).join("/");
-      if (!(await pathExists(join(snapshotRoot, relativePath)))) await rm(full, { recursive: true, force: true });
+      if (!(await pathEntryExists(join(snapshotRoot, relativePath)))) await rm(full, { recursive: true, force: true });
       continue;
     }
-    await removeCreatedIgnoredDirs(snapshotRoot, workspaceRoot, full);
-  }
-}
-
-// Removes directories left empty after a restore (those the turn created),
-// depth-first so parents are considered after their children. The workspace
-// root and ignored directories are never removed.
-async function pruneEmptyDirs(root: string): Promise<void> {
-  let entries: Dirent[];
-  try {
-    entries = await readdir(root, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (!entry.isDirectory() || IGNORED_DIRS.has(entry.name)) continue;
-    const full = join(root, entry.name);
-    await pruneEmptyDirs(full);
-    if ((await readdir(full)).length === 0) await rmdir(full);
+    if (entry.isDirectory()) await removeCreatedIgnoredEntries(snapshotRoot, workspaceRoot, full);
   }
 }
 
@@ -193,8 +177,18 @@ export async function directoriesDiffer(before: string, after: string): Promise<
 
 function fileTreeEntriesEqual(a: FileTreeEntry, b: FileTreeEntry | undefined): boolean {
   if (!b) return false;
+  if (a.kind === "dir") return b.kind === "dir";
   if (a.kind === "file") return b.kind === "file" && a.content.equals(b.content);
   return b.kind === "symlink" && a.target === b.target;
+}
+
+async function pathEntryExists(target: string): Promise<boolean> {
+  try {
+    await lstat(target);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Classifies how a single file changed between two snapshots, or null if it is
