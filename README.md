@@ -63,6 +63,7 @@ Set `BABY_MENU_TELEMETRY=0` in the launch environment to opt out.
 If an agent send fails, the composer notice surfaces the underlying failure message instead of only showing a generic unavailable hint.
 Baby Menu detects supported agents from the catalog in order: Claude Code (`claude`), then Codex (`codex`).
 Those built-ins run through bundled clean-room ACP adapters that drive the authenticated local CLIs without inheriting user-level agent settings, skills, MCP servers, or extra rules.
+The Codex adapter makes one exception: it reads only the top-level `model` from `$CODEX_HOME/config.toml` or `~/.codex/config.toml` and passes it as `--model`, because the adapter otherwise runs Codex with `--ignore-user-config`.
 Use Settings to persist an agent choice across launches.
 Set `BABY_MENU_AGENT=<name>` in the launch environment to override auto-detection before a preference is saved.
 Add `~/.baby-menu/agents.json` to override or append catalog entries manually; source mode reads `agents.json` from the repo root.
@@ -149,6 +150,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 - **Recipes are specs, not prompts** - HTML files under `extensions/recipes/` describe a widget's capability, data sources, fallback behavior, and acceptance criteria.
   The agent reads the matching recipe before implementing.
 - **Bundled ACP adapters** - the built-in Claude Code and Codex entries launch `out/adapters/<name>/index.mjs`, which wraps the local authenticated CLI and keeps Baby Menu's embedded agent isolated from user-level agent configuration.
+  Codex still reuses only the top-level configured model from `$CODEX_HOME/config.toml` or `~/.codex/config.toml` so `--ignore-user-config` does not force an unsupported CLI default.
   If a restart leaves behind a persisted ACP session that an adapter cannot resume, Baby Menu records the failed attempt, deletes that stale session record, and retries once with a fresh session.
 - **Live custom agent catalog** - Settings-owned custom ACP agents are persisted to `agents.json`, registered as `acpx` overrides immediately, and kept separate from read-only built-ins.
 - **Settings overlay** - Settings covers the default menu without unmounting it, so chat composer, widget, and run state survive opening and closing Settings.
@@ -200,6 +202,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | `BABY_MENU_AGENT=<name>`          | Overrides agent auto-detection when no saved Settings choice exists                                                                                                                                               |
 | `BABY_MENU_AGENT_TIMEOUT_MS=<ms>` | Overrides the embedded-agent request timeout                                                                                                                                                                      |
 | `BABY_MENU_EXTENSIONS_DIR=<dir>`  | Overrides the active extension workspace in source/dev runs. Dev Tailwind scans only `extensions/` and `extensions-dev/`, so overrides outside those paths need matching `@source` coverage for widget utilities. |
+| `CODEX_HOME=<dir>`                | When Codex is the selected built-in agent, points the adapter at `<dir>/config.toml` for the top-level `model`; other Codex user config is still ignored.                                                         |
 | `BABY_MENU_TELEMETRY=0`           | Disables packaged-release telemetry; `false` and `off` are also accepted                                                                                                                                          |
 | `BABY_MENU_UMAMI_HOST=<url>`      | Overrides the self-hosted Umami endpoint used by telemetry. Source/dev/test builds are no-op unless a website id is also configured.                                                                               |
 | `BABY_MENU_UMAMI_WEBSITE_ID=<id>` | Overrides or supplies the Umami website id used by telemetry. The release workflow reads this from the GitHub Actions `vars.*` context, not a secret.                                                             |

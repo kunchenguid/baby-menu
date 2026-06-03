@@ -85,6 +85,7 @@ The extension-facing slice of that contract is a generated public surface, treat
 `src/adapters/` contains the bundled clean-room ACP adapters for built-in agents.
 Claude Code and Codex are exposed to `acpx/runtime` as local adapter processes, while the adapters drive the real authenticated `claude` and `codex` CLIs in the active extension workspace.
 The adapters intentionally run lean: they do not inherit user-level agent settings, skills, MCP servers, or extra rules.
+The Codex adapter makes one narrow exception: because `--ignore-user-config` also discards the configured default model, it reads only the top-level `model` from `$CODEX_HOME/config.toml` or `~/.codex/config.toml` and passes that value back as `--model`.
 
 `src/renderer/` extension loading modules:
 
