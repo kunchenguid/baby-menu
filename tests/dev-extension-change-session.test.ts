@@ -80,6 +80,22 @@ describe("DevExtensionChangeSession", () => {
     await expect(readFile(join(extensionsDir, ".git", "HEAD"), "utf8")).resolves.toBe("ref: refs/heads/feature\n");
   });
 
+  it("removes .git metadata created after the snapshot", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-dev-extension-session-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    await mkdir(extensionsDir, { recursive: true });
+
+    const session = await DevExtensionChangeSession.begin(extensionsDir, join(rootDir, ".cache", "snapshots"));
+    await mkdir(join(extensionsDir, "cloned", ".git"), { recursive: true });
+    await writeFile(join(extensionsDir, "cloned", ".git", "HEAD"), "ref: refs/heads/main\n");
+    await writeFile(join(extensionsDir, "cloned", "widget.tsx"), "export const widget = true;\n");
+
+    const result = await session.rollback();
+
+    expect(result.ok).toBe(true);
+    await expect(pathExists(join(extensionsDir, "cloned"))).resolves.toBe(false);
+  });
+
   it("restores binary files without changing their bytes", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-dev-extension-session-"));
     const extensionsDir = join(rootDir, "extensions-dev");

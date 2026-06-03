@@ -116,6 +116,8 @@ async function readFileTree(dir: string): Promise<Map<string, FileTreeEntry>> {
 export async function restoreSnapshot(snapshotDir: string, workspaceDir: string): Promise<void> {
   const [before, after] = await Promise.all([readFileTree(snapshotDir), readFileTree(workspaceDir)]);
 
+  await removeCreatedIgnoredDirs(snapshotDir, workspaceDir, workspaceDir);
+
   // Remove files the turn created (present now, absent from the snapshot).
   for (const relativePath of after.keys()) {
     if (!before.has(relativePath)) {
@@ -140,6 +142,25 @@ export async function restoreSnapshot(snapshotDir: string, workspaceDir: string)
   }
 
   await pruneEmptyDirs(workspaceDir);
+}
+
+async function removeCreatedIgnoredDirs(snapshotRoot: string, workspaceRoot: string, current: string): Promise<void> {
+  let entries: Dirent[];
+  try {
+    entries = await readdir(current, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const full = join(current, entry.name);
+    if (IGNORED_DIRS.has(entry.name)) {
+      const relativePath = relative(workspaceRoot, full).split(sep).join("/");
+      if (!(await pathExists(join(snapshotRoot, relativePath)))) await rm(full, { recursive: true, force: true });
+      continue;
+    }
+    await removeCreatedIgnoredDirs(snapshotRoot, workspaceRoot, full);
+  }
 }
 
 // Removes directories left empty after a restore (those the turn created),
