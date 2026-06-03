@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { GitSessionSnapshot } from "../../shared/contracts";
+import type { GitSessionSnapshot, WorkspaceChange, WorkspaceChangeKind } from "../../shared/contracts";
 
 const unavailableText = "open baby_menu from the tray to talk to the agent";
 
@@ -112,7 +112,7 @@ export function useAgentRuntime() {
     try {
       if (!window.babyMenu) throw new Error(unavailableText);
       const result = await window.babyMenu.agent.send(trimmed);
-      const nextChange = sessionNoticeForResult(result.assistantText, trimmed, result.session);
+      const nextChange = sessionNoticeForResult(result.session);
       setPendingChange(nextChange.kind === "pending" ? nextChange : null);
       setNotice(nextChange.kind === "pending" ? null : nextChange);
     } catch (error) {
@@ -136,8 +136,10 @@ export function useAgentRuntime() {
       return;
     }
 
+    // Keep is the happy path: clear the bar and return to the composer. A
+    // separate "kept" confirmation with its own Dismiss button is just noise.
     setPendingChange(null);
-    setNotice({ kind: "saved", summary: keptSummary(pendingChange.summary) });
+    setNotice(null);
   }
 
   async function undo() {
@@ -167,15 +169,17 @@ export function useAgentRuntime() {
   };
 }
 
-function sessionNoticeForResult(
-  assistantText: string,
-  prompt: string,
-  snapshot: GitSessionSnapshot | undefined,
-): AgentSessionNotice {
+function sessionNoticeForResult(snapshot: GitSessionSnapshot | undefined): AgentSessionNotice {
+  // The agent reported back without touching any file. Say so plainly instead of
+  // claiming a change and offering a Keep button with nothing behind it.
+  if (snapshot && snapshot.dirty === false) {
+    return { kind: "blocked", summary: "No changes were made", hint: "the agent did not edit anything" };
+  }
+
   if (snapshot?.canSave || snapshot?.canRollback) {
     return {
       kind: "pending",
-      summary: summarizeAgentResult(assistantText, prompt),
+      summary: summarizeChanges(snapshot.changes) ?? "Review the changes",
       hint: "keep it, or undo",
       canKeep: snapshot.canSave,
       canUndo: snapshot.canRollback,
@@ -189,18 +193,51 @@ function sessionNoticeForResult(
   };
 }
 
-// Builds a pending notice from a re-hydrated session snapshot. There is no
-// assistant text after a reload, so the summary falls back to the snapshot
-// message. Returns null when the session can no longer be saved or rolled back.
+// Builds a pending notice from a re-hydrated session snapshot after a reload.
+// The summary is derived from the diff, the same as the live result. Returns
+// null when the session can no longer be saved/rolled back or made no change.
 function sessionNoticeForSnapshot(snapshot: GitSessionSnapshot): AgentSessionNotice | null {
   if (!snapshot.canSave && !snapshot.canRollback) return null;
+  if (snapshot.dirty === false) return null;
   return {
     kind: "pending",
-    summary: snapshot.message?.trim() || "Unsaved agent changes",
+    summary: summarizeChanges(snapshot.changes) ?? snapshot.message?.trim() ?? "Unsaved agent changes",
     hint: "keep it, or undo",
     canKeep: snapshot.canSave,
     canUndo: snapshot.canRollback,
   };
+}
+
+// Turns the diff-derived change list into a short, honest label for the
+// Keep/Rollback bar. Extension changes lead (a created/updated extension is the
+// headline); the root layout is described only when nothing else changed.
+// Returns null when there is nothing attributable to name.
+function summarizeChanges(changes: WorkspaceChange[] | undefined): string | null {
+  if (!changes || changes.length === 0) return null;
+
+  const extensions = changes.filter(
+    (change): change is Extract<WorkspaceChange, { type: "extension" }> => change.type === "extension",
+  );
+
+  if (extensions.length === 1) {
+    return `${verbFor(extensions[0].kind)} the ${extensions[0].extensionId} extension`;
+  }
+  if (extensions.length > 1) {
+    const kinds = new Set(extensions.map((change) => change.kind));
+    const verb = kinds.size === 1 ? verbFor(extensions[0].kind) : "Changed";
+    return `${verb} ${extensions.length} extensions`;
+  }
+
+  const layout = changes.find((change) => change.type === "layout");
+  if (layout) return `${verbFor(layout.kind)} the layout`;
+
+  return null;
+}
+
+function verbFor(kind: WorkspaceChangeKind): string {
+  if (kind === "created") return "Added";
+  if (kind === "removed") return "Removed";
+  return "Updated";
 }
 
 // Surfaces the real reason a send failed instead of a blanket "unavailable".
@@ -212,35 +249,3 @@ function failureReason(error: unknown): string | null {
   return message || null;
 }
 
-function summarizeAgentResult(assistantText: string, prompt: string): string {
-  const firstLine = assistantText
-    .split("\n")
-    .map((line) => line.trim())
-    .find(Boolean);
-
-  if (firstLine && firstLine.length <= 80 && !containsInfrastructureCopy(firstLine)) {
-    return firstLine.replace(/[.!]$/, "");
-  }
-
-  return summarizePrompt(prompt);
-}
-
-function containsInfrastructureCopy(text: string): boolean {
-  return /\b(git|commit|rollback|save|files?|repo|working tree|stash|head|sha)\b|\b(src|extensions|recipes)\//i.test(
-    text,
-  );
-}
-
-function summarizePrompt(prompt: string): string {
-  const lower = prompt.toLowerCase();
-  if (lower.includes("cpu")) return "Added a CPU temperature widget";
-  if (lower.includes("battery")) return "Added a battery widget";
-  if (lower.includes("weather")) return "Added a weather widget";
-  if (lower.includes("calendar")) return "Added a calendar widget";
-  if (lower.includes("memory") || lower.includes("ram")) return "Added a memory widget";
-  return "Added a new widget";
-}
-
-function keptSummary(summary: string): string {
-  return `Kept · ${summary.replace(/^Added\s+/i, "")}`;
-}

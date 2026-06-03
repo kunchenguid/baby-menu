@@ -7,12 +7,28 @@ export type RecipeMetadata = {
   path: string;
 };
 
+// What a single workspace surface had done to it during an agent turn, derived
+// from the actual diff (git status / snapshot comparison), never from the
+// agent's prose. A change targets either a specific extension or the root layout.
+export type WorkspaceChangeKind = "created" | "updated" | "removed";
+
+export type WorkspaceChange =
+  | { kind: WorkspaceChangeKind; type: "extension"; extensionId: string }
+  | { kind: WorkspaceChangeKind; type: "layout" };
+
 export type GitSessionSnapshot = {
   startedClean: boolean;
   canSave: boolean;
   canRollback: boolean;
   head: string | null;
   message?: string;
+  // Classification of what the turn changed. Absent when the change session
+  // could not be inspected; empty when the turn touched only files we do not
+  // attribute to a surface (recipes, AGENTS.md, etc.).
+  changes?: WorkspaceChange[];
+  // Whether the workspace actually differs from its pre-turn state. False means
+  // the agent reported back without making any on-disk change.
+  dirty?: boolean;
 };
 
 export type GitActionResult = {

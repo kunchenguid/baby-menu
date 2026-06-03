@@ -159,6 +159,94 @@ describe("AgentChat", () => {
     expect(await screen.findByText("codex CLI exited with code 127")).toBeTruthy();
   });
 
+  it("labels the Keep prompt from the diff, not the agent prose (updated extension)", async () => {
+    installBabyMenuAgentMock();
+    // The agent claims it "added" something, but the diff says an existing
+    // extension was updated. The label must follow the diff.
+    window.babyMenu!.agent.send = vi.fn(async (): Promise<AgentChatResult> => ({
+      assistantText: "Added a battery widget for you!",
+      session: {
+        startedClean: true,
+        canSave: true,
+        canRollback: true,
+        head: null,
+        dirty: true,
+        changes: [{ type: "extension", extensionId: "battery", kind: "updated" }],
+      },
+    }));
+    render(<AgentChat />);
+
+    const composer = screen.getByPlaceholderText("talk to the baby");
+    fireEvent.change(composer, { target: { value: "make the battery widget bigger" } });
+    fireEvent.submit(composer.closest("form")!);
+
+    expect(await screen.findByText("Updated the battery extension")).toBeTruthy();
+    expect(screen.queryByText(/Added/)).toBeNull();
+  });
+
+  it("labels a layout-only change as Updated the layout", async () => {
+    installBabyMenuAgentMock();
+    window.babyMenu!.agent.send = vi.fn(async (): Promise<AgentChatResult> => ({
+      assistantText: "Done.",
+      session: {
+        startedClean: true,
+        canSave: true,
+        canRollback: true,
+        head: null,
+        dirty: true,
+        changes: [{ type: "layout", kind: "updated" }],
+      },
+    }));
+    render(<AgentChat />);
+
+    const composer = screen.getByPlaceholderText("talk to the baby");
+    fireEvent.change(composer, { target: { value: "add a bit more margin between the two columns" } });
+    fireEvent.submit(composer.closest("form")!);
+
+    expect(await screen.findByText("Updated the layout")).toBeTruthy();
+  });
+
+  it("says no changes were made when the agent edited nothing", async () => {
+    installBabyMenuAgentMock();
+    window.babyMenu!.agent.send = vi.fn(async (): Promise<AgentChatResult> => ({
+      assistantText: "All set!",
+      session: { startedClean: true, canSave: true, canRollback: true, head: null, dirty: false, changes: [] },
+    }));
+    render(<AgentChat />);
+
+    const composer = screen.getByPlaceholderText("talk to the baby");
+    fireEvent.change(composer, { target: { value: "add a bit more margin between the two columns" } });
+    fireEvent.submit(composer.closest("form")!);
+
+    expect(await screen.findByText("No changes were made")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+  });
+
+  it("clears the session bar after Keep without a kept confirmation", async () => {
+    installBabyMenuAgentMock({
+      session: {
+        startedClean: true,
+        canSave: true,
+        canRollback: true,
+        head: null,
+        message: "Review the generated changes, then Save or Rollback.",
+      },
+    });
+    window.babyMenu!.git.save = vi.fn(async () => ({ ok: true }));
+    render(<AgentChat />);
+
+    const keep = await screen.findByRole("button", { name: "Keep" });
+    await act(async () => {
+      fireEvent.click(keep);
+    });
+
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
+    expect(screen.queryByText(/Kept/)).toBeNull();
+    expect(screen.getByPlaceholderText("talk to the baby")).toBeTruthy();
+  });
+
   it("does not show a prompt when no change session is open on mount", async () => {
     const agent = installBabyMenuAgentMock({ session: null });
     render(<AgentChat />);

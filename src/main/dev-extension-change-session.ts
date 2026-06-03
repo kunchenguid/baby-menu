@@ -1,7 +1,8 @@
 import { cp, mkdir, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import type { GitActionResult, GitSessionSnapshot } from "../shared/contracts";
+import type { GitActionResult, GitSessionSnapshot, WorkspaceChange } from "../shared/contracts";
+import { classifySnapshotChanges, directoriesDiffer } from "./extension-change";
 
 export class DevExtensionChangeSession {
   readonly startedClean = true;
@@ -28,6 +29,18 @@ export class DevExtensionChangeSession {
     const snapshotDir = join(snapshotRoot, randomUUID());
     await cp(extensionsDir, snapshotDir, { recursive: true, force: true });
     return new DevExtensionChangeSession(extensionsDir, snapshotDir);
+  }
+
+  // Whether the workspace actually differs from the pre-turn snapshot. False
+  // means the agent reported back without changing any file.
+  async hasChanges(): Promise<boolean> {
+    return directoriesDiffer(this.snapshotDir, this.extensionsDir);
+  }
+
+  // Classifies which workspace surfaces this turn created, updated, or removed by
+  // comparing the pre-turn snapshot to the current workspace - never the agent's prose.
+  async describeChanges(): Promise<WorkspaceChange[]> {
+    return classifySnapshotChanges(this.snapshotDir, this.extensionsDir);
   }
 
   snapshot(message?: string): GitSessionSnapshot {

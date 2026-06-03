@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
+import { join, relative } from "node:path";
 import { promisify } from "node:util";
-import type { GitActionResult, GitSessionSnapshot } from "../shared/contracts";
+import type { GitActionResult, GitSessionSnapshot, WorkspaceChange, WorkspaceChangeKind } from "../shared/contracts";
+import { extensionIdForWorkspacePath, isLayoutWorkspacePath, pathExists, sortChanges } from "./extension-change";
 
 const execFileAsync = promisify(execFile);
 
@@ -17,17 +19,30 @@ async function isWorkingTreeClean(cwd: string): Promise<boolean> {
   return (await gitText(cwd, ["status", "--porcelain"])) === "";
 }
 
+// Re-expresses a repo-relative changed path against the extension workspace
+// root, or returns null when the path is outside the workspace.
+function workspaceRelativePath(prefix: string, repoRelativePath: string): string | null {
+  if (!prefix) return repoRelativePath;
+  if (repoRelativePath === prefix) return "";
+  const withSlash = `${prefix}/`;
+  return repoRelativePath.startsWith(withSlash) ? repoRelativePath.slice(withSlash.length) : null;
+}
+
 export class GitChangeSession {
   readonly rootDir: string;
   readonly head: string | null;
   readonly startedClean: boolean;
+  // The extension workspace, relative to rootDir (e.g. "extensions"). Used to map
+  // changed repo paths back to the extension they belong to.
+  private readonly extensionsRelDir: string;
 
   private completed = false;
 
-  private constructor(rootDir: string, head: string | null, startedClean: boolean) {
+  private constructor(rootDir: string, head: string | null, startedClean: boolean, extensionsDir: string) {
     this.rootDir = rootDir;
     this.head = head;
     this.startedClean = startedClean;
+    this.extensionsRelDir = relative(rootDir, extensionsDir);
   }
 
   get canSave(): boolean {
@@ -38,10 +53,72 @@ export class GitChangeSession {
     return this.startedClean && !this.completed;
   }
 
-  static async begin(rootDir: string): Promise<GitChangeSession> {
+  static async begin(rootDir: string, extensionsDir: string = rootDir): Promise<GitChangeSession> {
     const startedClean = await isWorkingTreeClean(rootDir);
     const head = startedClean ? await gitText(rootDir, ["rev-parse", "HEAD"]) : null;
-    return new GitChangeSession(rootDir, head, startedClean);
+    return new GitChangeSession(rootDir, head, startedClean, extensionsDir);
+  }
+
+  // Whether the working tree actually differs from its pre-turn state. False
+  // means the agent reported back without changing any file.
+  async hasChanges(): Promise<boolean> {
+    return !(await isWorkingTreeClean(this.rootDir));
+  }
+
+  // Classifies which workspace surfaces this turn created, updated, or removed by
+  // reading the actual working-tree diff - never the agent's prose.
+  async describeChanges(): Promise<WorkspaceChange[]> {
+    const prefix = this.extensionsRelDir;
+    const ids = new Set<string>();
+    let layoutChanged = false;
+    for (const path of await this.changedPaths()) {
+      const workspaceRel = workspaceRelativePath(prefix, path);
+      if (workspaceRel === null) continue;
+      if (isLayoutWorkspacePath(workspaceRel)) {
+        layoutChanged = true;
+        continue;
+      }
+      const id = extensionIdForWorkspacePath(workspaceRel);
+      if (id) ids.add(id);
+    }
+
+    const changes: WorkspaceChange[] = [];
+    for (const id of ids) {
+      changes.push({ type: "extension", extensionId: id, kind: await this.classify(id, prefix) });
+    }
+    if (layoutChanged) {
+      const kind = await this.classifyPath(`${prefix ? `${prefix}/` : ""}layout.tsx`);
+      changes.push({ type: "layout", kind });
+    }
+    return sortChanges(changes);
+  }
+
+  private async changedPaths(): Promise<string[]> {
+    const { stdout } = await git(this.rootDir, ["status", "--porcelain", "-z", "-uall"]);
+    const tokens = stdout.split("\0");
+    const paths: string[] = [];
+    for (let i = 0; i < tokens.length; i += 1) {
+      const token = tokens[i];
+      if (!token) continue;
+      const status = token.slice(0, 2);
+      // Rename/copy entries are "XY <dest>\0<src>\0"; keep the destination path
+      // and skip the trailing source token.
+      if (status[0] === "R" || status[0] === "C") i += 1;
+      paths.push(token.slice(3));
+    }
+    return paths;
+  }
+
+  private async classify(extensionId: string, prefix: string): Promise<WorkspaceChangeKind> {
+    return this.classifyPath(prefix ? `${prefix}/${extensionId}` : extensionId);
+  }
+
+  private async classifyPath(repoRelPath: string): Promise<WorkspaceChangeKind> {
+    const inHead = (await gitText(this.rootDir, ["ls-tree", this.head ?? "HEAD", "--", repoRelPath])) !== "";
+    const onDisk = await pathExists(join(this.rootDir, repoRelPath));
+    if (inHead && !onDisk) return "removed";
+    if (!inHead && onDisk) return "created";
+    return "updated";
   }
 
   snapshot(message?: string): GitSessionSnapshot {

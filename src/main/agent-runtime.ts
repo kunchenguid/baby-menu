@@ -11,7 +11,7 @@ import {
   type AcpRuntimeTurn,
   type AcpxRuntime,
 } from "acpx/runtime";
-import type { AgentActiveTurn, AgentChatResult, GitActionResult, GitSessionSnapshot } from "../shared/contracts";
+import type { AgentActiveTurn, AgentChatResult, GitActionResult, GitSessionSnapshot, WorkspaceChange } from "../shared/contracts";
 import type { AgentRuntimeStatus } from "../shared/contracts";
 import { BUILT_IN_AGENT_NAMES, type AgentDefinition, resolveAgentCatalog } from "./agent-catalog";
 import { getAgentStateDir, getDevExtensionSnapshotDir, getExtensionsDir } from "../shared/paths";
@@ -68,9 +68,27 @@ type AgentChangeSession = {
   readonly canSave: boolean;
   readonly canRollback: boolean;
   snapshot(message?: string): GitSessionSnapshot;
+  describeChanges(): Promise<WorkspaceChange[]>;
+  hasChanges(): Promise<boolean>;
   save(message?: string): Promise<GitActionResult>;
   rollback(): Promise<GitActionResult>;
 };
+
+// Builds the renderer-facing snapshot and attaches the diff-derived change
+// classification plus dirty flag, so the Keep/Rollback bar can label what
+// actually changed instead of guessing from the agent's prose. Inspection
+// failures degrade to an unannotated snapshot rather than breaking the turn.
+async function enrichSnapshot(session: AgentChangeSession, message: string): Promise<GitSessionSnapshot> {
+  const snapshot = session.snapshot(message);
+  try {
+    const [changes, dirty] = await Promise.all([session.describeChanges(), session.hasChanges()]);
+    snapshot.changes = changes;
+    snapshot.dirty = dirty;
+  } catch {
+    // Leave changes/dirty undefined; the renderer falls back to a generic label.
+  }
+  return snapshot;
+}
 
 export class AgentTimeoutError extends Error {
   constructor(
@@ -336,11 +354,11 @@ export class BabyMenuAgentRuntime {
    * mid-turn keeps the renderer from showing a Keep/Rollback prompt before the
    * build has actually finished. Use currentTurn() to restore the run strip then.
    */
-  currentSessionSnapshot(): GitSessionSnapshot | null {
+  async currentSessionSnapshot(): Promise<GitSessionSnapshot | null> {
     if (this.activeTurn) return null;
     if (!this.activeSession) return null;
     if (!this.activeSession.canSave && !this.activeSession.canRollback) return null;
-    return this.activeSession.snapshot("Review the generated changes, then Save or Rollback.");
+    return enrichSnapshot(this.activeSession, "Review the generated changes, then Save or Rollback.");
   }
 
   /**
@@ -500,7 +518,7 @@ export class BabyMenuAgentRuntime {
       this.telemetry?.track("agent_turn", { agent: telemetryAgent, status: "success" });
       return {
         assistantText: output.trim() || "Agent finished without a text response.",
-        session: changeSession.snapshot("Review the generated repo changes, then Save or Rollback."),
+        session: await enrichSnapshot(changeSession, "Review the generated repo changes, then Save or Rollback."),
       };
     } catch (error) {
       if (!(error instanceof AgentTimeoutError)) {
@@ -517,7 +535,7 @@ export class BabyMenuAgentRuntime {
       this.handle = null;
       return {
         assistantText: `The ${this.agentName} agent timed out after ${error.timeoutMs}ms while ${error.phase}. It may have made partial repo changes. Review the working tree, then Save or Rollback. You can retry with BABY_MENU_AGENT_TIMEOUT_MS set higher if needed.`,
-        session: changeSession.snapshot("Agent timed out. Review any partial repo changes, then Save or Rollback."),
+        session: await enrichSnapshot(changeSession, "Agent timed out. Review any partial repo changes, then Save or Rollback."),
       };
     }
   }
@@ -604,7 +622,7 @@ export class BabyMenuAgentRuntime {
       return DevExtensionChangeSession.begin(agentCwd, this.paths?.snapshotDir ?? getDevExtensionSnapshotDir(this.rootDir));
     }
 
-    return GitChangeSession.begin(this.rootDir);
+    return GitChangeSession.begin(this.rootDir, agentCwd);
   }
 
   private async ensureRuntime(agentCwd: string): Promise<AcpxRuntime> {

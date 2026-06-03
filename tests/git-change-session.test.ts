@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
@@ -60,6 +60,37 @@ describe("GitChangeSession", () => {
     expect(result.ok).toBe(true);
     expect(content).toBe("base\n");
     expect(status.stdout.trim()).toBe("");
+  });
+
+  it("classifies created, updated, and removed extensions from the git diff", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "baby-menu-git-"));
+    await git(repo, ["init"]);
+    await git(repo, ["config", "user.email", "tests@example.com"]);
+    await git(repo, ["config", "user.name", "Baby Menu Tests"]);
+    const extensionsDir = join(repo, "extensions");
+    await mkdir(join(extensionsDir, "alpha"), { recursive: true });
+    await writeFile(join(extensionsDir, "alpha", "widget.tsx"), "export const widget = 1;\n");
+    await mkdir(join(extensionsDir, "gamma"), { recursive: true });
+    await writeFile(join(extensionsDir, "gamma", "widget.tsx"), "export const widget = 3;\n");
+    await writeFile(join(extensionsDir, "AGENTS.md"), "rules\n");
+    await git(repo, ["add", "."]);
+    await git(repo, ["commit", "-m", "initial"]);
+
+    const session = await GitChangeSession.begin(repo, extensionsDir);
+
+    await writeFile(join(extensionsDir, "alpha", "widget.tsx"), "export const widget = 2;\n");
+    await mkdir(join(extensionsDir, "beta"), { recursive: true });
+    await writeFile(join(extensionsDir, "beta", "widget.tsx"), "export const widget = 9;\n");
+    await rm(join(extensionsDir, "gamma"), { recursive: true, force: true });
+    await writeFile(join(extensionsDir, "AGENTS.md"), "edited rules\n");
+
+    const changes = await session.describeChanges();
+
+    expect(changes).toEqual([
+      { type: "extension", extensionId: "alpha", kind: "updated" },
+      { type: "extension", extensionId: "beta", kind: "created" },
+      { type: "extension", extensionId: "gamma", kind: "removed" },
+    ]);
   });
 
   it("refuses rollback when new commits appeared after the session started", async () => {

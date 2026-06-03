@@ -15,7 +15,7 @@ function installBabyMenuApi(overrides: Partial<BabyMenuApi> = {}) {
       status: vi.fn(async () => null),
     },
     agent: {
-      send: vi.fn(async () => ({
+      send: vi.fn(async (): Promise<AgentChatResult> => ({
         assistantText: "Added a CPU temperature widget",
         session: {
           startedClean: true,
@@ -23,6 +23,8 @@ function installBabyMenuApi(overrides: Partial<BabyMenuApi> = {}) {
           canRollback: true,
           head: "abc123",
           message: "Review the generated repo changes, then Save or Rollback.",
+          dirty: true,
+          changes: [{ type: "extension", extensionId: "cpu-temp", kind: "created" }],
         },
       })),
       onStatus: vi.fn(() => () => undefined),
@@ -135,10 +137,13 @@ describe("Monochrome Lab renderer", () => {
         canRollback: true,
         head: "abc123",
         message: "Review the generated repo changes, then Save or Rollback.",
+        dirty: true,
+        changes: [{ type: "extension", extensionId: "cpu-temp", kind: "created" }],
       },
     });
 
-    await screen.findByText("Added a CPU temperature widget");
+    // The Keep/Rollback label is derived from the diff, not the agent's prose.
+    await screen.findByText("Added the cpu-temp extension");
 
     expect(screen.getByRole("button", { name: "Keep" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
@@ -159,7 +164,7 @@ describe("Monochrome Lab renderer", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "send" }));
 
-    await screen.findByText("Added a CPU temperature widget");
+    await screen.findByText("Added the cpu-temp extension");
 
     fireEvent.change(screen.getByPlaceholderText("talk to the baby"), {
       target: { value: "add weather" },

@@ -106,7 +106,7 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle("baby-menu:git:status", async (): Promise<GitSessionSnapshot | null> => {
-    return agentRuntime.currentSessionSnapshot();
+    return await agentRuntime.currentSessionSnapshot();
   });
 
   ipcMain.handle("baby-menu:capabilities:list", async () => {
