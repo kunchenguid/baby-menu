@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.10...baby-menu-v0.1.11) (2026-06-03)
+
+
+### Bug Fixes
+
+* **renderer:** prevent custom popover layouts from clipping ([#44](https://github.com/kunchenguid/baby-menu/issues/44)) ([04a0fa6](https://github.com/kunchenguid/baby-menu/commit/04a0fa62b1f9214193a91e7687fac8f4552d75f0))
+
 ## [0.1.10](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.9...baby-menu-v0.1.10) (2026-05-29)
 
 
