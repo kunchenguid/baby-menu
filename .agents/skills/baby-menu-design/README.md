@@ -10,7 +10,7 @@ The visual direction is **Monochrome Lab** — terminal-elegant, near-black, mon
 
 Baby Menu is a tray-popover OS-level utility built around a single moving surface: the user looks at and uses the widgets the agent has built, and the agent is one slim prompt away at the bottom of the main menu. There is no build-mode toggle, no separate "build" view, no chat panel. The composer is *the* affordance for talking to the agent in the main surface, and it sits there when idle - a single line of mono type with a `›` prompt prefix. The exceptions are the settings view, which replaces the body and composer while open, and an in-flight agent run, where the RunStrip replaces the composer until the run finishes.
 
-When the user sends a request, the composer momentarily becomes a `RunStrip`: a single live affordance with a pulsing mint dot, the agent's current step, and an elapsed timer. **No log, no step history.** When the agent finishes, a `SessionBar` slides in with a plain-language summary of what was added (`Added a CPU temperature widget`) and two buttons: **Keep** and **Undo**. The user never sees commit SHAs, file counts, or the word "git" — those are infrastructure they shouldn't have to think about.
+When the user sends a request, the composer momentarily becomes a `RunStrip`: a single live affordance with a pulsing mint dot, the agent's current step, and an elapsed timer. **No log, no step history.** When the agent finishes with real file changes, a `SessionBar` slides in with a plain-language summary derived from the workspace diff (`Added the cpu extension`, `Updated the layout`) and two buttons: **Keep** and **Undo**. The user never sees commit SHAs, file counts, or the word "git" - those are infrastructure they shouldn't have to think about.
 
 The popover surface is adaptive: 504px wide by default, wider when a root `layout.tsx` owns a custom canvas, and dynamic-height within the host limits.
 On the main menu, the composer is pinned to the bottom; everything above it stacks and grows.
@@ -79,7 +79,7 @@ The personality is "competent log". A calm CLI tool that happens to have a face.
 
 **Yes:**
 
-- `Added a CPU temperature widget`
+- `Added the cpu extension`
 - `keep it, or undo`
 - `Finish this change first`
 - `talk to the baby`
@@ -117,13 +117,14 @@ When assistant response text appears there, it should be plain user-facing copy:
 - `Built the Claude quota widget`
 - `Added the calendar widget`
 
-When the agent finishes, the SessionBar summarizes the result in one phrase, past-tense:
+When the agent finishes with real file changes, the SessionBar summarizes the diff in one phrase, past-tense:
 
-- `Added a CPU temperature widget`
-- `Added a memory widget`
-- `Updated the now-playing widget`
+- `Added the cpu extension`
+- `Updated the now-playing extension`
+- `Updated the layout`
 
-The user should be able to read this and immediately know whether to **Keep** it or **Undo** it without thinking about engineering at all.
+If the agent made no on-disk change, the UI should say that plainly instead of showing Keep / Undo.
+The user should be able to read a real-change summary and immediately know whether to **Keep** it or **Undo** it without thinking about engineering at all.
 
 ---
 

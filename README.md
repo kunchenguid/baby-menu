@@ -44,8 +44,8 @@ Click the tray icon, then ask for a widget in the composer such as:
 add a CPU usage widget that shows current load in %
 ```
 
-Baby Menu writes the extension under `~/.baby-menu/extensions`, mounts the widget live, and shows Keep / Undo controls for the turn.
-Use Keep to keep it, or Undo to throw it away.
+Baby Menu writes changes under `~/.baby-menu/extensions`, mounts updated widgets or layouts live, and shows Keep / Undo controls only when files actually changed.
+The Keep / Undo bar labels the actual workspace diff, such as `Added the cpu extension` or `Updated the layout`; use Keep to keep it, or Undo to throw it away.
 Extensions can keep local state in Baby Menu's shared SQLite store, contribute settings sections, and register background tasks for work that must continue while the popover is closed.
 The packaged app opens at login by default.
 Use the popover header to open settings, fully quit the app, or install an available update.
@@ -166,6 +166,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 - **Background tasks vs view refresh** - `refreshView` / `viewRefreshIntervalMs` keeps a visible widget current and pauses while the popover is hidden; `export const background` in `server.ts` runs on a host-owned timer, clamped to a 60-second minimum, for work that must continue while the popover is closed.
 - **Runtime-specific extension roots** - `pnpm dev` edits gitignored `extensions-dev/`; packaged builds seed and edit `~/.baby-menu/extensions` with internal snapshot save/rollback.
   Tracked `extensions/` remain the source templates for dev and packaged extension workspaces, including the generated `@babymenu/contracts` declaration in `extensions/babymenu-env.d.ts`.
+- **Diff-derived change prompts** - the Keep / Undo bar is driven by the actual git or snapshot diff, not by agent wording.
+  It names created, updated, or removed extensions, reports root `layout.tsx` edits as layout changes, and clears the pending session automatically when the agent made no on-disk change.
 - **Stable extension contracts** - extension code imports public host types with type-only `import ... from "@babymenu/contracts"`; the generated declaration is shipped into each extension workspace so extensions never need to reach back into `src/shared/contracts.ts`.
 - **Anonymous telemetry** - packaged release builds fire best-effort Umami events for app start, popover open, agent turn status (`success`, `error`, `timeout`, or `blocked_dirty`), and agent switching, and also record each popover open as the `/popover` page view.
   Built-in agent names are reported as `claude` or `codex`; custom agent names are reported only as `custom`.
