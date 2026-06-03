@@ -43,6 +43,9 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
 - **Runtime-specific roots.**
   `pnpm dev` edits gitignored `extensions-dev/`; packaged builds seed and edit `~/.baby-menu/extensions` with snapshot save/rollback.
   Tracked `extensions/` stay the source templates, including the generated `@babymenu/contracts` declaration.
+- **Snapshot rollback safety.**
+  Snapshot workspaces restore in place instead of replacing the workspace directory, so a symlinked extension workspace stays linked while files, directories, symlinks, binary contents, and modes return to the pre-turn state.
+  Existing user-owned `.git` metadata is ignored and preserved, while `.git` metadata created by a turn is removed with the rest of that created subtree.
 - **Diff-derived Keep / Undo.**
   The bar reflects the actual git or snapshot diff, not agent wording - it names created, updated, or removed extensions, reports `layout.tsx` edits as layout changes, and clears itself when nothing changed on disk.
 
