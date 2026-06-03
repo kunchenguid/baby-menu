@@ -93,6 +93,24 @@ describe("GitChangeSession", () => {
     ]);
   });
 
+  it("classifies the actual changed root layout file", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "baby-menu-git-"));
+    await git(repo, ["init"]);
+    await git(repo, ["config", "user.email", "tests@example.com"]);
+    await git(repo, ["config", "user.name", "Baby Menu Tests"]);
+    const extensionsDir = join(repo, "extensions");
+    await mkdir(extensionsDir, { recursive: true });
+    await writeFile(join(extensionsDir, "AGENTS.md"), "rules\n");
+    await git(repo, ["add", "."]);
+    await git(repo, ["commit", "-m", "initial"]);
+
+    const session = await GitChangeSession.begin(repo, extensionsDir);
+
+    await writeFile(join(extensionsDir, "layout.ts"), "export default function Layout() { return null; }\n");
+
+    expect(await session.describeChanges()).toEqual([{ type: "layout", kind: "created" }]);
+  });
+
   it("refuses rollback when new commits appeared after the session started", async () => {
     const repo = await createRepo();
     const session = await GitChangeSession.begin(repo);

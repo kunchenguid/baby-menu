@@ -462,6 +462,45 @@ describe("agent runtime change-session snapshot", () => {
     expect(await runtime.currentSessionSnapshot()).toEqual({ ...snap, changes, dirty: true });
   });
 
+  it("does not leave a saveable session open after a no-change turn", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-runtime-"));
+    const runtime = new BabyMenuAgentRuntime(rootDir, { agentName: "claude" });
+    const internals = runtime as unknown as {
+      activeSession: unknown;
+      activeTurn: boolean;
+      activeTurnInfo: { title: string; startedAt: number } | null;
+    };
+    const session = {
+      startedClean: true,
+      canSave: true,
+      canRollback: true,
+      snapshot: vi.fn((message?: string) => ({ startedClean: true, canSave: true, canRollback: true, head: "HEAD", message })),
+      describeChanges: vi.fn(async () => []),
+      hasChanges: vi.fn(async () => false),
+      save: vi.fn(async () => ({ ok: true })),
+      rollback: vi.fn(async () => ({ ok: true })),
+    };
+    const sendInternals = runtime as unknown as {
+      ensureAgentRuntimeCwd: () => Promise<string>;
+      beginChangeSession: () => Promise<unknown>;
+      ensureRuntime: () => Promise<unknown>;
+      collectTurnOutput: () => Promise<string>;
+    };
+    sendInternals.ensureAgentRuntimeCwd = vi.fn(async () => join(rootDir, "extensions"));
+    sendInternals.beginChangeSession = vi.fn(async () => session);
+    sendInternals.ensureRuntime = vi.fn(async () => ({
+      ensureSession: vi.fn(async () => ({})),
+      startTurn: vi.fn(() => fakeTurn({ events: (async function* () {})() })),
+    }));
+    sendInternals.collectTurnOutput = vi.fn(async () => "No edits needed.");
+
+    const result = await runtime.send("make no edits");
+
+    expect(result.session?.dirty).toBe(false);
+    expect(internals.activeSession).toBeNull();
+    expect(runtime.agentSwitchDisabledReason).toBeUndefined();
+  });
+
   it("does NOT report a saveable snapshot while a turn is still running", async () => {
     const { runtime, internals } = buildRuntime();
     // The change session is created at the start of a turn, so it is saveable the

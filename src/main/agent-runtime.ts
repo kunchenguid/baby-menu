@@ -358,7 +358,7 @@ export class BabyMenuAgentRuntime {
     if (this.activeTurn) return null;
     if (!this.activeSession) return null;
     if (!this.activeSession.canSave && !this.activeSession.canRollback) return null;
-    return enrichSnapshot(this.activeSession, "Review the generated changes, then Save or Rollback.");
+    return this.enrichActiveSessionSnapshot(this.activeSession, "Review the generated changes, then Save or Rollback.");
   }
 
   /**
@@ -518,7 +518,10 @@ export class BabyMenuAgentRuntime {
       this.telemetry?.track("agent_turn", { agent: telemetryAgent, status: "success" });
       return {
         assistantText: output.trim() || "Agent finished without a text response.",
-        session: await enrichSnapshot(changeSession, "Review the generated repo changes, then Save or Rollback."),
+        session: await this.enrichActiveSessionSnapshot(
+          changeSession,
+          "Review the generated repo changes, then Save or Rollback.",
+        ),
       };
     } catch (error) {
       if (!(error instanceof AgentTimeoutError)) {
@@ -535,9 +538,18 @@ export class BabyMenuAgentRuntime {
       this.handle = null;
       return {
         assistantText: `The ${this.agentName} agent timed out after ${error.timeoutMs}ms while ${error.phase}. It may have made partial repo changes. Review the working tree, then Save or Rollback. You can retry with BABY_MENU_AGENT_TIMEOUT_MS set higher if needed.`,
-        session: await enrichSnapshot(changeSession, "Agent timed out. Review any partial repo changes, then Save or Rollback."),
+        session: await this.enrichActiveSessionSnapshot(
+          changeSession,
+          "Agent timed out. Review any partial repo changes, then Save or Rollback.",
+        ),
       };
     }
+  }
+
+  private async enrichActiveSessionSnapshot(session: AgentChangeSession, message: string): Promise<GitSessionSnapshot> {
+    const snapshot = await enrichSnapshot(session, message);
+    if (snapshot.dirty === false && this.activeSession === session) this.activeSession = null;
+    return snapshot;
   }
 
   private reportTurnError(error: unknown, telemetryAgent: string): unknown {

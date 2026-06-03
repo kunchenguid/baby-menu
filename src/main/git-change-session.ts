@@ -70,12 +70,12 @@ export class GitChangeSession {
   async describeChanges(): Promise<WorkspaceChange[]> {
     const prefix = this.extensionsRelDir;
     const ids = new Set<string>();
-    let layoutChanged = false;
+    let layoutWorkspaceRel: string | null = null;
     for (const path of await this.changedPaths()) {
       const workspaceRel = workspaceRelativePath(prefix, path);
       if (workspaceRel === null) continue;
       if (isLayoutWorkspacePath(workspaceRel)) {
-        layoutChanged = true;
+        layoutWorkspaceRel = workspaceRel;
         continue;
       }
       const id = extensionIdForWorkspacePath(workspaceRel);
@@ -86,8 +86,8 @@ export class GitChangeSession {
     for (const id of ids) {
       changes.push({ type: "extension", extensionId: id, kind: await this.classify(id, prefix) });
     }
-    if (layoutChanged) {
-      const kind = await this.classifyPath(`${prefix ? `${prefix}/` : ""}layout.tsx`);
+    if (layoutWorkspaceRel) {
+      const kind = await this.classifyPath(`${prefix ? `${prefix}/` : ""}${layoutWorkspaceRel}`);
       changes.push({ type: "layout", kind });
     }
     return sortChanges(changes);
