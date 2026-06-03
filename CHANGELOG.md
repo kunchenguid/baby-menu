@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.12...baby-menu-v0.1.13) (2026-06-03)
+
+
+### Bug Fixes
+
+* **main:** preserve dev workspace rollback state ([#51](https://github.com/kunchenguid/baby-menu/issues/51)) ([a39a4a7](https://github.com/kunchenguid/baby-menu/commit/a39a4a750de453e115c6e4cdf72efbddd1c97efa))
+
 ## [0.1.12](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.11...baby-menu-v0.1.12) (2026-06-03)
 
 
