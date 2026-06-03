@@ -1,4 +1,4 @@
-import { lstat, mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -145,6 +145,25 @@ describe("DevExtensionChangeSession", () => {
 
     expect(result.ok).toBe(true);
     expect(await readFile(join(extensionsDir, "alpha", "icon.bin"))).toEqual(before);
+  });
+
+  it("restores executable file modes on rollback", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-dev-extension-session-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    await mkdir(join(extensionsDir, "alpha"), { recursive: true });
+    const scriptPath = join(extensionsDir, "alpha", "helper.sh");
+    await writeFile(scriptPath, "#!/bin/sh\nexit 0\n");
+    await chmod(scriptPath, 0o755);
+
+    const session = await DevExtensionChangeSession.begin(extensionsDir, join(rootDir, ".cache", "snapshots"));
+    await chmod(scriptPath, 0o644);
+    await writeFile(scriptPath, "#!/bin/sh\nexit 1\n");
+
+    const result = await session.rollback();
+
+    expect(result.ok).toBe(true);
+    expect((await stat(scriptPath)).mode & 0o777).toBe(0o755);
+    await expect(readFile(scriptPath, "utf8")).resolves.toBe("#!/bin/sh\nexit 0\n");
   });
 
   it("restores a snapshot file when the current path is a directory", async () => {

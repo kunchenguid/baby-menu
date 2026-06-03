@@ -1,5 +1,5 @@
 import type { Dirent } from "node:fs";
-import { lstat, mkdir, readdir, readFile, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readdir, readFile, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import type { WorkspaceChange, WorkspaceChangeKind } from "../shared/contracts";
 
@@ -74,8 +74,8 @@ async function readFileOrNull(target: string): Promise<string | null> {
 }
 
 type FileTreeEntry =
-  | { kind: "dir" }
-  | { kind: "file"; content: Buffer }
+  | { kind: "dir"; mode: number }
+  | { kind: "file"; content: Buffer; mode: number }
   | { kind: "symlink"; target: string };
 
 // Builds a flat map of relative path -> entry under `dir`, so two snapshots of
@@ -93,10 +93,14 @@ async function readFileTree(dir: string): Promise<Map<string, FileTreeEntry>> {
       if (IGNORED_DIRS.has(entry.name)) continue;
       const full = join(current, entry.name);
       if (entry.isDirectory()) {
-        files.set(relative(dir, full).split(sep).join("/"), { kind: "dir" });
+        files.set(relative(dir, full).split(sep).join("/"), { kind: "dir", mode: (await lstat(full)).mode & 0o7777 });
         await walk(full);
       } else if (entry.isFile()) {
-        files.set(relative(dir, full).split(sep).join("/"), { kind: "file", content: await readFile(full) });
+        files.set(relative(dir, full).split(sep).join("/"), {
+          kind: "file",
+          content: await readFile(full),
+          mode: (await lstat(full)).mode & 0o7777,
+        });
       } else if (entry.isSymbolicLink()) {
         files.set(relative(dir, full).split(sep).join("/"), { kind: "symlink", target: await readlink(full) });
       }
@@ -137,9 +141,11 @@ export async function restoreSnapshot(snapshotDir: string, workspaceDir: string)
     }
     if (entry.kind === "dir") {
       await mkdir(target, { recursive: true });
+      await chmod(target, entry.mode);
     } else if (entry.kind === "file") {
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, entry.content);
+      await chmod(target, entry.mode);
     } else {
       await mkdir(dirname(target), { recursive: true });
       await symlink(entry.target, target);
@@ -177,8 +183,8 @@ export async function directoriesDiffer(before: string, after: string): Promise<
 
 function fileTreeEntriesEqual(a: FileTreeEntry, b: FileTreeEntry | undefined): boolean {
   if (!b) return false;
-  if (a.kind === "dir") return b.kind === "dir";
-  if (a.kind === "file") return b.kind === "file" && a.content.equals(b.content);
+  if (a.kind === "dir") return b.kind === "dir" && a.mode === b.mode;
+  if (a.kind === "file") return b.kind === "file" && a.mode === b.mode && a.content.equals(b.content);
   return b.kind === "symlink" && a.target === b.target;
 }
 
