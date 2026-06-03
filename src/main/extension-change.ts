@@ -1,5 +1,5 @@
 import type { Dirent } from "node:fs";
-import { mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, readlink, rm, rmdir, stat, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import type { WorkspaceChange, WorkspaceChangeKind } from "../shared/contracts";
 
@@ -73,10 +73,14 @@ async function readFileOrNull(target: string): Promise<string | null> {
   }
 }
 
-// Builds a flat map of relative file path -> contents for every file under
+type FileTreeEntry =
+  | { kind: "file"; content: Buffer }
+  | { kind: "symlink"; target: string };
+
+// Builds a flat map of relative file path -> file entry for every file under
 // `dir`, so two snapshots of the same directory can be compared byte for byte.
-async function readFileTree(dir: string): Promise<Map<string, string>> {
-  const files = new Map<string, string>();
+async function readFileTree(dir: string): Promise<Map<string, FileTreeEntry>> {
+  const files = new Map<string, FileTreeEntry>();
   async function walk(current: string): Promise<void> {
     let entries: Dirent[];
     try {
@@ -90,7 +94,9 @@ async function readFileTree(dir: string): Promise<Map<string, string>> {
       if (entry.isDirectory()) {
         await walk(full);
       } else if (entry.isFile()) {
-        files.set(relative(dir, full).split(sep).join("/"), await readFile(full, { encoding: "utf8" }));
+        files.set(relative(dir, full).split(sep).join("/"), { kind: "file", content: await readFile(full) });
+      } else if (entry.isSymbolicLink()) {
+        files.set(relative(dir, full).split(sep).join("/"), { kind: "symlink", target: await readlink(full) });
       }
     }
   }
@@ -118,11 +124,19 @@ export async function restoreSnapshot(snapshotDir: string, workspaceDir: string)
   }
 
   // Rewrite files the turn changed or deleted back to their pre-turn contents.
-  for (const [relativePath, content] of before) {
-    if (after.get(relativePath) === content) continue;
+  for (const [relativePath, entry] of before) {
+    const afterEntry = after.get(relativePath);
+    if (fileTreeEntriesEqual(entry, afterEntry)) continue;
     const target = join(workspaceDir, relativePath);
+    if (!afterEntry || afterEntry.kind !== entry.kind || entry.kind === "symlink") {
+      await rm(target, { recursive: true, force: true });
+    }
     await mkdir(dirname(target), { recursive: true });
-    await writeFile(target, content);
+    if (entry.kind === "file") {
+      await writeFile(target, entry.content);
+    } else {
+      await symlink(entry.target, target);
+    }
   }
 
   await pruneEmptyDirs(workspaceDir);
@@ -150,10 +164,16 @@ async function pruneEmptyDirs(root: string): Promise<void> {
 export async function directoriesDiffer(before: string, after: string): Promise<boolean> {
   const [a, b] = await Promise.all([readFileTree(before), readFileTree(after)]);
   if (a.size !== b.size) return true;
-  for (const [path, content] of a) {
-    if (!b.has(path) || b.get(path) !== content) return true;
+  for (const [path, entry] of a) {
+    if (!fileTreeEntriesEqual(entry, b.get(path))) return true;
   }
   return false;
+}
+
+function fileTreeEntriesEqual(a: FileTreeEntry, b: FileTreeEntry | undefined): boolean {
+  if (!b) return false;
+  if (a.kind === "file") return b.kind === "file" && a.content.equals(b.content);
+  return b.kind === "symlink" && a.target === b.target;
 }
 
 // Classifies how a single file changed between two snapshots, or null if it is

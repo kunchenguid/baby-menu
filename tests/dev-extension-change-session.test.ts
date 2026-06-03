@@ -80,6 +80,54 @@ describe("DevExtensionChangeSession", () => {
     await expect(readFile(join(extensionsDir, ".git", "HEAD"), "utf8")).resolves.toBe("ref: refs/heads/feature\n");
   });
 
+  it("restores binary files without changing their bytes", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-dev-extension-session-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    await mkdir(join(extensionsDir, "alpha"), { recursive: true });
+    const before = Buffer.from([0x00, 0xff, 0x80, 0x41, 0x0a]);
+    await writeFile(join(extensionsDir, "alpha", "icon.bin"), before);
+
+    const session = await DevExtensionChangeSession.begin(extensionsDir, join(rootDir, ".cache", "snapshots"));
+    await writeFile(join(extensionsDir, "alpha", "icon.bin"), Buffer.from([0xff, 0x00, 0x42]));
+
+    const result = await session.rollback();
+
+    expect(result.ok).toBe(true);
+    expect(await readFile(join(extensionsDir, "alpha", "icon.bin"))).toEqual(before);
+  });
+
+  it("restores a snapshot file when the current path is a directory", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-dev-extension-session-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    await mkdir(join(extensionsDir, "alpha"), { recursive: true });
+    await writeFile(join(extensionsDir, "alpha", "widget.tsx"), "before\n");
+
+    const session = await DevExtensionChangeSession.begin(extensionsDir, join(rootDir, ".cache", "snapshots"));
+    await rm(join(extensionsDir, "alpha", "widget.tsx"), { force: true });
+    await mkdir(join(extensionsDir, "alpha", "widget.tsx"), { recursive: true });
+    await writeFile(join(extensionsDir, "alpha", "widget.tsx", "nested.txt"), "created\n");
+
+    const result = await session.rollback();
+
+    expect(result.ok).toBe(true);
+    await expect(readFile(join(extensionsDir, "alpha", "widget.tsx"), "utf8")).resolves.toBe("before\n");
+  });
+
+  it("removes symlinks created after the snapshot", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-dev-extension-session-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    await mkdir(join(extensionsDir, "alpha"), { recursive: true });
+    await writeFile(join(extensionsDir, "alpha", "widget.tsx"), "before\n");
+
+    const session = await DevExtensionChangeSession.begin(extensionsDir, join(rootDir, ".cache", "snapshots"));
+    await symlink(join(extensionsDir, "alpha", "widget.tsx"), join(extensionsDir, "alpha", "created-link"));
+
+    const result = await session.rollback();
+
+    expect(result.ok).toBe(true);
+    await expect(pathExists(join(extensionsDir, "alpha", "created-link"))).resolves.toBe(false);
+  });
+
   it("ignores .git metadata when detecting changes", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-dev-extension-session-"));
     const extensionsDir = join(rootDir, "extensions-dev");
