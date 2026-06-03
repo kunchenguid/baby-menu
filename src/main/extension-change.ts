@@ -1,12 +1,19 @@
 import type { Dirent } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { dirname, join, relative, sep } from "node:path";
 import type { WorkspaceChange, WorkspaceChangeKind } from "../shared/contracts";
 
 // Directory names that live inside the extension workspace but are not
 // themselves extensions, so changes to them are not reported as extension
 // created/updated/removed events.
 const NON_EXTENSION_DIRS = new Set(["recipes"]);
+
+// Directory names that belong to whatever the user layered on top of the
+// workspace (their own version control), not to the extensions themselves. We
+// never diff or touch these, so a user can keep `extensions/` portable however
+// they like - a git repo, a symlink into a dotfiles tree - without the
+// snapshot machinery reverting or deleting their metadata.
+const IGNORED_DIRS = new Set([".git"]);
 
 // The single root layout file the workspace may define (see AGENTS.md). Matched
 // at the workspace root only; a layout.tsx inside an extension is that
@@ -78,6 +85,7 @@ async function readFileTree(dir: string): Promise<Map<string, string>> {
       return;
     }
     for (const entry of entries) {
+      if (entry.isDirectory() && IGNORED_DIRS.has(entry.name)) continue;
       const full = join(current, entry.name);
       if (entry.isDirectory()) {
         await walk(full);
@@ -88,6 +96,54 @@ async function readFileTree(dir: string): Promise<Map<string, string>> {
   }
   await walk(dir);
   return files;
+}
+
+/**
+ * Restores `workspaceDir` to match `snapshotDir`, file by file and in place.
+ *
+ * Unlike a delete-and-recopy, this never removes the workspace directory node
+ * itself, so a symlinked workspace stays a symlink and the restore writes
+ * through it. Files the turn created are removed, files it changed or deleted
+ * are rewritten from the snapshot, and directories the turn left empty are
+ * pruned. Paths under an ignored directory (a user's `.git`) are left untouched.
+ */
+export async function restoreSnapshot(snapshotDir: string, workspaceDir: string): Promise<void> {
+  const [before, after] = await Promise.all([readFileTree(snapshotDir), readFileTree(workspaceDir)]);
+
+  // Remove files the turn created (present now, absent from the snapshot).
+  for (const relativePath of after.keys()) {
+    if (!before.has(relativePath)) {
+      await rm(join(workspaceDir, relativePath), { force: true });
+    }
+  }
+
+  // Rewrite files the turn changed or deleted back to their pre-turn contents.
+  for (const [relativePath, content] of before) {
+    if (after.get(relativePath) === content) continue;
+    const target = join(workspaceDir, relativePath);
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, content);
+  }
+
+  await pruneEmptyDirs(workspaceDir);
+}
+
+// Removes directories left empty after a restore (those the turn created),
+// depth-first so parents are considered after their children. The workspace
+// root and ignored directories are never removed.
+async function pruneEmptyDirs(root: string): Promise<void> {
+  let entries: Dirent[];
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || IGNORED_DIRS.has(entry.name)) continue;
+    const full = join(root, entry.name);
+    await pruneEmptyDirs(full);
+    if ((await readdir(full)).length === 0) await rmdir(full);
+  }
 }
 
 /** True when two directory trees differ in their file set or any file contents. */

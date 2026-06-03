@@ -1,8 +1,8 @@
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, realpath, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { GitActionResult, GitSessionSnapshot, WorkspaceChange } from "../shared/contracts";
-import { classifySnapshotChanges, directoriesDiffer } from "./extension-change";
+import { classifySnapshotChanges, directoriesDiffer, restoreSnapshot } from "./extension-change";
 
 export class DevExtensionChangeSession {
   readonly startedClean = true;
@@ -27,7 +27,16 @@ export class DevExtensionChangeSession {
     await mkdir(extensionsDir, { recursive: true });
     await mkdir(snapshotRoot, { recursive: true });
     const snapshotDir = join(snapshotRoot, randomUUID());
-    await cp(extensionsDir, snapshotDir, { recursive: true, force: true });
+    // Resolve symlinks so the snapshot is a plain copy of the real contents
+    // (copying a symlinked workspace verbatim would alias the snapshot to the
+    // live tree). Skip the user's own `.git` - it is theirs to manage, and can
+    // be large.
+    const source = await realpath(extensionsDir);
+    await cp(source, snapshotDir, {
+      recursive: true,
+      force: true,
+      filter: (entry) => basename(entry) !== ".git",
+    });
     return new DevExtensionChangeSession(extensionsDir, snapshotDir);
   }
 
@@ -64,8 +73,7 @@ export class DevExtensionChangeSession {
   async rollback(): Promise<GitActionResult> {
     if (this.completed) return { ok: false, reason: "Cannot rollback: session is already completed" };
 
-    await rm(this.extensionsDir, { recursive: true, force: true });
-    await cp(this.snapshotDir, this.extensionsDir, { recursive: true, force: true });
+    await restoreSnapshot(this.snapshotDir, this.extensionsDir);
     await rm(this.snapshotDir, { recursive: true, force: true });
     this.completed = true;
     return { ok: true };
