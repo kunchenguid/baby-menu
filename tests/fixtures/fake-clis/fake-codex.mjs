@@ -10,6 +10,11 @@ import { existsSync, writeFileSync } from "node:fs";
 const emit = (obj) => process.stdout.write(JSON.stringify(obj) + "\n");
 
 const argv = process.argv.slice(2);
+// Optional arg capture so driver tests can assert which flags were passed
+// (e.g. --model). Overwritten on every invocation, so the last turn wins.
+if (process.env.FAKE_CODEX_ARGS_FILE) {
+  writeFileSync(process.env.FAKE_CODEX_ARGS_FILE, JSON.stringify(argv));
+}
 const isResume = argv[0] === "exec" && argv[1] === "resume";
 // The prompt is the final positional arg.
 const prompt = argv[argv.length - 1] ?? "";

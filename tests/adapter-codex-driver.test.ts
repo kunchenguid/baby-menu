@@ -1,6 +1,6 @@
 import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile } from "node:fs/promises";
 import { existsSync, watch } from "node:fs";
 import { describe, expect, it, afterEach } from "vitest";
 import { CodexDriver } from "../src/adapters/codex/driver";
@@ -85,6 +85,50 @@ describe("CodexDriver (against a fake codex CLI)", () => {
     expect(updates.find((u) => u.sessionUpdate === "agent_message_chunk")).toMatchObject({
       content: { type: "text", text: "resumed:second" },
     });
+  });
+
+  it("passes --model on both first and resume turns when a model is configured", async () => {
+    // Regression: --ignore-user-config strips ~/.codex/config.toml's `model`
+    // line, so codex falls back to a built-in default that is unsupported on
+    // ChatGPT-account logins (400 invalid_request_error). The driver must inject
+    // the configured model explicitly on every turn so codex talks to a model
+    // the account can actually use.
+    const dir = await mkdtemp(join(tmpdir(), "codex-args-"));
+    const argsFile = join(dir, "args.json");
+    process.env.FAKE_CODEX_ARGS_FILE = argsFile;
+    try {
+      driver = new CodexDriver({ command: FAKE, model: "gpt-5.5" });
+      await driver.start(tmpdir());
+      const s = new AbortController().signal;
+      await driver.prompt("first", () => {}, s);
+      const firstArgs = JSON.parse(await readFile(argsFile, "utf8")) as string[];
+      expect(firstArgs).toContain("--model");
+      expect(firstArgs[firstArgs.indexOf("--model") + 1]).toBe("gpt-5.5");
+
+      await driver.prompt("second", () => {}, s);
+      const resumeArgs = JSON.parse(await readFile(argsFile, "utf8")) as string[];
+      expect(resumeArgs[0]).toBe("exec");
+      expect(resumeArgs[1]).toBe("resume");
+      expect(resumeArgs).toContain("--model");
+      expect(resumeArgs[resumeArgs.indexOf("--model") + 1]).toBe("gpt-5.5");
+    } finally {
+      delete process.env.FAKE_CODEX_ARGS_FILE;
+    }
+  });
+
+  it("omits --model when no model is configured", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "codex-args-"));
+    const argsFile = join(dir, "args.json");
+    process.env.FAKE_CODEX_ARGS_FILE = argsFile;
+    try {
+      const d = makeDriver();
+      await d.start(tmpdir());
+      await d.prompt("first", () => {}, new AbortController().signal);
+      const args = JSON.parse(await readFile(argsFile, "utf8")) as string[];
+      expect(args).not.toContain("--model");
+    } finally {
+      delete process.env.FAKE_CODEX_ARGS_FILE;
+    }
   });
 
   it("surfaces a command tool_call and tool_call_update", async () => {

@@ -12,6 +12,13 @@ const TERMINATION_GRACE_MS = 1000;
 export type CodexDriverOptions = {
   /** Override the codex binary (tests inject a fake). Defaults to "codex". */
   command?: string;
+  /**
+   * Model to pass as `--model`. `--ignore-user-config` (below) discards the
+   * `model` line from ~/.codex/config.toml, so without this codex falls back to
+   * a built-in default that is unsupported on ChatGPT-account logins. When
+   * undefined, no `--model` is passed and codex picks its own default.
+   */
+  model?: string;
 };
 
 /**
@@ -28,6 +35,7 @@ export type CodexDriverOptions = {
  */
 export class CodexDriver implements SessionDriver {
   private readonly command: string;
+  private readonly model: string | null;
   private cwd: string | null = null;
   private threadId: string | null = null;
   private child: ChildProcessWithoutNullStreams | null = null;
@@ -36,6 +44,7 @@ export class CodexDriver implements SessionDriver {
 
   constructor(options: CodexDriverOptions = {}) {
     this.command = options.command ?? "codex";
+    this.model = options.model ?? null;
   }
 
   async start(cwd: string): Promise<void> {
@@ -58,6 +67,10 @@ export class CodexDriver implements SessionDriver {
       // context comes from the cwd (the workspace) and its AGENTS.md.
       "--ignore-user-config",
       "--ignore-rules",
+      // Re-inject the model that --ignore-user-config just discarded. `--model`
+      // is a CLI flag, so it survives both the ignore and the resume subcommand
+      // (unlike --color), and it points codex at a model the account supports.
+      ...(this.model ? ["--model", this.model] : []),
     ];
     // `--color` is valid on `codex exec` but the `resume` subcommand rejects it
     // (clap exits 2), so it stays off the resume path. Output is `--json`
