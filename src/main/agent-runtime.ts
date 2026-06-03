@@ -548,7 +548,11 @@ export class BabyMenuAgentRuntime {
 
   private async enrichActiveSessionSnapshot(session: AgentChangeSession, message: string): Promise<GitSessionSnapshot> {
     const snapshot = await enrichSnapshot(session, message);
-    if (snapshot.dirty === false && this.activeSession === session) this.activeSession = null;
+    if (snapshot.dirty === false && this.activeSession === session) {
+      await session.save().catch(() => undefined);
+      this.activeSession = null;
+      await this.refreshRuntimeAfterRegistryChange();
+    }
     return snapshot;
   }
 

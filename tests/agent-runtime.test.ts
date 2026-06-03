@@ -497,6 +497,7 @@ describe("agent runtime change-session snapshot", () => {
     const result = await runtime.send("make no edits");
 
     expect(result.session?.dirty).toBe(false);
+    expect(session.save).toHaveBeenCalledOnce();
     expect(internals.activeSession).toBeNull();
     expect(runtime.agentSwitchDisabledReason).toBeUndefined();
   });
