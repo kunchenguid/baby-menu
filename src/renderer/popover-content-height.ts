@@ -30,13 +30,25 @@ export function measurePopoverContentHeight(shell: HTMLElement): number {
  *
  * Height reuses {@link measurePopoverContentHeight}. Width is the intrinsic width
  * of the active layout canvas ([data-bm-canvas], which shrink-wraps an
- * agent-authored layout that sets its own width) so the popover grows and shrinks
- * with the canvas. Without a custom layout there is no canvas element and the
- * historical fixed column width is reported, so the default popover is unchanged.
- * The main process clamps the result to a usable range and the screen.
+ * agent-authored layout that sets its own width) plus the popover chrome on both
+ * sides, so the canvas's right edge is never clipped. Without a custom layout
+ * there is no canvas element and the historical fixed column width is reported,
+ * so the default popover is unchanged. The main process clamps the result to a
+ * usable range and the screen.
  */
 export function measurePopoverContentSize(shell: HTMLElement): { width: number; height: number } {
+  const height = measurePopoverContentHeight(shell);
   const canvas = document.querySelector<HTMLElement>("[data-bm-canvas]");
-  const width = canvas ? Math.ceil(Math.max(canvas.scrollWidth, shell.scrollWidth)) : DEFAULT_POPOVER_CONTENT_WIDTH;
-  return { width, height: measurePopoverContentHeight(shell) };
+  if (!canvas) return { width: DEFAULT_POPOVER_CONTENT_WIDTH, height };
+
+  // The canvas (width: max-content) overflows .pop-body, which clips it with
+  // overflow-x: hidden - so that overflow never expands shell.scrollWidth, and we
+  // cannot use it to recover the chrome (.app-shell border + .pop-body padding).
+  // Measure the canvas's own width and add the chrome on both sides by mirroring
+  // its left inset from the shell; the popover insets are horizontally symmetric.
+  const shellRect = shell.getBoundingClientRect();
+  const canvasRect = canvas.getBoundingClientRect();
+  const leftInset = Math.max(0, canvasRect.left - shellRect.left);
+  const width = Math.ceil(canvasRect.width + leftInset * 2);
+  return { width, height };
 }

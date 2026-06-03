@@ -51,10 +51,21 @@ describe("measurePopoverContentHeight", () => {
   });
 });
 
-function canvas(scrollWidth: number): HTMLElement {
+function stubRect(el: HTMLElement, rect: { left?: number; width?: number; height?: number }): void {
+  const left = rect.left ?? 0;
+  const width = rect.width ?? 0;
+  const height = rect.height ?? 0;
+  el.getBoundingClientRect = () =>
+    ({ height, width, top: 0, left, right: left + width, bottom: height, x: left, y: 0, toJSON() {} }) as DOMRect;
+}
+
+// A custom layout canvas, positioned `left` px in from the shell's left edge.
+// That inset is the real popover chrome: .app-shell's 1px border plus
+// .pop-body's 14px padding on each side.
+function canvas(rect: { left: number; width: number }): HTMLElement {
   const el = document.createElement("div");
   el.setAttribute("data-bm-canvas", "");
-  Object.defineProperty(el, "scrollWidth", { value: scrollWidth, configurable: true });
+  stubRect(el, rect);
   document.body.appendChild(el);
   return el;
 }
@@ -71,20 +82,25 @@ describe("measurePopoverContentSize", () => {
     expect(measurePopoverContentSize(shell)).toEqual({ width: DEFAULT_POPOVER_CONTENT_WIDTH, height: 300 });
   });
 
-  it("reports the intrinsic canvas width when a custom layout is active", () => {
+  it("adds the chrome on both sides of a custom layout canvas so its right edge is not clipped", () => {
     const shell = document.createElement("main");
-    stubHeight(shell, 360);
+    stubRect(shell, { left: 0, height: 360 });
     document.body.appendChild(shell);
-    canvas(840);
-    expect(measurePopoverContentSize(shell)).toEqual({ width: 840, height: 360 });
+    // 15px inset on the left (1px shell border + 14px body padding); the window
+    // must grow by that much on the right too, so 840 + 15 * 2 = 870.
+    canvas({ left: 15, width: 840 });
+    expect(measurePopoverContentSize(shell)).toEqual({ width: 870, height: 360 });
   });
 
-  it("includes shell chrome around a custom layout canvas", () => {
+  it("does not rely on shell.scrollWidth, which overflow-x: hidden on .pop-body never grows", () => {
     const shell = document.createElement("main");
-    stubHeight(shell, 360);
-    Object.defineProperty(shell, "scrollWidth", { value: 870, configurable: true });
+    stubRect(shell, { left: 0, height: 360 });
+    // In the real DOM .pop-body clips the wider canvas (overflow-x: hidden), so
+    // the overflow never expands the shell - scrollWidth stays at the (too
+    // narrow) window width. The measurement must ignore it and still add chrome.
+    Object.defineProperty(shell, "scrollWidth", { value: 840, configurable: true });
     document.body.appendChild(shell);
-    canvas(840);
+    canvas({ left: 15, width: 840 });
     expect(measurePopoverContentSize(shell)).toEqual({ width: 870, height: 360 });
   });
 });
