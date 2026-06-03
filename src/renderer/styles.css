@@ -53,8 +53,8 @@ button:disabled,
 .app-shell {
   position: relative;
   /* Fills the popover window, whose width the main process sizes to the reported
-     content width (the historical 504 by default, or the active layout canvas).
-     So both dimensions adapt to the content. */
+     content width (the historical 504 by default, or the active layout canvas
+     plus host chrome). So both dimensions adapt to the content. */
   width: 100%;
   height: auto;
   /* A fixed cap, not a viewport-relative one: the viewport height equals the
@@ -144,7 +144,8 @@ button:disabled,
 
 /* An agent-authored layout owns its arrangement and its own width. The canvas
    shrink-wraps it (max-content) so its intrinsic width is measurable even while
-   the popover window is still narrower, letting the host grow the window to fit. */
+   the popover window is still narrower, letting the host grow the window by the
+   canvas width plus the symmetric shell/body chrome. */
 .widget-canvas {
   width: max-content;
 }

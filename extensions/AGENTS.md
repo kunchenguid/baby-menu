@@ -95,7 +95,7 @@ The host passes the layout two props (`BabyMenuLayoutProps`):
 
 Rules:
 
-- The layout owns its own width: set an explicit width on its root element (for example `className="w-[840px]"` or a fixed grid), and the popover window resizes to fit both that width and the rendered height. Use a normal, content-driven height; do not hard-code the popover height.
+- The layout owns its own content width: set an explicit width on its root element (for example `className="w-[840px]"` or a fixed grid), and the popover window resizes to fit that width plus the host chrome and the rendered height. Use a normal, content-driven height; do not hard-code the popover height.
 - The layout is renderer-only and may import only `react`, `@babymenu/ui`, and type-only `@babymenu/contracts` - the same import rules as `widget.tsx`. It must not read files, run commands, or do privileged work.
 - The host no longer draws a title above each widget; the widget owns its entire area. If you want a heading, render it inside the widget or the layout.
 - Place every widget you want visible. Any widget you do not render simply will not appear.

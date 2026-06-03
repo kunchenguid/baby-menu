@@ -5,7 +5,8 @@ export const OVERLAY_MARGIN = 32;
 
 // The width the popover reports when no agent-authored layout is active - the
 // historical fixed column width. A custom layout (marked with [data-bm-canvas])
-// reports its own intrinsic width instead, so the popover adapts to the canvas.
+// reports its own intrinsic width plus host chrome, so the popover adapts to the
+// canvas without clipping its right edge.
 export const DEFAULT_POPOVER_CONTENT_WIDTH = 504;
 
 /**

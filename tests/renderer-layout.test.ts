@@ -10,7 +10,8 @@ describe("renderer layout styles", () => {
 
     expect(css).toContain('@import url("./colors_and_type.css")');
     // The shell fills the window; the main process sizes the window's width to
-    // the reported content (504 by default, or the active layout canvas).
+    // the reported content (504 by default, or the active layout canvas plus
+    // host chrome).
     expect(css).toMatch(/\.app-shell\s*\{[^}]*width:\s*100%/s);
     expect(css).toMatch(/\.app-shell\s*\{[^}]*background:\s*var\(--bg-stage\)/s);
     expect(css).toMatch(/\.app-shell\s*\{[^}]*border-radius:\s*var\(--radius-xl\)/s);

@@ -155,7 +155,7 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 - **Release update indicator** - the main process checks the latest GitHub Release at most every four hours, keeps failures silent, and shows a header indicator with `brew update && brew upgrade --cask baby-menu` only when a newer packaged release exists.
   Source/dev mode simulates an available update so the UI can be exercised locally.
   The released Homebrew Cask relaunches Baby Menu after an upgrade only when the old app was running before uninstall started.
-- **Custom popover layouts** - an extension workspace may include a root `layout.tsx` default export that receives active widgets and `renderWidget(id)`, arranges the popover canvas, and lets the window adapt to both width and height.
+- **Custom popover layouts** - an extension workspace may include a root `layout.tsx` default export that receives active widgets and `renderWidget(id)`, arranges the popover canvas, and lets the window adapt to both the canvas width plus host chrome and the rendered height.
   Workspaces without `layout.tsx` keep the built-in stacked column.
 - **Extension settings sections** - extensions may export `BabyMenuSettingsSection` from `widget.tsx`; the Settings page discovers those renderer-only sections through the same module pipeline as widgets and renders the host-owned frame around each body.
 - **Extension server actions** - privileged work (shell, network, credentials) lives in `<extension-id>/server.ts` and is invoked from widgets and settings sections via `window.babyMenu.capabilities.invoke(extensionId, action, input)`.

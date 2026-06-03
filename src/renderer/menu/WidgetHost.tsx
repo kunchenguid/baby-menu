@@ -74,7 +74,8 @@ function WidgetCanvas({ layout, widgets }: { layout: BabyMenuLayout | null; widg
   if (!layout) return <WidgetColumn widgets={widgets} />;
 
   // The layout decides the arrangement and its own width; [data-bm-canvas] marks
-  // it so the host measures that intrinsic width and resizes the popover to fit.
+  // it so the host measures that intrinsic width plus chrome and resizes the
+  // popover to fit without clipping the canvas.
   const meta: BabyMenuLayoutWidget[] = widgets.map(({ id, title }) => ({ id, title }));
   const Layout = layout;
   return (
