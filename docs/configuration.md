@@ -8,7 +8,7 @@ The packaged app keeps everything mutable under `~/.baby-menu`: extensions, the 
 Upgrades preserve this directory, so generated widgets and extension state survive.
 
 On launch, packaged Baby Menu refreshes bundled defaults (`AGENTS.md`, `babymenu-env.d.ts`, recipes, starter extensions) from the app template while leaving your own extension directories untouched.
-If `~/.baby-menu/extensions` is a symlink, Baby Menu resolves it and seeds the real target, which supports managed symlinks into writable dotfiles directories such as home-manager `mkOutOfStoreSymlink`.
+If `~/.baby-menu/extensions` is a symlink, Baby Menu resolves it for seeding and packaged widget/layout CSS compilation, which supports managed symlinks into writable dotfiles directories such as home-manager `mkOutOfStoreSymlink`.
 Read-only or otherwise invalid targets are skipped with a log message instead of blocking startup.
 
 ## Choosing an agent

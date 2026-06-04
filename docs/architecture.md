@@ -46,6 +46,9 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
 - **Best-effort packaged seeding.**
   Packaged startup resolves a symlinked `~/.baby-menu/extensions` to its real target before copying bundled defaults, so managed links into writable directories keep working without replacing the link.
   Seeding failures are logged and skipped instead of aborting tray creation.
+- **Packaged module compilation.**
+  Packaged widgets and root layouts compile into `~/.baby-menu/cache`; Tailwind source scanning resolves a symlinked extension root before copying it to the temporary scan directory.
+  A root layout that fails to compile falls back to the built-in column and logs a warning so it is distinguishable from no authored layout.
 - **Snapshot rollback safety.**
   Snapshot workspaces restore in place instead of replacing the workspace directory, so a symlinked extension workspace stays linked while files, directories, symlinks, binary contents, and modes return to the pre-turn state.
   Existing user-owned `.git` metadata is ignored and preserved, while `.git` metadata created by a turn is removed with the rest of that created subtree.

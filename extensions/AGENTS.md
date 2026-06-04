@@ -99,7 +99,7 @@ Rules:
 - The layout is renderer-only and may import only `react`, `@babymenu/ui`, and type-only `@babymenu/contracts` - the same import rules as `widget.tsx`. It must not read files, run commands, or do privileged work.
 - The host no longer draws a title above each widget; the widget owns its entire area. If you want a heading, render it inside the widget or the layout.
 - Place every widget you want visible. Any widget you do not render simply will not appear.
-- If the layout throws while rendering, the host falls back to the built-in column so the popover never blanks.
+- If the layout fails to compile in packaged mode or throws while rendering, the host falls back to the built-in column so the popover never blanks. Packaged compile failures are logged by the host.
 
 Editing `layout.tsx` hot-reloads like a widget.
 
@@ -267,6 +267,7 @@ export function ServiceStatusView() {
 ### Style with Tailwind tokens
 
 Widgets and `layout.tsx` are styled with Tailwind utility classes, and the per-module stylesheet is compiled for you - you never configure Tailwind.
+In packaged installs, CSS compilation follows a symlinked `~/.baby-menu/extensions` workspace to its real target before scanning source classes.
 Prefer Baby Menu token utilities for color, type, radius, and surfaces so widgets match the host app.
 Default Tailwind palette colors such as `bg-red-500` and `text-blue-300` are unavailable, but arbitrary Tailwind values can still compile.
 Use arbitrary color values only when a widget genuinely needs them, and keep them rare.

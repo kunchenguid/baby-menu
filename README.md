@@ -53,7 +53,7 @@ Settings lets you toggle launch-at-login, pick the embedded agent, and manage cu
 ## Install Details
 
 The packaged app stores extensions, the local database, caches, agent sessions, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets and extension state.
-If `~/.baby-menu/extensions` is a symlink, Baby Menu seeds bundled defaults into the resolved writable target and leaves the symlink itself in place.
+If `~/.baby-menu/extensions` is a symlink, Baby Menu seeds bundled defaults and compiles widget or layout CSS from the resolved writable target while leaving the symlink itself in place.
 
 Update with Homebrew:
 
