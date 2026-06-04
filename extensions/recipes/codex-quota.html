@@ -64,7 +64,7 @@
     "id_token": "...",                    // optional
     "account_id": "..."                   // optional
   },
-  "last_refresh": "2026-05-22T08:21:00Z"  // used for the staleness check below
+  "last_refresh": "2026-05-22T08:21:00Z"  // when codex last rotated the token; NOT an expiry - do not gate on it
 }</code></pre>
         <p>If <code>tokens</code> is missing or has no <code>access_token</code>, treat it as a sign-in-required error (<code>Run `codex` to log in.</code>) rather than failing silently. Never log or echo the token values, and read credentials only inside the server action, never in the renderer.</p>
         <p>Request:</p>
@@ -86,7 +86,7 @@ ChatGPT-Account-Id: &lt;tokens.account_id&gt;</code></pre>
 }</code></pre>
         <p>So for the example above the session window is 25% used (equivalently 75% remaining) and the weekly window is 70% used (30% remaining). Map <code>primary_window</code> to the session/5-hour window and <code>secondary_window</code> to the weekly window; map <code>email</code> to <code>accountEmail</code>, <code>plan_type</code> to <code>plan</code>, and <code>credits</code> through. Do not default a missing <code>used_percent</code> to 0 (that hides the real number); omit a window that has no numeric <code>used_percent</code> instead.</p>
         <p><strong>One axis, consistently.</strong> "Used" and "remaining" are the same number from opposite ends (<code>remaining = 100 - used</code>). Whatever you choose to present, the label, the number, and any progress/meter for a given window must all describe the <em>same</em> axis. A meter or number labeled "left"/"remaining" must carry the remaining value, not the used value (a 25%-used window is "75% left", and a "left" meter should read three-quarters full). This is a correctness constraint only - it does not require a meter, a number, or any particular label or layout.</p>
-        <p>If the token metadata includes a refresh timestamp and it is older than roughly 8 days, prefer returning a sign-in or refresh-needed error for the first implementation rather than silently using a stale token.</p>
+        <p><strong>Do not pre-judge token expiry from the credentials file.</strong> <code>last_refresh</code> records when codex last rotated the token, not when the access token expires; a token routinely stays valid well past that timestamp (codex itself refreshes transparently). Do not gate on a "token is older than N days" heuristic - it falsely reports a working account as signed out. Let the live API be the authority: only treat the account as signed-out when the usage request returns <code>401</code>/<code>403</code> (or when <code>tokens.access_token</code> is absent entirely). On any other transient failure, prefer the last good snapshot marked stale over a sign-in error.</p>
         <p>Normalize response data into this shape:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>type CodexQuotaSnapshot = {
   source: "oauth" | "cli-rpc";
@@ -152,7 +152,7 @@ ChatGPT-Account-Id: &lt;tokens.account_id&gt;</code></pre>
         <ul>
           <li>If no auth file or CLI is available, return an unavailable error (<code>Codex quota unavailable</code>). Do not return mock data.</li>
           <li>If the CLI app-server times out, return the previous successful snapshot marked <code>stale: true</code> when one exists.</li>
-          <li>If credentials are expired, return a <code>Codex sign-in required</code> error rather than silently using a stale token.</li>
+          <li>If the usage request returns <code>401</code>/<code>403</code>, or <code>tokens.access_token</code> is absent, return a <code>Codex sign-in required</code> error. Do not infer this from a token-age heuristic.</li>
           <li>If macOS blocks the CLI executable, return a <code>Codex CLI could not be launched</code> error.</li>
           <li>Never log, echo, or return token or cookie values in errors or logs.</li>
         </ul>
