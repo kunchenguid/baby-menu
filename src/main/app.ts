@@ -154,7 +154,15 @@ export async function startBabyMenuApp(): Promise<void> {
 
   const sourceRoot = getRepoRoot();
   const paths = resolveBabyMenuRuntimePaths(sourceRoot);
-  await seedExtensionWorkspace({ extensionsDir: paths.extensionsDir, templateDir: paths.bundledExtensionTemplateDir });
+  // Seeding the bundled defaults is best-effort: it touches a user-owned
+  // workspace that can be a read-only or managed (home-manager / Nix) symlink,
+  // and the embedded agent self-heals it later anyway. A failure here must never
+  // prevent the tray from appearing, so it is contained rather than fatal.
+  try {
+    await seedExtensionWorkspace({ extensionsDir: paths.extensionsDir, templateDir: paths.bundledExtensionTemplateDir });
+  } catch (error) {
+    console.error("[baby-menu] extension workspace seeding failed; continuing startup", error);
+  }
   registerBabyMenuProtocolHandlers({ widgetCacheDir: paths.widgetCacheDir });
 
   if (process.platform === "darwin") {
@@ -314,5 +322,9 @@ export async function startBabyMenuApp(): Promise<void> {
 }
 
 if (!process.env.VITEST) {
-  void startBabyMenuApp();
+  // Last-resort guard: an unhandled rejection here would otherwise leave a dead
+  // app with a lingering dock icon and no tray, with no diagnostic in the logs.
+  startBabyMenuApp().catch((error) => {
+    console.error("[baby-menu] fatal startup error", error);
+  });
 }

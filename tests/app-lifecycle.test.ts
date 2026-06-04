@@ -171,6 +171,19 @@ describe("startBabyMenuApp", () => {
     expect(appModule.getActiveBabyMenuTray?.()).toBe(trayInstance);
   });
 
+  it("still creates the tray when extension workspace seeding fails", async () => {
+    const { seedExtensionWorkspace } = await import("../src/main/extension-seeder");
+    (seedExtensionWorkspace as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("EISDIR: symlinked workspace"));
+    const appModule = await import("../src/main/app");
+
+    await expect(appModule.startBabyMenuApp()).resolves.toBeUndefined();
+
+    expect(createBabyMenuTray).toHaveBeenCalledWith(expect.any(Function), {
+      iconPath: "/repo/assets/tray/baby_menuTemplate.png",
+    });
+    expect(appModule.getActiveBabyMenuTray()).toBe(trayInstance);
+  });
+
   it("creates the popover with the CommonJS preload bridge", async () => {
     const appModule = await import("../src/main/app");
 
