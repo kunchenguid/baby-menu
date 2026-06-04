@@ -2,7 +2,7 @@ import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, sep } from "node:path";
@@ -34,7 +34,14 @@ export async function compileWidgetTailwindCss({ sourceDir, themeCss }: CompileW
   // so scanning works regardless of where the extension actually resides.
   const scanDir = await mkdtemp(join(tmpdir(), "baby-menu-widget-scan-"));
   try {
-    await cp(sourceDir, scanDir, { recursive: true });
+    // Resolve the source before copying. When the workspace root is a
+    // home-manager/Nix symlink (~/.baby-menu/extensions -> /nix/store/...), the
+    // layout compile passes that symlink node as sourceDir, and fs.cp refuses to
+    // copy a non-directory node onto the temp scan dir (ERR_FS_CP_NON_DIR_TO_DIR).
+    // Copying the resolved real path sidesteps that, mirroring the seeder's
+    // resolveSeedTarget. Falls back to the original path if it cannot be resolved.
+    const resolvedSourceDir = await realpath(sourceDir).catch(() => sourceDir);
+    await cp(resolvedSourceDir, scanDir, { recursive: true });
     const input = `@import "tailwindcss" source(none);\n@source "${scanDir}";\n${themeCss}\n`;
     const result = await postcss([tailwind()]).process(input, {
       from: join(tailwindResolveBase(), "widget-tailwind-input.css"),

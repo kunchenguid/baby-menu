@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -33,6 +33,24 @@ describe("per-widget Tailwind compile", () => {
     const css = await compileFromSource(`<div className="flex gap-2 text-ink-muted bg-surface" />`);
     expect(css).toContain(".flex");
     expect(css).toContain(".text-ink-muted");
+    expect(css).toContain(".bg-surface");
+  });
+
+  it("compiles when sourceDir is a symlink to the real workspace (home-manager/Nix)", async () => {
+    // The packaged workspace root (~/.baby-menu/extensions) can be a home-manager
+    // symlink into the read-only Nix store. The layout compile passes that root as
+    // sourceDir; fs.cp refuses to copy a symlink node onto the temp scan dir
+    // (ERR_FS_CP_NON_DIR_TO_DIR), so the source must be resolved before copying.
+    const realDir = await mkdtemp(join(tmpdir(), "baby-menu-widget-real-"));
+    tempDirs.push(realDir);
+    await writeFile(join(realDir, "layout.tsx"), `<div className="flex gap-2 bg-surface" />`, "utf8");
+    const linkParent = await mkdtemp(join(tmpdir(), "baby-menu-widget-link-"));
+    tempDirs.push(linkParent);
+    const linkPath = join(linkParent, "extensions");
+    await symlink(realDir, linkPath);
+
+    const css = await compileWidgetTailwindCss({ sourceDir: linkPath, themeCss });
+    expect(css).toContain(".flex");
     expect(css).toContain(".bg-surface");
   });
 

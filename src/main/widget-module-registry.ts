@@ -100,6 +100,10 @@ export async function discoverLayoutModule({
     return { moduleUrl: rendererModuleUrl(filePath, fileStat.mtimeMs) };
   } catch (error) {
     if (mode !== "compiled") throw error;
+    // Packaged mode never throws from layout discovery (a broken layout must not
+    // wedge the popover), but swallowing silently makes a real compile failure
+    // look identical to "no layout authored". Warn so the cause is visible.
+    console.warn(`[baby-menu] failed to compile root layout at ${filePath}; using the built-in column`, error);
     return null;
   }
 }

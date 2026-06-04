@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -46,6 +46,36 @@ describe("layout module registry", () => {
         `export default function Layout({ widgets, renderWidget }: BabyMenuLayoutProps) {\n` +
         `  return widgets.map((w) => renderWidget(w.id));\n}\n`,
     );
+
+    const descriptor = await discoverLayoutModule({
+      rootDir,
+      extensionsDir,
+      mode: "compiled",
+      widgetCacheDir: join(rootDir, "cache", "widgets"),
+    });
+
+    expect(descriptor?.moduleUrl).toMatch(/^baby-menu-widget:\/\/__layout\/[a-f0-9]{16}\/layout\.mjs$/);
+    expect(descriptor?.cssUrl).toMatch(/^baby-menu-widget:\/\/__layout\/[a-f0-9]{16}\/widget\.css$/);
+  });
+
+  it("compiles the layout when the extensions workspace is a symlink (home-manager/Nix)", async () => {
+    // Reproduces production on a home-manager/Nix machine: ~/.baby-menu/extensions
+    // is a symlink into the read-only store. The layout compile passes the root as
+    // the Tailwind source dir, and copying a symlinked root used to throw, which
+    // discoverLayoutModule swallowed in compiled mode, silently dropping the layout.
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-layout-registry-"));
+    tempDirs.push(rootDir);
+    const realExtensionsDir = join(rootDir, "real-extensions");
+    await mkdir(realExtensionsDir, { recursive: true });
+    await writeFile(
+      join(realExtensionsDir, "layout.tsx"),
+      `import type { BabyMenuLayoutProps } from "@babymenu/contracts";\n` +
+        `export default function Layout({ widgets, renderWidget }: BabyMenuLayoutProps) {\n` +
+        `  return widgets.map((w) => renderWidget(w.id));\n}\n`,
+    );
+    const extensionsDir = join(rootDir, ".baby-menu", "extensions");
+    await mkdir(join(rootDir, ".baby-menu"), { recursive: true });
+    await symlink(realExtensionsDir, extensionsDir);
 
     const descriptor = await discoverLayoutModule({
       rootDir,
