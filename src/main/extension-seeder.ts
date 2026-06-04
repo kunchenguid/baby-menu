@@ -1,4 +1,5 @@
-import { cp, lstat, mkdir, stat } from "node:fs/promises";
+import { cp, lstat, mkdir, readlink, realpath, stat } from "node:fs/promises";
+import { dirname, isAbsolute, resolve } from "node:path";
 import type { Stats } from "node:fs";
 
 export type SeedExtensionWorkspaceOptions = {
@@ -10,47 +11,50 @@ export async function seedExtensionWorkspace(options: SeedExtensionWorkspaceOpti
   if (!options.templateDir) return false;
   if (!(await pathExists(options.templateDir))) return false;
 
-  // The workspace must be a real directory baby-menu owns and can write to: the
-  // seeder force-copies bundled defaults here on every launch and the embedded
-  // agent edits it at runtime. If the path already exists as a symlink or any
-  // other non-directory (e.g. a read-only home-manager / Nix-store managed
-  // symlink), fs.cp throws ERR_FS_CP_DIR_TO_NON_DIR. Seeding is best-effort and
-  // must never abort app startup, so skip with a clear warning instead of
-  // throwing, and never clobber a user-owned node.
-  const existing = await lstatOrNull(options.extensionsDir);
-  if (existing && !existing.isDirectory()) {
-    console.warn(
-      `[baby-menu] Skipping extension workspace seeding: ${options.extensionsDir} is ${describeNode(existing)}, ` +
-        `not a writable directory. Baby Menu must own this path; if it is a managed symlink ` +
-        `(e.g. home-manager / Nix), remove that management so Baby Menu can create a real directory.`,
-    );
-    return false;
-  }
+  // Resolve a symlinked workspace to its real target before copying. fs.cp
+  // refuses to copy a directory *onto a symlink node* (ERR_FS_CP_DIR_TO_NON_DIR),
+  // even when the link points to a writable directory - which is exactly the
+  // home-manager mkOutOfStoreSymlink pattern (a Nix-declared symlink into a
+  // writable dotfiles path). Seeding the resolved target makes that case work,
+  // while a link into the read-only Nix store simply fails the copy below and is
+  // skipped. The user-owned symlink itself is never touched.
+  const target = await resolveSeedTarget(options.extensionsDir);
 
   try {
-    await mkdir(options.extensionsDir, { recursive: true });
+    await mkdir(target, { recursive: true });
     // Self-heal the bundled defaults: every file the template ships (AGENTS.md,
     // babymenu-env.d.ts, recipes, starter extensions) is force-copied so a stale
     // or edited managed file is restored on launch. cp only writes paths present
     // in the template, so user-created extensions the template does not ship are
     // left untouched and are never deleted.
-    await cp(options.templateDir, options.extensionsDir, { recursive: true, force: true });
+    await cp(options.templateDir, target, { recursive: true, force: true });
     return true;
   } catch (error) {
-    // A failed seed (permissions, read-only volume, race) must not prevent the
-    // app from launching its tray. Log and continue with whatever workspace
-    // contents already exist.
+    // A failed seed (read-only / managed target, permissions, non-directory
+    // path) must never abort app startup - the embedded agent self-heals the
+    // workspace later anyway. Log and continue with whatever already exists.
     console.warn(
-      `[baby-menu] Failed to seed extension workspace at ${options.extensionsDir}; continuing with existing contents: ${describeError(error)}`,
+      `[baby-menu] Skipped seeding extension workspace at ${options.extensionsDir}` +
+        (target === options.extensionsDir ? "" : ` (resolved to ${target})`) +
+        `; continuing with existing contents. If this path is a read-only or managed symlink ` +
+        `(e.g. home-manager into /nix/store), point it at a writable location ` +
+        `(home-manager mkOutOfStoreSymlink) so Baby Menu can own it. Cause: ${describeError(error)}`,
     );
     return false;
   }
 }
 
-function describeNode(stats: Stats): string {
-  if (stats.isSymbolicLink()) return "a symlink";
-  if (stats.isFile()) return "a file";
-  return "a non-directory";
+async function resolveSeedTarget(extensionsDir: string): Promise<string> {
+  const node = await lstatOrNull(extensionsDir);
+  if (!node?.isSymbolicLink()) return extensionsDir;
+
+  // Prefer realpath (resolves chains and `..`); fall back to a one-level readlink
+  // when the link target does not exist yet, so we can still create and seed it.
+  const real = await realpathOrNull(extensionsDir);
+  if (real) return real;
+
+  const linkText = await readlink(extensionsDir);
+  return isAbsolute(linkText) ? linkText : resolve(dirname(extensionsDir), linkText);
 }
 
 function describeError(error: unknown): string {
@@ -60,6 +64,14 @@ function describeError(error: unknown): string {
 async function lstatOrNull(filePath: string): Promise<Stats | null> {
   try {
     return await lstat(filePath);
+  } catch {
+    return null;
+  }
+}
+
+async function realpathOrNull(filePath: string): Promise<string | null> {
+  try {
+    return await realpath(filePath);
   } catch {
     return null;
   }

@@ -9,7 +9,7 @@ describe("seedExtensionWorkspace", () => {
 
   afterEach(async () => {
     const { rm } = await import("node:fs/promises");
-    // Restore perms first so read-only-target test dirs can be removed.
+    // Restore perms first so read-only test dirs can be removed.
     await Promise.all(
       tempDirs.splice(0).map(async (dir) => {
         await chmod(dir, 0o755).catch(() => undefined);
@@ -42,27 +42,57 @@ describe("seedExtensionWorkspace", () => {
     await expect(readFile(join(extensionsDir, "AGENTS.md"), "utf8")).resolves.toBe("template rules\n");
   });
 
-  it("skips seeding without throwing when the workspace path is a symlink", async () => {
-    // Reproduces a home-manager / Nix-store managed workspace: ~/.baby-menu/extensions
-    // is a symlink into a read-only store. fs.cp would throw ERR_FS_CP_DIR_TO_NON_DIR
-    // and abort app startup before the tray is ever created.
+  it("resolves a symlinked workspace and seeds into the real writable target", async () => {
+    // The home-manager mkOutOfStoreSymlink pattern: ~/.baby-menu/extensions is a
+    // Nix-declared symlink into a WRITABLE dotfiles path. fs.cp refuses to copy a
+    // directory onto the symlink node directly, so the seeder must resolve it.
     const templateDir = await makeTemplate();
-    const linkTarget = join(templateDir, "..", "managed-store");
+    const linkTarget = join(templateDir, "..", "dotfiles-extensions");
     const extensionsDir = join(templateDir, "..", "extensions");
     await mkdir(linkTarget, { recursive: true });
-    await writeFile(join(linkTarget, "existing.txt"), "managed\n");
+    await writeFile(join(linkTarget, "my-extension.txt"), "user owned\n");
+    await symlink(linkTarget, extensionsDir);
+
+    const seeded = await seedExtensionWorkspace({ extensionsDir, templateDir });
+
+    expect(seeded).toBe(true);
+    // Bundled defaults land in the real target...
+    await expect(readFile(join(linkTarget, "AGENTS.md"), "utf8")).resolves.toBe("template rules\n");
+    // ...alongside the user's own files...
+    await expect(readFile(join(linkTarget, "my-extension.txt"), "utf8")).resolves.toBe("user owned\n");
+    // ...and the user-owned symlink itself is never modified.
+    await expect(lstat(extensionsDir).then((s) => s.isSymbolicLink())).resolves.toBe(true);
+  });
+
+  it("creates and seeds the target when the symlink points to a not-yet-existing writable path", async () => {
+    const templateDir = await makeTemplate();
+    const linkTarget = join(templateDir, "..", "not-created-yet");
+    const extensionsDir = join(templateDir, "..", "extensions");
+    await symlink(linkTarget, extensionsDir);
+
+    const seeded = await seedExtensionWorkspace({ extensionsDir, templateDir });
+
+    expect(seeded).toBe(true);
+    await expect(readFile(join(linkTarget, "AGENTS.md"), "utf8")).resolves.toBe("template rules\n");
+  });
+
+  it("skips without throwing when the symlink target is read-only (Nix store)", async () => {
+    const templateDir = await makeTemplate();
+    const linkTarget = join(templateDir, "..", "readonly-store");
+    const extensionsDir = join(templateDir, "..", "extensions");
+    await mkdir(linkTarget, { recursive: true });
+    await chmod(linkTarget, 0o500);
+    tempDirs.push(linkTarget);
     await symlink(linkTarget, extensionsDir);
 
     const seeded = await seedExtensionWorkspace({ extensionsDir, templateDir });
 
     expect(seeded).toBe(false);
-    // The user-owned symlink is preserved, not clobbered or followed-and-overwritten.
     await expect(lstat(extensionsDir).then((s) => s.isSymbolicLink())).resolves.toBe(true);
-    // Bundled defaults were not force-copied into the managed target.
     await expect(readFile(join(linkTarget, "AGENTS.md"), "utf8")).rejects.toThrow();
   });
 
-  it("skips seeding without throwing when the workspace path is a regular file", async () => {
+  it("skips without throwing when the workspace path is a regular file", async () => {
     const templateDir = await makeTemplate();
     const extensionsDir = join(templateDir, "..", "extensions");
     await writeFile(extensionsDir, "not a directory\n");
