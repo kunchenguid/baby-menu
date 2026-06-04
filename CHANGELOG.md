@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.13...baby-menu-v0.1.14) (2026-06-04)
+
+
+### Bug Fixes
+
+* **main:** harden extension workspace seeding on startup ([#54](https://github.com/kunchenguid/baby-menu/issues/54)) ([34fa98b](https://github.com/kunchenguid/baby-menu/commit/34fa98bbaf907d6b54ad5d08bd0b49f3cd8e36ad))
+
 ## [0.1.13](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.12...baby-menu-v0.1.13) (2026-06-03)
 
 
