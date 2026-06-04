@@ -43,6 +43,9 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
 - **Runtime-specific roots.**
   `pnpm dev` edits gitignored `extensions-dev/`; packaged builds seed and edit `~/.baby-menu/extensions` with snapshot save/rollback.
   Tracked `extensions/` stay the source templates, including the generated `@babymenu/contracts` declaration.
+- **Best-effort packaged seeding.**
+  Packaged startup resolves a symlinked `~/.baby-menu/extensions` to its real target before copying bundled defaults, so managed links into writable directories keep working without replacing the link.
+  Seeding failures are logged and skipped instead of aborting tray creation.
 - **Snapshot rollback safety.**
   Snapshot workspaces restore in place instead of replacing the workspace directory, so a symlinked extension workspace stays linked while files, directories, symlinks, binary contents, and modes return to the pre-turn state.
   Existing user-owned `.git` metadata is ignored and preserved, while `.git` metadata created by a turn is removed with the rest of that created subtree.
