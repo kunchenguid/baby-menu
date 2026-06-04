@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.14...baby-menu-v0.1.15) (2026-06-04)
+
+
+### Bug Fixes
+
+* **main:** compile layout CSS from symlinked workspaces ([#56](https://github.com/kunchenguid/baby-menu/issues/56)) ([ffa06e4](https://github.com/kunchenguid/baby-menu/commit/ffa06e4e55736e8ab530779ee4cc43730f21bd13))
+
 ## [0.1.14](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.13...baby-menu-v0.1.14) (2026-06-04)
 
 
