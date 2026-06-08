@@ -47,7 +47,8 @@ add a CPU usage widget that shows current load in %
 Baby Menu writes changes under `~/.baby-menu/extensions`, mounts updated widgets or layouts live, and shows a Keep / Undo bar only when files actually changed.
 The bar labels the real diff (`Added the cpu extension`, `Updated the layout`) so you can keep or throw away each turn.
 
-Open the popover header to reach Settings (an overlay that preserves your menu state), quit, or install an update.
+Open the popover header to reload the layout, reach Settings (an overlay that preserves your menu state), quit, or install an update.
+Reloading the layout remounts the widget canvas and root layout while preserving the agent conversation and Settings state.
 Settings lets you toggle launch-at-login, pick the embedded agent, and manage custom ACP agents.
 
 ## Install Details
@@ -72,8 +73,8 @@ For agent selection, custom ACP agents, telemetry, and environment flags, see [d
    ┌─────────────────────┐
    │  macOS tray popover │   (React renderer, adaptive size)
    │ + Menu / Settings   │
-   │ + Update indicator  │
-   │ + Quit              │
+   │ + Reload layout     │
+   │ + Update / Quit     │
    └──────────┬──────────┘
               │  send()
               ▼

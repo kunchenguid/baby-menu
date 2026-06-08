@@ -1,0 +1,6 @@
+result: "{\"beforeFound\":true,\"marker\":\"before\"}"
+help[1]:
+  Run `chrome-devtools-axi snapshot` to see current page state
+result: "{\"afterFound\":true,\"oldMarkerStillPresent\":false,\"newMarker\":null,\"widgetsRegionText\":\"hello worldtell baby menu what you would like it to becomeexamples›add a widget tracking my weekly claude code quotacopy›add a widget showing current cpu and memory usage %copy\",\"reloadButtonStillPresent\":true,\"settingsButtonStillPresent\":true}"
+help[1]:
+  Run `chrome-devtools-axi snapshot` to see current page state

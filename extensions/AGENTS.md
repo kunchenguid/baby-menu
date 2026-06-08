@@ -102,6 +102,7 @@ Rules:
 - If the layout fails to compile in packaged mode or throws while rendering, the host falls back to the built-in column so the popover never blanks. Packaged compile failures are logged by the host.
 
 Editing `layout.tsx` hot-reloads like a widget.
+The app header also has a reload-layout control that remounts the menu surface, re-runs widget and layout discovery, and resets widget React state without restarting Baby Menu or clearing the agent conversation.
 
 Start from this boilerplate, which reproduces the default column, then rearrange it:
 

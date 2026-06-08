@@ -9,6 +9,8 @@ For the at-a-glance picture, see the "How It Works" diagram in the [README](../R
   The renderer never touches git, the agent, or the filesystem - everything goes through `window.babyMenu` exposed in `src/preload/index.ts`.
 - **Settings overlay.**
   Settings covers the menu without unmounting it, so composer, widget, and run state survive opening and closing it.
+- **Manual layout reload.**
+  The header reload control remounts the menu surface by bumping its React key, which re-runs widget and root-layout discovery and resets widget React state without reloading the whole renderer or losing the agent conversation.
 
 ## Extensions
 
@@ -71,7 +73,7 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
 | `src/adapters/`             | Bundled clean-room ACP adapters for built-in Claude Code and Codex agents              |
 | `src/main/`                 | Electron lifecycle, tray, popover, IPC, git, agent runtime, update checks              |
 | `src/preload/index.ts`      | The stable `window.babyMenu` bridge                                                    |
-| `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, custom layouts, settings, updates, app controls   |
+| `src/renderer/`             | React UI: `AgentChat`, `WidgetHost`, custom layouts, settings, updates, layout reloads, app controls |
 | `src/ui/`                   | Shared `@babymenu/ui` design system for shell and extension renderer surfaces          |
 | `src/shared/contracts.ts`   | `BabyMenuApi`, `BabyMenuWidget`, `BabyMenuSettingsSection`, `GitSessionSnapshot`, etc. |
 | `src/shared/extension-contract-names.ts` | Public type names exported through `@babymenu/contracts`                  |

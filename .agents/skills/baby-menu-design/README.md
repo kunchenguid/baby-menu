@@ -14,7 +14,8 @@ When the user sends a request, the composer momentarily becomes a `RunStrip`: a 
 
 The popover surface is adaptive: 504px wide by default, wider when a root `layout.tsx` owns a custom canvas, and dynamic-height within the host limits.
 On the main menu, the composer is pinned to the bottom; everything above it stacks and grows.
-The header keeps compact update, settings, and quit controls together; the update control appears only when a newer release is available, while quit stays neutral at rest and shifts to danger coral only on hover.
+The header keeps compact reload-layout, update, settings, and quit controls together; the update control appears only when a newer release is available, while quit stays neutral at rest and shifts to danger coral only on hover.
+Reloading the layout remounts the menu surface and resets widget React state without clearing the agent conversation.
 Settings replaces the menu body and composer, and includes both the `open at login` preference and the embedded-agent picker.
 Agent options are radio-like rows: available inactive agents can be selected, unavailable agents are disabled with install hints, and switching agents requires confirmation because it resets the current conversation.
 
@@ -220,7 +221,7 @@ A default-layout widget is a vertical stack inside the popover body, separated f
 A custom root `layout.tsx` may arrange widgets in another canvas, but each widget body should still avoid card-like containment.
 Top to bottom:
 
-1. **Head row** — tracked-caps `key` (e.g. `CLAUDE · WEEKLY`) on the left. The host does not render a generic manual refresh button.
+1. **Head row** - tracked-caps `key` (e.g. `CLAUDE · WEEKLY`) on the left. The host does not render a generic per-widget manual refresh button; the app header owns full layout reload.
 2. **Value row** — the big number (weight 300, 28–36px, tabular numerals, tight tracking) with the unit at small. Optional status word on the right.
 3. **Progress** — a 1px line at `--ink-800` with a `--signal-live` fill plus a 3×5px head at the tip, like a tiny scanline. Optional.
 4. **Foot row** - 11px ink-faint meta on the left (timestamp), an uppercase source tag on the right (`OAUTH`, `CLI`, etc).
