@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Power, Settings, X } from "lucide-react";
+import { Power, RotateCw, Settings, X } from "lucide-react";
 import { Button, Tooltip } from "../ui";
 import { AgentChat } from "./agent/AgentChat";
 import { MenuSurface } from "./menu/MenuSurface";
@@ -11,6 +11,9 @@ type AppView = "menu" | "settings";
 
 export function App() {
   const [view, setView] = useState<AppView>("menu");
+  // Bumping this remounts the menu surface, forcing widget + layout discovery to
+  // re-run and resetting all widget React state - a manual full layout reload.
+  const [reloadNonce, setReloadNonce] = useState(0);
   const shellRef = useRef<HTMLElement>(null);
   usePopoverContentHeight();
   useDropHeaderAutoFocus();
@@ -23,6 +26,10 @@ export function App() {
 
   function closeSettings() {
     setView("menu");
+  }
+
+  function reloadLayout() {
+    setReloadNonce((nonce) => nonce + 1);
   }
 
   function quitApp() {
@@ -42,6 +49,17 @@ export function App() {
           </span>
           <div className="flex items-center gap-1">
             <UpdateIndicator />
+            <Tooltip content="Reload layout">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-7 px-0"
+                aria-label="reload layout"
+                onClick={reloadLayout}
+              >
+                <RotateCw className="size-4" />
+              </Button>
+            </Tooltip>
             <Tooltip content="Open settings">
               <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="open settings" onClick={openSettings}>
                 <Settings className="size-4" />
@@ -61,7 +79,7 @@ export function App() {
           </div>
         </header>
         <div className="pop-body">
-          <MenuSurface />
+          <MenuSurface key={reloadNonce} />
         </div>
         <AgentChat />
       </div>
