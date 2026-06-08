@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.15...baby-menu-v0.1.16) (2026-06-08)
+
+
+### Features
+
+* **renderer:** add popover layout reload control ([#59](https://github.com/kunchenguid/baby-menu/issues/59)) ([f144997](https://github.com/kunchenguid/baby-menu/commit/f144997ac4d235211af855fc8ebd9a47f9e4de32))
+
 ## [0.1.15](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.14...baby-menu-v0.1.15) (2026-06-04)
 
 
