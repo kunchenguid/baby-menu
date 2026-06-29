@@ -152,7 +152,7 @@ ChatGPT-Account-Id: &lt;tokens.account_id&gt;</code></pre>
         <ul>
           <li>If no auth file or CLI is available, return an unavailable error (<code>Codex quota unavailable</code>). Do not return mock data.</li>
           <li>If the CLI app-server times out, return the previous successful snapshot marked <code>stale: true</code> when one exists.</li>
-          <li>If the usage request returns <code>401</code>/<code>403</code>, or <code>tokens.access_token</code> is absent, return a <code>Codex sign-in required</code> error. Do not infer this from a token-age heuristic.</li>
+          <li>A rejected OAuth token (HTTP <code>401</code>/<code>403</code>) must <strong>not</strong> short-circuit straight to <code>Codex sign-in required</code>: fall through to the CLI app-server first, which reads <code>auth.json</code> and can refresh the access token itself, so a stale stored token never masks a working local sign-in. Return <code>Codex sign-in required</code> only when that live path also fails (or when <code>tokens.access_token</code> is absent entirely). Do not infer this from a token-age heuristic.</li>
           <li>If macOS blocks the CLI executable, return a <code>Codex CLI could not be launched</code> error.</li>
           <li>Never log, echo, or return token or cookie values in errors or logs.</li>
         </ul>

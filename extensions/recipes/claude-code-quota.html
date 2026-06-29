@@ -45,12 +45,13 @@
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>OAuth Usage API Details</h2>
-        <p>Credential locations to check from <code>claude-code-quota/server.ts</code> only, in this fallback order:</p>
+        <p>Credential locations to check from <code>claude-code-quota/server.ts</code> only. Read <strong>every</strong> source, then choose the freshest usable token - do not stop at the first source that exists:</p>
         <ol>
-          <li><code>~/.claude/.credentials.json</code> - present on Linux and any setup where Claude Code wrote a file-based credential.</li>
-          <li><strong>macOS login Keychain</strong> - a generic-password item with service name <code>Claude Code-credentials</code>. This is where the Claude Code CLI stores its OAuth credentials on macOS, so on a typical Mac the file above does not exist and the Keychain is the real source. Do not skip it. Read it from the server action with the <code>security</code> CLI: <code>security find-generic-password -s "Claude Code-credentials" -w</code>, which prints the secret blob to stdout. Always check the file first, then fall back to this Keychain service.</li>
+          <li><code>~/.claude/.credentials.json</code> - present on Linux and any setup where Claude Code wrote a file-based credential. On macOS this file is frequently a stale leftover that Claude Code no longer updates, so it can hold an old or already-rotated token while the Keychain is current.</li>
+          <li><strong>macOS login Keychain</strong> - a generic-password item with service name <code>Claude Code-credentials</code>. This is where the Claude Code CLI stores its OAuth credentials on macOS and refreshes them in place, so on a Mac it is the authoritative live source. Do not skip it. Read it from the server action with the <code>security</code> CLI: <code>security find-generic-password -s "Claude Code-credentials" -w</code>, which prints the secret blob to stdout.</li>
           <li>Future app-local credential cache under Electron user data, not committed to the repo.</li>
         </ol>
+        <p><strong>Resolution rule (important).</strong> Parse each source independently, then pick the credential with the latest <code>expiresAt</code> among the ones that are not already past expiry; break ties toward the Keychain. Never let a present-but-stale source short-circuit the others: a file that exists but holds an expired or server-rotated token must not suppress a fresh Keychain token. A real Mac sign-in failed this way - the extension read a stale <code>.credentials.json</code> first, saw it expired, and reported "sign-in required" even though the Keychain held a valid token and Claude Code was signed in.</p>
         <p>The file and the Keychain blob hold the same JSON shape. Parse <code>claudeAiOauth</code> and read the access token from it:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>{
   "claudeAiOauth": {
@@ -147,7 +148,7 @@ anthropic-beta: oauth-2025-04-20</code></pre>
         <ul>
           <li>If no token or CLI is available, return an unavailable error (<code>Claude quota unavailable</code>). Do not return mock data.</li>
           <li>If a request times out, return the previous successful snapshot marked <code>stale: true</code> when one exists.</li>
-          <li>If credentials are expired, return an error of <code>Claude sign-in required</code> rather than silently using a stale token.</li>
+          <li>Do not call the usage API with a token you believe is expired, and do not send a stale token. But an expired or rejected (HTTP 401) OAuth token must <strong>not</strong> short-circuit straight to <code>Claude sign-in required</code>: fall through to the <code>claude</code> CLI probe, which reads the live Keychain and refreshes the token itself. Only return <code>Claude sign-in required</code> when that live path - the freshest available token or the CLI itself - reports it, so a stale stored snapshot can never mask a working local sign-in.</li>
           <li>Never log, echo, or return token or cookie values in errors or logs.</li>
         </ul>
       </section>
