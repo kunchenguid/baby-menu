@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.16...baby-menu-v0.1.17) (2026-06-29)
+
+
+### Bug Fixes
+
+* **recipes:** resolve quota credentials before sign-in fallback ([#66](https://github.com/kunchenguid/baby-menu/issues/66)) ([96e3521](https://github.com/kunchenguid/baby-menu/commit/96e3521abddb9f132eefdcc6a5869f0269ee50f2))
+
 ## [0.1.16](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.15...baby-menu-v0.1.16) (2026-06-08)
 
 
