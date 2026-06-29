@@ -148,7 +148,7 @@ anthropic-beta: oauth-2025-04-20</code></pre>
         <ul>
           <li>If no token or CLI is available, return an unavailable error (<code>Claude quota unavailable</code>). Do not return mock data.</li>
           <li>If a request times out, return the previous successful snapshot marked <code>stale: true</code> when one exists.</li>
-          <li>Do not call the usage API with a token you believe is expired, and do not send a stale token. But an expired or rejected (HTTP 401) OAuth token must <strong>not</strong> short-circuit straight to <code>Claude sign-in required</code>: try the remaining usable credential candidates, then fall through to the <code>claude</code> CLI probe, which reads the live Keychain and refreshes the token itself. Only return <code>Claude sign-in required</code> when every usable token and the CLI itself report it, so a stale stored snapshot can never mask a working local sign-in.</li>
+          <li>Do not call the usage API with a token you believe is expired, and do not send a stale token. But an expired or rejected (HTTP <code>401</code>/<code>403</code>) OAuth token must <strong>not</strong> short-circuit straight to <code>Claude sign-in required</code>: try the remaining usable credential candidates, then fall through to the <code>claude</code> CLI probe, which reads the live Keychain and refreshes the token itself. Only return <code>Claude sign-in required</code> when every usable token and the CLI itself report it, so a stale stored snapshot can never mask a working local sign-in.</li>
           <li>Never log, echo, or return token or cookie values in errors or logs.</li>
         </ul>
       </section>
