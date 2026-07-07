@@ -10,6 +10,9 @@ This extension workspace is your working directory, and you should keep every re
 Do not `cd` above this workspace, and do not run recursive `find`, `grep -r`, `rg`, or `ls -R` against your home directory, `/Users/<you>`, or any parent path.
 On macOS those parent paths include the protected `Documents`, `Downloads`, `Desktop`, `Music`, `Movies`, and `Pictures` folders, and traversing them makes the operating system pop a permission prompt for each one - a slow, alarming experience for the user that a widget task never needs.
 If a search returns nothing inside this workspace, stop and rely on the contracts documented below rather than widening the search outward.
+The live-source verification rule near the end of this file is the only narrow exception to the read boundary.
+For that check, an extension-owned server action, or an equivalent one-off verification command for that server action, may perform targeted, read-only access to a specific known source the recipe or server code already names: read a named credential file, run a named command such as the macOS Keychain `security` lookup, or call a named endpoint.
+This does not permit broad or recursive discovery outside the workspace; do not run `find`, `grep -r`, `rg`, `ls -R`, or similar scans against your home directory, `/Users/<you>`, or any parent path while verifying live data.
 
 The Baby Menu host source is not present in this workspace.
 Files such as `src/shared/contracts` and the `@babymenu/ui` source live inside the installed app bundle, not on disk next to your extensions, so there is nothing to find by searching for them.

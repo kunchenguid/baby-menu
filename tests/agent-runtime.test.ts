@@ -251,6 +251,8 @@ describe("agent runtime defaults", () => {
 
     expect(prompt).toContain("inspect that actual source directly");
     expect(prompt).toContain("before writing any parsing or rendering code");
+    expect(prompt).toContain("targeted, read-only check against a specific known source");
+    expect(prompt).toContain("not permission to run broad or recursive searches");
     expect(prompt).toMatch(/never guess or pattern-complete/i);
     expect(prompt).toContain("verify the finished widget against that same live data");
     expect(prompt).toContain("print only non-secret metadata or explicitly redacted placeholders");
