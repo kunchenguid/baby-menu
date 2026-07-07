@@ -253,6 +253,8 @@ describe("agent runtime defaults", () => {
     expect(prompt).toContain("before writing any parsing or rendering code");
     expect(prompt).toMatch(/never guess or pattern-complete/i);
     expect(prompt).toContain("verify the finished widget against that same live data");
+    expect(prompt).toContain("print only non-secret metadata or explicitly redacted placeholders");
+    expect(prompt).toContain("never echo raw tokens, credential blobs, cookies, auth headers");
     expect(prompt).not.toContain(
       "Verify extension work by reasoning through widget render output and server action return shapes.",
     );
