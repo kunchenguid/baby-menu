@@ -176,6 +176,9 @@ Do not write generated extension files, the local extension database, compiled m
 - If a real data source may be unavailable, require an explicit unavailable or sign-in-required result rather than a mock fallback; recipes should use real data only and must not fabricate or silently substitute mock data. Only specify labeled sample data when the user explicitly asks for examples.
 - Define normalized TypeScript shapes in the recipe so the agent knows what data extension server actions should return to widgets.
 - Include parser guidance for command or API output, including timeout behavior, stale-data behavior, and user-visible errors.
+- For recipes backed by live or system data, require the agent to inspect the real named source before writing parsing or rendering code, never guess field names or response shapes, and verify the finished server action or equivalent one-off check against the same live source before reporting done.
+  Reasoning through return shapes on paper is not verification.
+  If source inspection can expose secrets, require redacted output only.
 - Never include or ask for committed secrets, tokens, cookie values, or local credential dumps.
 - Standalone recipe HTML should use daisyUI from CDN and the `wireframe` theme.
 - Include these tags in recipe HTML: `<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />`, `<link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />`, and `<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>`.

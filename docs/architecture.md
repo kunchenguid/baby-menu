@@ -23,6 +23,9 @@ For the at-a-glance picture, see the "How It Works" diagram in the [README](../R
 | Local storage | A shared SQLite store: `context.db` server-side, `window.babyMenu.db` in the renderer. Use it for anything that must survive reloads. |
 | Stable contracts | Extensions import host types with type-only `import ... from "@babymenu/contracts"`, shipped into each workspace. |
 
+Recipes for live or system data are also verification contracts.
+They tell the agent to inspect the actual named source before writing parser or renderer code, avoid guessed field names and response shapes, and verify the finished server action or widget against that same live source before reporting done.
+
 **Background vs view refresh.**
 `refreshView` / `viewRefreshIntervalMs` keeps a visible widget current and pauses while the popover is hidden.
 `export const background` in `server.ts` runs on a host-owned timer (60-second minimum) for work that must continue while the popover is closed.
