@@ -139,7 +139,7 @@ ChatGPT-Account-Id: &lt;tokens.account_id&gt;</code></pre>
         <h2>Implementation Contract</h2>
         <p>All data acquisition lives in <code>codex-quota/server.ts</code>: token reads, the CLI RPC, network calls, timeouts, and parsing. Expose it as a <code>getQuota</code> server action invoked from the renderer with <code>window.babyMenu.capabilities.invoke("codex-quota", "getQuota", input)</code>. Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</p>
         <p>The data is safe to refresh roughly every 5 minutes; how and when the widget triggers a refresh is the widget's concern, not this recipe's.</p>
-        <p>Do not add test or documentation files for the extension. Verify by reasoning through the parser paths, the server action response shape, and the widget's rendered unavailable, stale, and live states.</p>
+        <p>Do not add test or documentation files for the extension. Before writing the parser, inspect the real live source directly - the actual CLI RPC output and/or auth file on this machine - to confirm its true current shape; do not guess or pattern-complete a field name from memory or docs. Before reporting the work done, invoke <code>getQuota</code> (or an equivalent one-off check) against the real source yourself and confirm the exact windows and values you expect actually come back and render in each of the unavailable, stale, and live states - reasoning through the shapes on paper is not enough.</p>
         <p>Server action response shape:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>type QuotaResult&lt;T&gt; =
   | { ok: true; data: T }

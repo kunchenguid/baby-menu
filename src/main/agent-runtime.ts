@@ -312,7 +312,8 @@ Extension server actions live in server.ts files and export an actions object.
 Do not add new preload methods or one-off IPC method names for each widget.
 Put privileged filesystem, shell, network, credential, and token work behind an extension-owned server action that is invoked through a stable generic capability bridge.
 Do not write test files, and do not write README or other documentation files for extensions.
-Verify extension work by reasoning through widget render output and server action return shapes.`;
+When a widget or server action surfaces live or system data - local files, command output, credentials, or an API response - inspect that actual source directly (read the real file, run the real command, call the real endpoint) to confirm its true current shape before writing any parsing or rendering code; never guess or pattern-complete a field name or response shape from memory or documentation.
+Before reporting the work done, verify the finished widget against that same live data yourself: run the server action (or an equivalent one-off check) against the real source and confirm the exact value you expect actually renders - reasoning about the return shape on paper is not enough.`;
 }
 
 export class BabyMenuAgentRuntime {
