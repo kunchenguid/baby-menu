@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.18](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.17...baby-menu-v0.1.18) (2026-07-09)
+
+
+### Features
+
+* **recipes:** add Cursor, Copilot, and Grok quota recipes ([#70](https://github.com/kunchenguid/baby-menu/issues/70)) ([7cc798e](https://github.com/kunchenguid/baby-menu/commit/7cc798e4425ef0936ad70dd7849b317ccd9d7a34))
+
+
+### Bug Fixes
+
+* **recipes:** require live-source validation for data widgets ([#68](https://github.com/kunchenguid/baby-menu/issues/68)) ([2afe00f](https://github.com/kunchenguid/baby-menu/commit/2afe00f5cea2d2dbbcde557ba8a6bf391ff887de))
+
 ## [0.1.17](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.16...baby-menu-v0.1.17) (2026-06-29)
 
 
