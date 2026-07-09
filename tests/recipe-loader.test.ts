@@ -55,4 +55,14 @@ describe("loadRecipes", () => {
     expect(html).toContain("secondary rate limits");
     expect(html).not.toContain("a future <code>x-ratelimit-reset</code>");
   });
+
+  it("keeps Copilot local auth parse failures out of sign-in-required handling", async () => {
+    const html = await readFile(new URL("../extensions/recipes/copilot-quota.html", import.meta.url), "utf8");
+
+    expect(html).toContain("If existing local auth files are unreadable or malformed");
+    expect(html).toContain("follow the cached-stale-or-unavailable path instead of reporting sign-in required");
+    expect(html).toContain("return an unavailable error (<code>Copilot quota unavailable</code>) with <code>sourceTried: [\"local-auth\"]</code>");
+    expect(html).toContain("If at least one apps.json file parses successfully but no parsed entry has a usable <code>oauth_token</code>");
+    expect(html).not.toContain("no file parses successfully, or no entry has a usable <code>oauth_token</code>, return <code>Copilot sign-in required</code>");
+  });
 });
