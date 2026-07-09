@@ -103,6 +103,7 @@ For agent selection, custom ACP agents, telemetry, and environment flags, see [d
 - **Recipes are specs, not prompts** - HTML files under `extensions/recipes/` describe a widget's capability and data sources; the agent reads the matching recipe before implementing.
   For live or system data, recipe guidance requires the agent to inspect the real source before parsing it and verify the finished widget against that same data before reporting done.
   The bundled quota recipes cover Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
+  Cursor, GitHub Copilot, and Grok quota recipes are intentionally self-contained: they read provider-owned local auth or state and call provider APIs directly instead of relying on `quota-axi` or similar helper CLIs.
 - **Bundled ACP adapters** - built-in Claude Code and Codex run through clean-room adapters isolated from user-level agent configuration.
 - **Diff-derived Keep / Undo** - the change bar reflects the actual git or snapshot diff, not agent wording, and clears itself when nothing changed on disk.
 - **Extensions own their capabilities** - widgets, layouts, settings sections, server actions, background tasks, and a shared SQLite store, all behind the stable bridge.
