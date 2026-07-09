@@ -44,4 +44,13 @@ describe("loadRecipes", () => {
       expect(html).not.toMatch(/Review\s+<a|for discovery and behavior ideas|another repository/i);
     }
   });
+
+  it("keeps Copilot transient 403 handling separate from token rejection", async () => {
+    const html = await readFile(new URL("../extensions/recipes/copilot-quota.html", import.meta.url), "utf8");
+
+    expect(html).toContain("Do not classify every <code>403</code> as rejected auth");
+    expect(html).toContain("<code>x-ratelimit-remaining: 0</code>");
+    expect(html).toContain("<code>retry-after</code>");
+    expect(html).toContain("secondary rate limits");
+  });
 });
