@@ -50,7 +50,9 @@ describe("loadRecipes", () => {
 
     expect(html).toContain("Do not classify every <code>403</code> as rejected auth");
     expect(html).toContain("<code>x-ratelimit-remaining: 0</code>");
+    expect(html).toContain("<code>x-ratelimit-reset</code> only when <code>x-ratelimit-remaining</code> is <code>0</code>");
     expect(html).toContain("<code>retry-after</code>");
     expect(html).toContain("secondary rate limits");
+    expect(html).not.toContain("a future <code>x-ratelimit-reset</code>");
   });
 });
