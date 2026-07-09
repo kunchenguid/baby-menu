@@ -14,6 +14,9 @@ describe("loadRecipes", () => {
     expect(recipes.map((recipe) => recipe.id).sort()).toEqual([
       "claude-code-quota",
       "codex-quota",
+      "copilot-quota",
+      "cursor-quota",
+      "grok-quota",
     ]);
     expect(recipes.every((recipe) => recipe.title.length > 0)).toBe(true);
   });
@@ -22,6 +25,9 @@ describe("loadRecipes", () => {
     const recipeUrls = [
       new URL("../extensions/recipes/claude-code-quota.html", import.meta.url),
       new URL("../extensions/recipes/codex-quota.html", import.meta.url),
+      new URL("../extensions/recipes/copilot-quota.html", import.meta.url),
+      new URL("../extensions/recipes/cursor-quota.html", import.meta.url),
+      new URL("../extensions/recipes/grok-quota.html", import.meta.url),
     ];
 
     for (const recipeUrl of recipeUrls) {

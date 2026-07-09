@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en" data-theme="wireframe">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GitHub Copilot Quota Widget Recipe</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+  <body class="bg-base-200 text-base-content">
+    <main class="mx-auto max-w-4xl space-y-5 p-6 text-base leading-7 sm:p-10 [&_code]:text-sm [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-semibold [&_li]:mb-1 [&_li]:leading-7 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_p]:mb-2 [&_p]:leading-7 [&_pre]:my-3 [&_pre_code]:text-sm [&_section]:space-y-3 [&_table]:text-sm [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6">
+      <h1 class="text-3xl font-bold tracking-tight">GitHub Copilot Quota Widget Recipe</h1>
+
+      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
+        <h2>Capability</h2>
+        <p>Source GitHub Copilot quota windows from the local machine for a baby-menu widget.</p>
+        <p>Use real local Copilot data through <code>quota-axi</code> only. When <code>quota-axi</code> is missing, Copilot is not signed in, or the live source cannot be parsed, return an unavailable or sign-in-required result - do not fabricate or fall back to mock data.</p>
+        <p><strong>Scope:</strong> this recipe covers only how to obtain and normalize the data. How the widget presents it - layout, states, copy, refresh controls - is left to the implementer and is intentionally not specified here.</p>
+        <p>This recipe is self-contained. Do not require external source code, websites, or implementation guides to complete it.</p>
+      </section>
+
+      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
+        <h2>Recommended Data Source Order</h2>
+        <table class="table table-zebra">
+          <thead>
+            <tr><th>Priority</th><th>Source</th><th>Use When</th><th>Expected Data</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td><code>quota-axi</code> normalized JSON</td>
+              <td><code>quota-axi</code> is on <code>PATH</code> and Copilot local auth can reach the live usage API.</td>
+              <td>Copilot plan, chat, completions, premium interactions, reset timestamps when useful, freshness state.</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>Copilot local auth source check</td>
+              <td><code>quota-axi</code> is unavailable or reports sign-in required and you need clearer troubleshooting.</td>
+              <td>Only an unavailable or sign-in-required diagnostic. Do not reimplement GitHub or Copilot usage APIs in the widget.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
+        <h2>quota-axi Source Details</h2>
+        <p>Run privileged CLI work in <code>copilot-quota/server.ts</code> behind <code>window.babyMenu.capabilities.invoke</code>. Do not expose Node APIs to the renderer.</p>
+        <p>Command:</p>
+        <pre class="mockup-code p-4 overflow-auto"><code>quota-axi --provider copilot --json</code></pre>
+        <p><code>quota-axi</code> must be on <code>PATH</code>. Use a controlled child process, capture stdout, parse JSON, and use a hard timeout around 15 seconds for the first implementation. Treat a non-zero exit, invalid JSON, missing provider, or authentication failure as an explicit unavailable or sign-in-required result. Do not silently substitute sample data.</p>
+        <p>The shared envelope is always schema version 2:</p>
+        <pre class="mockup-code p-4 overflow-auto"><code>{
+  "generatedAt": "2026-07-09T04:07:26.909Z",
+  "schemaVersion": 2,
+  "providers": [ /* one provider when --provider is scoped */ ]
+}</code></pre>
+        <p>Take the first matching <code>providers[]</code> entry whose <code>provider</code> is <code>"copilot"</code>. Ignore providers with a different id, even if they appear in the envelope.</p>
+        <p>Verified live output shape from <code>quota-axi --provider copilot --json</code> on 2026-07-09:</p>
+        <pre class="mockup-code p-4 overflow-auto"><code>{
+  "generatedAt": "2026-07-09T04:07:26.909Z",
+  "schemaVersion": 2,
+  "providers": [
+    {
+      "provider": "copilot",
+      "label": "GitHub Copilot",
+      "source": "api",
+      "plan": "individual",
+      "windows": [
+        {
+          "id": "chat",
+          "label": "chat",
+          "kind": "monthly",
+          "percentUsed": 0,
+          "percentRemaining": 100,
+          "resetsAt": "1970-01-01T00:00:00.000Z"
+        },
+        {
+          "id": "completions",
+          "label": "completions",
+          "kind": "monthly",
+          "percentUsed": 0,
+          "percentRemaining": 100,
+          "resetsAt": "1970-01-01T00:00:00.000Z"
+        },
+        {
+          "id": "premium_interactions",
+          "label": "premium interactions",
+          "kind": "monthly",
+          "percentUsed": 0,
+          "percentRemaining": 100,
+          "resetsAt": "1970-01-01T00:00:00.000Z"
+        }
+      ],
+      "state": {
+        "status": "fresh",
+        "stale": false,
+        "refreshedAt": "2026-07-09T04:07:26.909Z",
+        "sourcesTried": ["api"]
+      }
+    }
+  ]
+}</code></pre>
+        <p><strong>Live output is authoritative.</strong> Parse defensively: tolerate added fields, missing optional fields, missing windows, non-numeric percentages, and unknown window ids. Do not default a missing <code>percentUsed</code> to 0. Omit a window that has no numeric usage percentage.</p>
+        <p><strong>Reset timestamp rule.</strong> Some Copilot <code>resetsAt</code> values may be epoch-zero placeholders such as <code>1970-01-01T00:00:00.000Z</code>. Treat non-useful reset timestamps defensively: keep the quota percentage but omit reset text instead of showing 1970.</p>
+        <p><strong>One axis, consistently.</strong> <code>percentUsed</code> is percent <em>used</em> from 0 to 100. Remaining is <code>100 - percentUsed</code>, or the provided <code>percentRemaining</code> when present and numeric. Whatever the widget chooses to show, the label, number, and any meter for a given window must all describe the same axis.</p>
+      </section>
+
+      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
+        <h2>Normalized Snapshot Type</h2>
+        <p>Normalize <code>quota-axi</code> data into this server action result shape:</p>
+        <pre class="mockup-code p-4 overflow-auto"><code>type CopilotQuotaSnapshot = {
+  source: "quota-axi";
+  provider: "copilot";
+  label: "GitHub Copilot";
+  plan?: string;
+  windows: Array&lt;{
+    id: "chat" | "completions" | "premium_interactions" | string;
+    label: string;
+    kind?: "monthly" | string;
+    percentUsed: number;          // canonical, percent USED (0-100)
+    percentRemaining?: number;    // optional, derive as 100 - percentUsed when absent
+    resetAt?: string;             // omit epoch-zero or otherwise non-useful timestamps
+  }&gt;;
+  refreshedAt: string;
+  generatedAt?: string;
+  stale: boolean;
+  status?: string;
+  sourcesTried: string[];
+};</code></pre>
+        <p>Clamp numeric percentages to the inclusive range <code>0..100</code>. Preserve unknown windows rather than dropping them when they have a usable percentage, since <code>quota-axi</code> may add new Copilot quota windows later.</p>
+      </section>
+
+      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
+        <h2>Implementation Contract</h2>
+        <p>All data acquisition lives in <code>copilot-quota/server.ts</code>: command discovery, child process execution, timeouts, JSON parsing, and any local auth diagnostics. Expose it as a <code>getQuota</code> server action invoked from the renderer with <code>window.babyMenu.capabilities.invoke("copilot-quota", "getQuota", input)</code>. Do not add preload methods, per-widget IPC channels, core renderer widgets, or <code>WidgetHost</code> registration; Baby Menu discovers extension widgets automatically.</p>
+        <p>The data is safe to refresh roughly every 5 minutes while the widget is visible. Use <code>viewRefreshIntervalMs</code> or <code>refreshView</code> for visible refresh. Do not add a background task unless the user explicitly asks for quota monitoring while the popover is closed.</p>
+        <p>Before writing the parser, inspect real <code>quota-axi --provider copilot --json</code> output on the machine to confirm the current schema version, provider id, window ids, placeholder reset behavior, and state fields. Before reporting the work done, invoke <code>getQuota</code> or an equivalent one-off check against the same command and confirm live, unavailable, and stale paths behave as expected.</p>
+        <p>Server action response shape:</p>
+        <pre class="mockup-code p-4 overflow-auto"><code>type QuotaResult&lt;T&gt; =
+  | { ok: true; data: T }
+  | { ok: false; error: string; sourceTried: string[] };</code></pre>
+      </section>
+
+      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
+        <h2>Error and Unavailable Handling</h2>
+        <p>These are data outcomes the server action returns, not UI copy.</p>
+        <ul>
+          <li>If <code>quota-axi</code> is not on <code>PATH</code>, return an unavailable error such as <code>Copilot quota unavailable</code> with <code>sourceTried: ["quota-axi"]</code>.</li>
+          <li>If <code>quota-axi</code> reports missing or expired Copilot authentication, return <code>Copilot sign-in required</code>. Do not return mock data.</li>
+          <li>If the command times out or the network is temporarily unavailable, return the previous successful snapshot marked <code>stale: true</code> when one exists.</li>
+          <li>If <code>schemaVersion</code> is not <code>2</code> or no matching provider is present, return an unavailable parsing error rather than guessing.</li>
+          <li>Ignore reset timestamps that cannot be parsed or are epoch-zero placeholders. Keep the quota percentage and omit reset text instead of showing a misleading date.</li>
+          <li>Never log, echo, or return token, cookie, or local auth values in errors or logs.</li>
+        </ul>
+      </section>
+
+      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
+        <h2>Local Auth Diagnostics</h2>
+        <p>These details are for troubleshooting sign-in-required messages only. The widget should not reimplement GitHub or Copilot usage APIs when <code>quota-axi</code> already provides normalized output.</p>
+        <ul>
+          <li>Copilot auth is commonly stored in <code>~/.config/github-copilot/apps.json</code> on Linux-style paths.</li>
+          <li>On macOS and other platforms, Copilot-compatible tools may place equivalent app auth data under the user's platform config directory. Let <code>quota-axi</code> own those platform variants.</li>
+          <li>Use local auth checks only to explain why <code>quota-axi</code> cannot authenticate, and only from the server action. Never read auth files from the renderer.</li>
+        </ul>
+      </section>
+
+      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
+        <h2>Security Constraints</h2>
+        <ul>
+          <li>Credential, filesystem, shell, and network access belongs only in extension-owned server actions behind <code>window.babyMenu.capabilities.invoke</code>.</li>
+          <li>Never commit secrets, token dumps, local auth file contents, or captured command output that might include credentials.</li>
+          <li>Do not send Copilot credentials to the renderer. The renderer receives only the normalized snapshot.</li>
+          <li>Keep command stderr out of user-visible errors unless it has been scrubbed for token-like values.</li>
+        </ul>
+      </section>
+
+      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
+        <h2>Interactive Demo</h2>
+        <div class="space-y-4">
+          <div class="stats stats-vertical w-full border border-base-300 bg-base-100 md:stats-horizontal">
+            <div class="stat">
+              <div class="stat-title">Chat</div>
+              <div class="stat-value text-2xl">0% used</div>
+              <div class="stat-desc">100% remaining</div>
+            </div>
+            <div class="stat">
+              <div class="stat-title">Completions</div>
+              <div class="stat-value text-2xl">0% used</div>
+              <div class="stat-desc">100% remaining</div>
+            </div>
+            <div class="stat">
+              <div class="stat-title">Premium interactions</div>
+              <div class="stat-value text-2xl">0% used</div>
+              <div class="stat-desc">100% remaining</div>
+            </div>
+          </div>
+          <progress class="progress w-full" value="0" max="100"></progress>
+          <p class="text-sm">Demo uses sanitized sample values only. The shipped widget must call <code>quota-axi</code> and must omit placeholder reset dates such as 1970.</p>
+        </div>
+      </section>
+
+      <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
+        <h2>Acceptance Criteria</h2>
+        <ul>
+          <li>The extension invokes <code>quota-axi --provider copilot --json</code> from <code>copilot-quota/server.ts</code> and parses schema version 2.</li>
+          <li>The server action selects the first <code>providers[]</code> entry with <code>provider: "copilot"</code>.</li>
+          <li>The snapshot includes Copilot plan, refreshed time, stale state, sources tried, and all usable windows from live output.</li>
+          <li><code>percentUsed</code> is treated as used, not remaining, and any label or meter uses one axis consistently.</li>
+          <li>Epoch-zero or otherwise non-useful reset timestamps are omitted rather than rendered as 1970.</li>
+          <li>Missing <code>quota-axi</code>, missing auth, invalid JSON, and timeouts produce explicit unavailable, sign-in-required, or stale results without mock data.</li>
+          <li>No token, cookie, local auth, or credential value is logged, returned, committed, or exposed to the renderer.</li>
+          <li>The implementer verifies the finished server action against real <code>quota-axi</code> output before reporting done.</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>
