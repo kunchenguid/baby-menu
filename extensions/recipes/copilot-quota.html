@@ -47,7 +47,7 @@
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Local Auth Details</h2>
         <p>Read credentials only from <code>copilot-quota/server.ts</code>, never from the renderer.</p>
-        <p>Check these paths, in order, and use the first one that exists and parses as JSON:</p>
+        <p>Check both of these paths and read every file that exists and parses as JSON:</p>
         <ol>
           <li><code>~/.config/github-copilot/apps.json</code> - verified present on this machine.</li>
           <li><code>~/Library/Application Support/github-copilot/apps.json</code> - some macOS-native Copilot clients use this path instead; not present on this machine, but check it before giving up.</li>
@@ -60,7 +60,7 @@
     "githubAppId": "Iv1...."
   }
 }</code></pre>
-        <p><strong>Candidate selection.</strong> Collect every entry with a non-empty string <code>oauth_token</code>. Prefer an entry whose key starts with <code>github.com</code> (a token scoped to github.com, which is what the API below expects) over any other host. If more than one <code>github.com</code>-scoped entry exists, prefer the one with the most recently modified file mtime, or simply the first one found if mtimes are unavailable - any of them is a valid GitHub OAuth token for this account. If no entry has a usable <code>oauth_token</code>, return <code>Copilot sign-in required</code> without calling the network.</p>
+        <p><strong>Candidate selection.</strong> Collect every entry from every readable apps.json file with a non-empty string <code>oauth_token</code>. Prefer entries whose key starts with <code>github.com</code> (tokens scoped to github.com, which is what the API below expects) over any other host. Within the same host preference, prefer candidates from the most recently modified file, then keep file order and object iteration order stable as tie-breakers. Try candidates in that order. If no entry has a usable <code>oauth_token</code>, return <code>Copilot sign-in required</code> without calling the network.</p>
         <p>Note that the account identity comes back from the API response's own <code>login</code> field, not from the file's <code>user</code> field - the file may be labeled with an unrelated client name (e.g. a Neovim plugin's registration key) while still authenticating as the correct GitHub account. Do not assume the app-key's trailing segment names the product actually in use.</p>
         <p>Never log, echo, or return the OAuth token or raw apps.json contents in errors, logs, or the response sent to the renderer.</p>
       </section>
@@ -72,7 +72,7 @@
 Authorization: Bearer &lt;oauth_token&gt;
 Accept: application/json
 User-Agent: GitHubCopilotChat/1.0</code></pre>
-        <p>The exact <code>User-Agent</code> string is not load-bearing for authorization, but GitHub's API rejects requests with no <code>User-Agent</code> at all; send a stable, descriptive value like the one above. Use a hard timeout around 15 seconds. Treat <code>401</code> or <code>403</code> as <code>Copilot sign-in required</code>. Any other non-<code>2xx</code> status, a timeout, or a network error falls back to the cached snapshot when one exists, otherwise an unavailable result.</p>
+        <p>The exact <code>User-Agent</code> string is not load-bearing for authorization, but GitHub's API rejects requests with no <code>User-Agent</code> at all; send a stable, descriptive value like the one above. Use a hard timeout around 15 seconds. Treat <code>401</code> or <code>403</code> for one token as that candidate being rejected, then try the next token candidate before reporting sign-in required; only return <code>Copilot sign-in required</code> after every usable token candidate has been rejected. Any other non-<code>2xx</code> status, a timeout, or a network error falls back to the cached snapshot when one exists, otherwise an unavailable result.</p>
         <p><strong>Verified live response shape</strong> from this exact endpoint on this machine on 2026-07-09 (this account's real values at capture time, token redacted):</p>
         <pre class="mockup-code p-4 overflow-auto"><code>{
   "login": "kunchenguid",
@@ -114,6 +114,7 @@ User-Agent: GitHubCopilotChat/1.0</code></pre>
           <li><code>quota_snapshots.chat</code> -&gt; window <code>id: "chat"</code>, <code>label: "chat"</code>, <code>kind: "monthly"</code>.</li>
           <li><code>quota_snapshots.completions</code> -&gt; window <code>id: "completions"</code>, <code>label: "completions"</code>, <code>kind: "monthly"</code>.</li>
           <li><code>quota_snapshots.premium_interactions</code> -&gt; window <code>id: "premium_interactions"</code>, <code>label: "premium interactions"</code>, <code>kind: "monthly"</code>.</li>
+          <li>Any other <code>quota_snapshots.&lt;window&gt;</code> entry with a finite <code>percent_remaining</code> -&gt; window <code>id</code> equal to that snapshot key, <code>label</code> equal to the key with underscores replaced by spaces, <code>kind: "monthly"</code>.</li>
           <li>Each window's <code>percentRemaining</code> comes directly from <code>percent_remaining</code>; derive <code>percentUsed = 100 - percentRemaining</code>. When <code>unlimited</code> is <code>true</code>, still report the API's own <code>percent_remaining</code> (typically <code>100</code>) rather than fabricating a different number.</li>
           <li><code>resetAt</code> for every window -&gt; the top-level <code>quota_reset_date_utc</code> when it parses as a valid date; never the per-window <code>quota_reset_at</code>.</li>
           <li><code>copilot_plan</code> -&gt; <code>plan</code>. <code>login</code> -&gt; <code>accountLogin</code>.</li>
@@ -128,7 +129,7 @@ User-Agent: GitHubCopilotChat/1.0</code></pre>
   accountLogin?: string;
   plan?: string;
   windows: Array&lt;{
-    id: "chat" | "completions" | "premium_interactions";
+    id: "chat" | "completions" | "premium_interactions" | (string & {});
     label: string;
     kind?: "monthly";
     percentUsed: number;          // canonical, percent USED (0-100)
@@ -157,8 +158,8 @@ User-Agent: GitHubCopilotChat/1.0</code></pre>
         <h2>Error and Unavailable Handling</h2>
         <p>These are data outcomes the server action returns, not UI copy.</p>
         <ul>
-          <li>If neither apps.json path exists, or no entry has a usable <code>oauth_token</code>, return <code>Copilot sign-in required</code> with <code>sourceTried: ["local-auth"]</code> without calling the network.</li>
-          <li>If the API returns <code>401</code> or <code>403</code>, return <code>Copilot sign-in required</code>.</li>
+          <li>If neither apps.json path exists, no file parses successfully, or no entry has a usable <code>oauth_token</code>, return <code>Copilot sign-in required</code> with <code>sourceTried: ["local-auth"]</code> without calling the network.</li>
+          <li>If the API returns <code>401</code> or <code>403</code> for one token candidate, try the next usable token. Return <code>Copilot sign-in required</code> only after every usable token candidate is rejected.</li>
           <li>If the API times out or the network is briefly unreachable, return the previous successful snapshot marked <code>stale: true</code> when one exists; otherwise return an unavailable error (<code>Copilot quota unavailable</code>).</li>
           <li>If <code>quota_snapshots</code> is missing or has no usable window, return an unavailable error rather than guessing.</li>
           <li>Never render an epoch-zero or otherwise unparseable reset timestamp; omit <code>resetAt</code> instead of showing 1970.</li>
@@ -204,7 +205,7 @@ User-Agent: GitHubCopilotChat/1.0</code></pre>
         <h2>Acceptance Criteria</h2>
         <ul>
           <li>The extension reads an <code>oauth_token</code> from a local apps.json file and calls <code>copilot_internal/user</code> directly from <code>copilot-quota/server.ts</code>. It never execs or requires <code>quota-axi</code> or any other separate quota CLI.</li>
-          <li>Both known apps.json paths are checked, preferring a github.com-scoped token entry.</li>
+          <li>Both known apps.json paths are checked, token candidates are collected from every readable file, and github.com-scoped token entries are preferred.</li>
           <li>The snapshot includes Copilot plan, account login, refreshed time, stale state, and all usable windows from <code>quota_snapshots</code>.</li>
           <li><code>percentUsed</code> is treated as used, not remaining, and any label or meter uses one axis consistently.</li>
           <li>Epoch-zero or otherwise non-useful per-window reset timestamps are never rendered; the top-level monthly reset date is used instead.</li>

@@ -65,7 +65,7 @@
   }
 }</code></pre>
         <p>Verified live on this machine: the key observed was of the form <code>https://auth.x.ai::&lt;oidc-client-id&gt;</code> with fields <code>key</code>, <code>auth_mode</code>, <code>email</code>, <code>expires_at</code>, and <code>refresh_token</code> present. Do not assume this exact key format; iterate every entry in the object rather than looking up one hardcoded key.</p>
-        <p><strong>Candidate selection.</strong> Collect every entry that has a non-empty string <code>key</code> field - that field is the bearer token to send to the billing API. Classify each candidate as a "session" credential if it carries <code>refresh_token</code> and/or <code>auth_mode</code>, versus a raw API-key-shaped entry that carries neither. Prefer session credentials over API-key-shaped ones. Within the same class, prefer an entry whose <code>expires_at</code> (when present and parseable) is in the future over one that has already expired; do not discard an entry just because it has no <code>expires_at</code> at all. If every candidate is expired or the file/env value has no usable <code>key</code> anywhere, return <code>Grok sign-in required</code> without calling the network.</p>
+        <p><strong>Candidate selection.</strong> Collect every entry that has a non-empty string <code>key</code> field - that field is the bearer token to send to the billing API. Classify each candidate as a "session" credential if it carries <code>refresh_token</code> and/or <code>auth_mode</code>, versus a raw API-key-shaped entry that carries neither. Prefer session credentials over API-key-shaped ones. Within the same class, prefer an entry whose <code>expires_at</code> (when present and parseable) is in the future over one that has already expired; do not discard an entry just because it has no <code>expires_at</code> at all. Try usable candidates in that order, skipping candidates whose parseable <code>expires_at</code> has already passed. If every candidate is expired or the file/env value has no usable <code>key</code> anywhere, return <code>Grok sign-in required</code> without calling the network.</p>
         <p>Optional client version header value: read <code>~/.grok/version.json</code> (<code>{ "version": "0.2.93", ... }</code>) and use its <code>version</code> field for <code>x-grok-client-version</code> below. If that file is missing or unparseable, omit the header entirely rather than guessing a version.</p>
         <p>Never log, echo, or return the bearer token, refresh token, or raw auth file contents in errors, logs, or the response sent to the renderer.</p>
       </section>
@@ -77,7 +77,7 @@
 Authorization: Bearer &lt;key&gt;
 Accept: application/json
 x-grok-client-version: &lt;version&gt;   (optional, omit if unknown)</code></pre>
-        <p>Use a hard timeout around 15 seconds. Treat the response status as follows: <code>401</code> or <code>403</code> means <code>Grok sign-in required</code>; <code>429</code> means rate-limited - return the cached snapshot marked stale if one exists, otherwise an unavailable result noting the rate limit; any other non-<code>2xx</code> status is an unavailable result. A network error or timeout falls back to the cached snapshot when one exists, otherwise an unavailable result.</p>
+        <p>Use a hard timeout around 15 seconds. Treat the response status as follows: <code>401</code> or <code>403</code> for one candidate means that candidate was rejected, so try the next usable credential candidate before reporting sign-in required; only return <code>Grok sign-in required</code> after every usable candidate has been rejected. <code>429</code> means rate-limited - return the cached snapshot marked stale if one exists, otherwise an unavailable result noting the rate limit. Any other non-<code>2xx</code> status, network error, or timeout falls back to the cached snapshot when one exists, otherwise an unavailable result.</p>
         <p><strong>Verified live response shape</strong> from this exact endpoint on this machine on 2026-07-09 (values shown are this account's real values at capture time, not samples):</p>
         <pre class="mockup-code p-4 overflow-auto"><code>{
   "config": {
@@ -151,8 +151,8 @@ x-grok-client-version: &lt;version&gt;   (optional, omit if unknown)</code></pre
         <p>These are data outcomes the server action returns, not UI copy.</p>
         <ul>
           <li>If no usable credential is found in the auth file (missing file, empty object, or every candidate expired), return <code>Grok sign-in required</code> with <code>sourceTried: ["local-auth"]</code>. Do not call the network.</li>
-          <li>If the billing API returns <code>401</code> or <code>403</code>, return <code>Grok sign-in required</code>.</li>
-          <li>If the billing API returns <code>429</code>, times out, or the network is briefly unreachable, return the previous successful snapshot marked <code>stale: true</code> when one exists; otherwise return an unavailable error (<code>Grok quota unavailable</code>).</li>
+          <li>If the billing API returns <code>401</code> or <code>403</code> for one credential candidate, try the next usable candidate. Return <code>Grok sign-in required</code> only after every usable candidate is rejected.</li>
+          <li>If the billing API returns <code>429</code>, returns another non-auth non-<code>2xx</code> status such as <code>5xx</code>, times out, or the network is briefly unreachable, return the previous successful snapshot marked <code>stale: true</code> when one exists; otherwise return an unavailable error (<code>Grok quota unavailable</code>).</li>
           <li>If the response cannot be parsed into a usable <code>credits</code> or product window, return an unavailable error rather than guessing.</li>
           <li>Ignore reset timestamps that fail to parse as dates. Keep the quota percentage and omit <code>resetAt</code> instead of showing a misleading date.</li>
           <li>Never log, echo, or return the bearer token, refresh token, or auth file contents in errors or logs.</li>
@@ -197,7 +197,7 @@ x-grok-client-version: &lt;version&gt;   (optional, omit if unknown)</code></pre
         <h2>Acceptance Criteria</h2>
         <ul>
           <li>The extension reads the local Grok auth file (or its env overrides) and calls the billing API directly from <code>grok-quota/server.ts</code>. It never execs or requires <code>quota-axi</code> or any other separate quota CLI.</li>
-          <li>Candidate credential selection prefers session-shaped entries over API-key-shaped ones and skips expired candidates.</li>
+          <li>Candidate credential selection prefers session-shaped entries over API-key-shaped ones, skips expired candidates, and tries the next candidate when one credential is rejected.</li>
           <li>The snapshot includes refreshed time, stale state, top-level credits when present, and all usable windows from live output, including product-scoped ids like <code>product:grokbuild</code>.</li>
           <li><code>percentUsed</code> is treated as used, not remaining, and any label or meter uses one axis consistently.</li>
           <li>Missing auth, rejected auth, invalid API responses, and timeouts produce explicit unavailable, sign-in-required, or stale results without mock data.</li>
