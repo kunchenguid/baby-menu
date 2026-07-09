@@ -25,6 +25,7 @@ For the at-a-glance picture, see the "How It Works" diagram in the [README](../R
 
 Recipes for live or system data are also verification contracts.
 They tell the agent to inspect the actual named source before writing parser or renderer code, avoid guessed field names and response shapes, and verify the finished server action or widget against that same live source before reporting done.
+The bundled quota recipe set covers Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
 
 **Background vs view refresh.**
 `refreshView` / `viewRefreshIntervalMs` keeps a visible widget current and pauses while the popover is hidden.

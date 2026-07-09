@@ -149,6 +149,7 @@ Do not write generated extension files, the local extension database, compiled m
 ### Recipes and extensions
 
 - Recipes are HTML files in `recipes/` inside the active extension workspace. `recipe-loader.ts` discovers `*.html`, sorts them, and extracts the title from `<title>` or first `<h1>`. They are intentionally HTML so the embedded agent can read them from its cwd and use embedded interactive demos.
+- Bundled quota recipes currently cover Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
 - Extensions live in the active extension workspace under `<extension-id>/` and may include `widget.tsx`, `server.ts`, and local helper files; the workspace may also include one root `layout.tsx` that arranges active widgets.
 - Packaged widgets, root layouts, settings sections, and server actions are compiled into `~/.baby-menu/cache` and loaded through custom protocols or cached modules; dev mode keeps Vite `/@fs` loading for renderer modules.
 - Root `layout.tsx` default-exports a `BabyMenuLayout`, receives active widget metadata plus `renderWidget(id)`, owns the popover canvas arrangement, and lets the popover adapt to the canvas width plus chrome and the rendered height.

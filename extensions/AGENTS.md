@@ -53,6 +53,7 @@ When you need current details about a dependency, CLI, local credential layout, 
 ## Recipes
 
 Common recipes live in `recipes/*.html` inside this extension workspace.
+Bundled quota recipes currently cover Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
 Read the matching recipe before implementing a widget that's relevant.
 Recipes are self-contained specs for the embedded agent and should be treated as technical reference.
 
