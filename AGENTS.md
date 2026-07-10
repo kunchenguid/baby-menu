@@ -196,3 +196,10 @@ Do not write generated extension files, the local extension database, compiled m
 - TypeScript is strict; `moduleResolution: "Bundler"`, ESM (`"type": "module"`). Tests use Vitest with `vitest/globals` types.
 - Never auto-add agent co-author lines to commit messages.
 - Avoid em dashes; use plain `-`.
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.
