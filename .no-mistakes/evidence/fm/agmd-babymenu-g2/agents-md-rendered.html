@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=980, initial-scale=1" />
+<title>AGENTS.md - rendered (tail + new section)</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    margin: 0;
+    background: #eef1f5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: #1f2328;
+  }
+  .page { max-width: 900px; margin: 28px auto; padding: 0 20px; }
+  .filebar {
+    display: flex; align-items: center; gap: 8px;
+    background: #fff; border: 1px solid #d0d7de; border-bottom: none;
+    border-radius: 8px 8px 0 0; padding: 10px 16px; font-size: 13px; color: #59636e;
+  }
+  .filebar b { color: #1f2328; }
+  .filebar .symlink { margin-left: auto; font-size: 12px; color: #59636e; }
+  .md {
+    background: #fff; border: 1px solid #d0d7de; border-radius: 0 0 8px 8px;
+    padding: 28px 40px 40px;
+  }
+  .md h2 {
+    font-size: 22px; font-weight: 600; margin: 26px 0 14px;
+    padding-bottom: 8px; border-bottom: 1px solid #d8dee4;
+  }
+  .md p { line-height: 1.6; margin: 0 0 12px; font-size: 15px; }
+  .md ul { margin: 0 0 12px; padding-left: 26px; }
+  .md li { line-height: 1.6; margin: 4px 0; font-size: 15px; }
+  .md code {
+    background: #eaeef2; border-radius: 6px; padding: 2px 6px;
+    font: 12.5px/1.4 ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  .added {
+    position: relative;
+    background: #e6ffec;
+    box-shadow: -8px 0 0 0 #2da44e, 8px 0 0 0 #e6ffec;
+    border-radius: 4px;
+  }
+  .added-tag {
+    display: inline-block; margin-left: 10px; vertical-align: middle;
+    background: #2da44e; color: #fff; font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 999px; letter-spacing: .02em;
+  }
+  .caption {
+    max-width: 900px; margin: 14px auto 0; padding: 0 20px;
+    font-size: 12.5px; color: #59636e; text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="filebar">
+      <span>&#128196;</span><b>AGENTS.md</b>
+      <span>&nbsp;&middot;&nbsp; developer guide for baby-menu</span>
+      <span class="symlink">&#128279; CLAUDE.md &rarr; AGENTS.md (symlink)</span>
+    </div>
+    <div class="md">
+      <!-- tail context: end of the pre-existing Conventions section -->
+      <h2>Conventions</h2>
+      <ul>
+        <li>TDD is required for bug fixes and new features (skip only for docs / metadata / ephemeral artifacts). Tests live in <code>tests/</code> at the repo root, not co-located.</li>
+        <li>TypeScript is strict; <code>moduleResolution: "Bundler"</code>, ESM (<code>"type": "module"</code>). Tests use Vitest with <code>vitest/globals</code> types.</li>
+        <li>Never auto-add agent co-author lines to commit messages.</li>
+        <li>Avoid em dashes; use plain <code>-</code>.</li>
+      </ul>
+
+      <!-- the new canonical self-governance section added by this change -->
+      <div class="added">
+        <h2>Maintaining this file <span class="added-tag">+ added this change</span></h2>
+        <p>Keep this file for knowledge useful to almost every future agent session in this project.<br />
+        Do not repeat what the codebase already shows; point to the authoritative file or command instead.<br />
+        Prefer rewriting or pruning existing entries over appending new ones.<br />
+        When updating this file, preserve this bar for all agents and keep entries concise.</p>
+      </div>
+    </div>
+  </div>
+  <p class="caption">Rendered tail of the committed AGENTS.md. The green-outlined block is the 7-line canonical
+  "## Maintaining this file" preamble added by commit ada8e60 (byte-identical to firstmate's fm-ensure-agents-md.sh).</p>
+</body>
+</html>
