@@ -70,9 +70,10 @@ describe("loadRecipes", () => {
     const html = await readFile(new URL("../extensions/recipes/grok-quota.html", import.meta.url), "utf8");
 
     expect(html).toContain("If the auth source is missing, unreadable, malformed, or local auth parsing fails before a credential candidate can be built");
-    expect(html).toContain("return an unavailable error (<code>Grok quota unavailable</code>) with <code>sourceTried: [\"local-auth\"]</code>");
-    expect(html).toContain("If an auth source is successfully read and parsed but no entry has a usable non-empty <code>key</code>");
+    expect(html).toContain("classify the result as <code>parse_incompatible</code>");
+    expect(html).toContain("A parsed auth object with no usable key is not sufficient by itself to show sign-in guidance");
     expect(html).not.toContain("missing file, empty object, or no candidate with a non-empty <code>key</code>");
+    expect(html).not.toContain("return <code>Grok sign-in required</code> with <code>sourceTried: [\"local-auth\"]</code>");
   });
 
   it("keeps Cursor sqlite auth reads scoped to used keys", async () => {

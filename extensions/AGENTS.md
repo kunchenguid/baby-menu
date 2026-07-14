@@ -54,7 +54,7 @@ When you need current details about a dependency, CLI, local credential layout, 
 
 Common recipes live in `recipes/*.html` inside this extension workspace.
 Bundled quota recipes currently cover Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
-Cursor, GitHub Copilot, and Grok quota recipes intentionally avoid `quota-axi` or similar helper CLIs; follow each recipe's direct local auth plus provider API contract instead.
+Cursor, GitHub Copilot, and Grok quota recipes avoid `quota-axi` or similar helper CLIs; follow each recipe's provider-owned state and API contract, including a product-native client when it owns authoritative credential refresh.
 Read the matching recipe before implementing a widget that's relevant.
 Recipes are self-contained specs for the embedded agent and should be treated as technical reference.
 
@@ -385,6 +385,8 @@ Renderer widgets call server actions through `window.babyMenu.capabilities.invok
 Do not add preload methods or per-extension IPC channels.
 
 Prefer real local data. When a real source is unavailable, return a clear unavailable or sign-in-required result so the widget can show that state - do not fabricate or silently fall back to mock data. Only return labeled sample data when the user explicitly asks for it.
+When a product-native client owns credential refresh or selection, a local expiry timestamp or raw API rejection is not proof of sign-out; use the authoritative client through a bounded, non-interactive path before showing sign-in guidance.
+Carry structured failures through to accurate renderer copy, and preserve last-good data as visibly stale during refresh, launch, connectivity, rate-limit, service, and parser failures.
 
 Each action receives `(input, context)`.
 The `context` is `{ rootDir, db, notify }`:

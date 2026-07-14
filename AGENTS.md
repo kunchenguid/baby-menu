@@ -150,7 +150,7 @@ Do not write generated extension files, the local extension database, compiled m
 
 - Recipes are HTML files in `recipes/` inside the active extension workspace. `recipe-loader.ts` discovers `*.html`, sorts them, and extracts the title from `<title>` or first `<h1>`. They are intentionally HTML so the embedded agent can read them from its cwd and use embedded interactive demos.
 - Bundled quota recipes currently cover Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
-- Cursor, GitHub Copilot, and Grok quota recipes intentionally avoid `quota-axi` or similar helper CLIs; follow each recipe's direct local auth plus provider API contract instead.
+- Cursor, GitHub Copilot, and Grok quota recipes avoid `quota-axi` or similar helper CLIs; follow each recipe's provider-owned state and API contract, including a product-native client when it owns authoritative credential refresh.
 - Extensions live in the active extension workspace under `<extension-id>/` and may include `widget.tsx`, `server.ts`, and local helper files; the workspace may also include one root `layout.tsx` that arranges active widgets.
 - Packaged widgets, root layouts, settings sections, and server actions are compiled into `~/.baby-menu/cache` and loaded through custom protocols or cached modules; dev mode keeps Vite `/@fs` loading for renderer modules.
 - Root `layout.tsx` default-exports a `BabyMenuLayout`, receives active widget metadata plus `renderWidget(id)`, owns the popover canvas arrangement, and lets the popover adapt to the canvas width plus chrome and the rendered height.
@@ -176,6 +176,8 @@ Do not write generated extension files, the local extension database, compiled m
 - For ongoing work, explicitly distinguish visible-widget refresh from background tasks and require the slowest acceptable interval.
 - Renderer widgets and settings sections should receive normalized data over `window.babyMenu` and should not add new preload methods for each capability.
 - If a real data source may be unavailable, require an explicit unavailable or sign-in-required result rather than a mock fallback; recipes should use real data only and must not fabricate or silently substitute mock data. Only specify labeled sample data when the user explicitly asks for examples.
+- When a product-native client owns credential refresh or selection, a local expiry timestamp or raw API rejection is not proof of sign-out; require a bounded call through the authoritative client before showing sign-in guidance.
+- Require generated live-data widgets to carry structured failures into accurate UI copy and keep last-good data visibly stale during refresh, launch, connectivity, rate-limit, service, and parser failures.
 - Define normalized TypeScript shapes in the recipe so the agent knows what data extension server actions should return to widgets.
 - Include parser guidance for command or API output, including timeout behavior, stale-data behavior, and user-visible errors.
 - For recipes backed by live or system data, require the agent to inspect the real named source before writing parsing or rendering code, never guess field names or response shapes, and verify the finished server action or equivalent one-off check against the same live source before reporting done.

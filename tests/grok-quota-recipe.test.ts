@@ -1,0 +1,104 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterEach, describe, expect, it } from "vitest";
+import { seedExtensionWorkspace } from "../src/main/extension-seeder";
+import { loadRecipes } from "../src/main/recipe-loader";
+
+describe("Grok quota recipe", () => {
+  const tempDirs: string[] = [];
+  const recipeUrl = new URL("../extensions/recipes/grok-quota.html", import.meta.url);
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
+  async function readRecipe(): Promise<string> {
+    return readFile(recipeUrl, "utf8");
+  }
+
+  it("requires official CLI refresh for an expired session before retrying billing", async () => {
+    const html = await readRecipe();
+
+    expect(html).toContain("When the selected session credential is expired, invoke the official Grok CLI refresh path before the billing request");
+    expect(html).toContain("<code>grok models</code>");
+    expect(html).toContain("reread the auth source after the command succeeds");
+    expect(html).toContain("Never implement the OIDC refresh-token exchange directly");
+    expect(html).not.toContain("There is no CLI fallback for Grok in this recipe");
+  });
+
+  it("requires one refresh and retry after authenticated 401 or 403 responses", async () => {
+    const html = await readRecipe();
+
+    expect(html).toContain("After every candidate in the initial pass returns <code>401</code> or <code>403</code>");
+    expect(html).toContain("retry the billing candidate pass exactly once");
+    expect(html).toContain("Never recurse from the retry path");
+    expect(html).toContain("module-scope single-flight promise");
+    expect(html).not.toContain("only return <code>Grok sign-in required</code> after every usable candidate has been rejected");
+  });
+
+  it("requires stale cache preservation for refresh and service failures", async () => {
+    const html = await readRecipe();
+
+    expect(html).toContain("read the last-good snapshot before returning any failure");
+    expect(html).toContain("Refresh failures, CLI discovery or launch failures, connectivity failures, rate limits, quota-service failures, and parse failures all use this stale-cache path");
+    expect(html).toContain("When no last-good snapshot exists, return the structured failure instead");
+    expect(html).toContain("must keep rendering the cached windows");
+  });
+
+  it("requires structured no-cache and malformed-response outcomes", async () => {
+    const html = await readRecipe();
+
+    for (const kind of [
+      "auth_required",
+      "cli_not_found",
+      "cli_launch_failed",
+      "connectivity",
+      "rate_limited",
+      "quota_service",
+      "parse_incompatible",
+    ]) {
+      expect(html).toContain(`"${kind}"`);
+    }
+    expect(html).toContain("A malformed or incompatible <code>2xx</code> response is <code>parse_incompatible</code>");
+    expect(html).toContain("It is never an authentication failure");
+  });
+
+  it("forbids misleading sign-in copy and carries failures through the renderer", async () => {
+    const html = await readRecipe();
+
+    expect(html).toContain("The renderer must use <code>failure.kind</code> and <code>failure.message</code>");
+    expect(html).toContain("Show sign-in guidance only for <code>auth_required</code>");
+    expect(html).toContain("A local expiry timestamp or raw billing <code>401</code>/<code>403</code> alone must never produce sign-in guidance");
+    expect(html).not.toContain("How the widget presents it - layout, states, copy, refresh controls - is left to the implementer");
+  });
+
+  it("requires GUI-safe executable discovery and a safe inherited environment", async () => {
+    const html = await readRecipe();
+
+    expect(html).toContain("<code>$GROK_CLI_PATH</code>");
+    expect(html).toContain("<code>$GROK_HOME/bin/grok</code>");
+    expect(html).toContain("<code>~/.local/bin/grok</code>");
+    expect(html).toContain("<code>~/.grok/bin/grok</code>");
+    expect(html).toContain("<code>/opt/homebrew/bin/grok</code>");
+    expect(html).toContain("<code>/usr/local/bin/grok</code>");
+    expect(html).toContain("preserve the complete inherited <code>process.env</code>");
+    expect(html).toContain("<code>shell: false</code>");
+    expect(html).toContain("<code>quota-axi</code> may be used as optional development evidence, but it is never a runtime dependency or refresh authority");
+  });
+
+  it("ships the corrected recipe through the real workspace seeding and discovery path", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-grok-recipe-install-"));
+    tempDirs.push(rootDir);
+    const extensionsDir = join(rootDir, "extensions");
+    const templateDir = fileURLToPath(new URL("../extensions/", import.meta.url));
+
+    await expect(seedExtensionWorkspace({ extensionsDir, templateDir })).resolves.toBe(true);
+
+    const recipes = await loadRecipes(join(extensionsDir, "recipes"));
+    const installed = recipes.find((recipe) => recipe.id === "grok-quota");
+    expect(installed).toBeDefined();
+    await expect(readFile(installed!.path, "utf8")).resolves.toBe(await readRecipe());
+  });
+});
