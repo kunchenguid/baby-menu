@@ -31,7 +31,7 @@
               <td>1</td>
               <td>Local Grok auth file + billing API</td>
               <td>A current or expiry-unknown credential exists and the billing API accepts it.</td>
-              <td>Credit usage percent, product-scoped usage such as GrokBuild, billing period end, and prepaid balance.</td>
+              <td>Official subscription usage percent and current reset period when Grok reports them, with optional product-scoped and prepaid fields.</td>
             </tr>
             <tr>
               <td>2</td>
@@ -95,10 +95,11 @@
           <li><code>/usr/local/bin/grok</code>.</li>
         </ol>
         <p>Do not rely only on an interactive shell's <code>PATH</code>. Baby Menu expands <code>process.env.PATH</code> for GUI launches, but explicit home-directory and Homebrew candidates are still required. Check executable access and deduplicate resolved paths.</p>
-        <p>Run the resolved executable with <code>execFile</code> or <code>spawn</code>, argument array <code>["models"]</code>, <code>shell: false</code>, ignored stdin, a hard timeout around 20 seconds, and bounded stdout and stderr. Kill the child on timeout. Never interpolate paths into a command string.</p>
+        <p>Run the resolved executable with <code>execFile</code> or <code>spawn</code>, argument array <code>["models"]</code>, <code>shell: false</code>, ignored stdin, a hard timeout around 20 seconds, and bounded stdout and stderr. On timeout, kill the child on timeout and wait for it to close before settling the shared promise. Never interpolate paths into a command string.</p>
         <p>When constructing the child environment, preserve the complete inherited <code>process.env</code> and add only safe presentation overrides such as <code>NO_COLOR=1</code> and <code>TERM=dumb</code>. Do not rebuild a narrow environment that drops <code>HOME</code>, <code>GROK_HOME</code>, proxy settings, deployment endpoints, enterprise OIDC configuration, API-key configuration, or custom auth-provider settings.</p>
         <p>Exit zero means the official capability probe completed. Always reread the auth source after the command succeeds, even if stdout is empty or changes format, because the useful result is the official side effect on provider-owned auth. For nonzero exit, inspect output only in memory and map only verified, allowlisted authentication markers to <code>auth_required</code>. Every unknown nonzero exit is <code>cli_launch_failed</code>, not a sign-in conclusion. Return only a safe exit code, timeout flag, or searched path categories as diagnostics, never raw output.</p>
-        <p>Keep a module-scope single-flight promise so concurrent widget refreshes share one official CLI process. Each <code>getQuota</code> call also keeps a local <code>refreshAttempted</code> boolean. Clear the single-flight promise when it settles, add a short cooldown after failure, and never launch a duplicate refresh during the same request.</p>
+        <p>Keep a module-scope single-flight promise so concurrent widget refreshes share one official CLI process. Each acquisition also keeps a local <code>refreshAttempted</code> boolean. Clear the CLI single-flight promise when it settles, add a short cooldown after failure, and never launch a duplicate refresh during the same request.</p>
+        <p>Separately single-flight the entire <code>getQuota</code> acquisition, not only the CLI subprocess, so concurrent startup, interval, and manual calls share one billing request and one cache write even when the credential is already current.</p>
       </section>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
@@ -107,42 +108,38 @@
         <pre class="mockup-code p-4 overflow-auto"><code>GET https://cli-chat-proxy.grok.com/v1/billing?format=credits
 Authorization: Bearer &lt;key&gt;
 Accept: application/json
+x-grok-client-mode: billing
 x-grok-client-version: &lt;version&gt;   (optional, omit if unknown)</code></pre>
+        <p>Grok's installed ACP agent exposes the same account data through <code>_x.ai/billing</code>. Treat that bounded, sanitized official-client response as the official Grok UI source of truth during implementation and end-to-end verification. The direct credits request may remain the lightweight runtime path only while its normalized percentage and reset agree with the official client.</p>
+        <p>Do not use the unformatted <code>/v1/billing</code> response to invent a subscription quota. Its <code>config.monthlyLimit.val</code> and <code>config.used.val</code> describe a pay-as-you-go monetary spending cap and spend. A quota widget must not divide <code>config.used.val</code> by <code>config.monthlyLimit.val</code>, label the result as credits, or use its monthly billing period as the subscription reset.</p>
         <p>Use a hard timeout around 15 seconds. Try every reasonable candidate in an initial pass. A <code>401</code> or <code>403</code> rejects that candidate but is not yet an authentication conclusion.</p>
         <p>After every candidate in the initial pass returns <code>401</code> or <code>403</code>, invoke the official refresh path once, reread auth, and retry the billing candidate pass exactly once. Never recurse from the retry path, and never refresh again after the retry pass. Return <code>auth_required</code> only when the official CLI itself produces an explicit, verified authentication-required outcome. If the official CLI exits successfully but every candidate in the one allowed retry pass is still rejected with <code>401</code> or <code>403</code>, return <code>credential_rejected</code>; this is a terminal structured outcome for the request and must not launch another probe or show sign-in guidance.</p>
         <p>A <code>429</code> is <code>rate_limited</code>; parse <code>Retry-After</code> into <code>retryAt</code> when possible. Network errors, DNS failures, TLS failures, aborts, and timeouts are <code>connectivity</code>. A <code>5xx</code> is <code>quota_service</code>. Other incompatible or unsupported non-auth statuses are <code>quota_service</code> with an allowlisted HTTP status. Never include a body in the diagnostic.</p>
-        <p><strong>Verified live response shape</strong> from this endpoint on 2026-07-09:</p>
+        <p><strong>Verified official structural response shape</strong> from <code>_x.ai/billing</code> and the credits endpoint on 2026-07-14:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>{
   "config": {
     "currentPeriod": {
       "type": "USAGE_PERIOD_TYPE_WEEKLY",
-      "start": "2026-07-06T19:59:29.885889+00:00",
-      "end": "2026-07-13T19:59:29.885889+00:00"
+      "start": "&lt;ISO timestamp&gt;",
+      "end": "&lt;ISO timestamp&gt;"
     },
-    "creditUsagePercent": 49.0,
-    "onDemandCap": { "val": 0 },
-    "onDemandUsed": { "val": 0 },
-    "productUsage": [
-      { "product": "GrokBuild", "usagePercent": 49.0 }
-    ],
-    "isUnifiedBillingUser": true,
-    "prepaidBalance": { "val": 0 },
-    "topUpMethod": "TOP_UP_METHOD_SAVED_PAYMENT_METHOD",
-    "billingPeriodStart": "2026-07-06T19:59:29.885889+00:00",
-    "billingPeriodEnd": "2026-07-13T19:59:29.885889+00:00"
+    "creditUsagePercent": &lt;optional finite number&gt;,
+    "productUsage": &lt;optional array&gt;,
+    "onDemandCap": { "val": &lt;finite number&gt; },
+    "onDemandUsed": { "val": &lt;finite number&gt; },
+    "prepaidBalance": { "val": &lt;finite number&gt; },
+    "billingPeriodStart": "&lt;ISO timestamp&gt;",
+    "billingPeriodEnd": "&lt;ISO timestamp&gt;"
   }
 }</code></pre>
-        <p><strong>Live output is authoritative.</strong> Inspect the real response before writing the parser. Tolerate added fields, missing optional fields, missing <code>productUsage</code> entries, and non-numeric optional percentages. Do not default a missing <code>creditUsagePercent</code> to zero.</p>
-        <p>A malformed or incompatible <code>2xx</code> response is <code>parse_incompatible</code>. It is never an authentication failure. Require at least one usable credits or product window; do not fabricate zero usage.</p>
-        <p>Field mapping:</p>
-        <ul>
-          <li><code>config.creditUsagePercent</code> maps to the global <code>credits</code> window with <code>kind: "credits"</code> and <code>percentUsed</code> clamped to <code>0..100</code>.</li>
-          <li>Each valid <code>config.productUsage[]</code> entry maps to <code>id: "product:" + slug(product)</code>. Lowercase the product and remove characters outside <code>a-z0-9</code>. Preserve the exact product label.</li>
-          <li><code>config.billingPeriodEnd</code>, falling back to <code>config.currentPeriod.end</code>, maps to <code>resetAt</code> when it is a valid date.</li>
-          <li><code>config.prepaidBalance.val</code> maps to <code>credits.remaining</code> when finite, with unit <code>"credits"</code>.</li>
-          <li>A string plan or subscription-tier field may map to <code>plan</code>. Omit it when absent.</li>
-        </ul>
-        <p><code>percentUsed</code> is always percent used. Remaining is <code>100 - percentUsed</code>. Labels, values, and meters must all describe the same axis.</p>
+        <p>This structural example intentionally contains no account values, identifiers, subscription label, token data, or raw provider payload.</p>
+        <p><strong>Live output is authoritative.</strong> Inspect the official ACP result and direct credits response before writing the parser. Tolerate added fields and missing optional product or prepaid fields, but do not guess a missing usage percentage.</p>
+        <p>A finite <code>config.creditUsagePercent</code> maps to the global credits window. Clamp it to <code>0..100</code>, derive remaining as <code>100 - percentUsed</code>, and use <code>config.currentPeriod.end</code> as the preferred reset with <code>config.billingPeriodEnd</code> as fallback.</p>
+        <p>Each valid <code>config.productUsage[]</code> entry may add a product window. Its percentage must agree with the official result and must never be synthesized from monetary spend.</p>
+        <p>A known current-period response that omits every quota percentage is <code>quota_unreported</code>, not a successful zero or monetary quota, not <code>auth_required</code>, and not generic parser drift. Preserve a last-good snapshot as stale with accurate copy that the official Grok source currently reports no quota percentage. With no cache, show that explicit unavailable state.</p>
+        <p>A malformed or unknown incompatible <code>2xx</code> response is <code>parse_incompatible</code>. It is never an authentication failure. Do not fabricate zero usage.</p>
+        <p>Only a successful response with an official percentage may replace the last-good cache, update <code>refreshedAt</code>, and clear stale and warning state.</p>
+        <p><code>percentUsed</code> is always percent used. Remaining is <code>100 - percentUsed</code>. Labels, values, meters, and reset copy must all describe the same official quota window.</p>
       </section>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
@@ -176,6 +173,7 @@ type QuotaFailure = {
     | "connectivity"
     | "rate_limited"
     | "quota_service"
+    | "quota_unreported"
     | "parse_incompatible";
   message: string;
   sourcesTried: Array&lt;"local-auth" | "billing-api" | "grok-cli-refresh" | "cache"&gt;;
@@ -195,7 +193,8 @@ type GrokQuotaResult =
         <p>All acquisition belongs in <code>grok-quota/server.ts</code>: auth resolution, executable discovery, official refresh, billing requests, cache access, timeouts, parsing, and safe failure classification. Expose <code>getQuota</code> through <code>window.babyMenu.capabilities.invoke("grok-quota", "getQuota", input)</code>. Do not add preload methods, per-widget IPC channels, core widgets, or <code>WidgetHost</code> registration.</p>
         <p>Use <code>context.db</code> for one last-good snapshot without credentials. On every successful live parse, replace that snapshot. On any later failure, read the last-good snapshot before returning any failure. If one exists, return <code>ok: true</code>, keep its original <code>refreshedAt</code>, set <code>stale: true</code>, and attach the current structured failure as <code>warning</code>.</p>
         <p>Refresh failures, CLI discovery or launch failures, connectivity failures, rate limits, quota-service failures, and parse failures all use this stale-cache path. When no last-good snapshot exists, return the structured failure instead. Never erase the last-good row because a refresh failed.</p>
-        <p>The data is safe to refresh about every five minutes while visible. Use <code>viewRefreshIntervalMs</code> or <code>refreshView</code>. Do not add background polling or a recursive timer.</p>
+        <p>The data is safe to refresh about every five minutes while visible. Export a <code>RefreshableBabyMenuWidget</code> with <code>viewRefreshIntervalMs</code> and <code>refreshView</code>. Do not add background polling or a recursive timer.</p>
+        <p>The host-owned <code>refreshView</code> call is the startup refresh on the first visible menu show after app launch and on every later popover reopen. Do not launch a second mount-time request from the component or store.</p>
         <p>Before implementation, inspect only metadata from real auth, the installed CLI's sanitized behavior, and the real billing response. Before reporting done, verify fresh, expired-refresh, stale-cache, no-cache, authentication, connectivity, and parse outcomes through the actual server action and renderer. Never print secrets while testing.</p>
         <p>Server action response shape is the <code>GrokQuotaResult</code> union above. Do not retain the old string-only <code>error</code> result.</p>
       </section>
@@ -204,8 +203,9 @@ type GrokQuotaResult =
         <h2>Renderer Contract</h2>
         <p>The renderer must use <code>failure.kind</code> and <code>failure.message</code> instead of replacing every failure with static sign-in copy. Show sign-in guidance only for <code>auth_required</code>. A local expiry timestamp or raw billing <code>401</code>/<code>403</code> alone must never produce sign-in guidance.</p>
         <p>While a refresh request is in flight, retain the currently rendered successful windows and keep them visibly displayed until the request settles. Show an updating indicator alongside those windows, but never replace them with a blank, unavailable, or loading-only state during CLI, auth reread, billing, or parse work. If the request then fails, continue showing those same windows through the stale-success result and its warning.</p>
-        <p>For stale success, the widget must keep rendering the cached windows and show that the values are stale, including the original refresh time and an outcome-specific warning. Examples include "Showing cached quota - Grok CLI could not refresh the session", "Showing cached quota - Grok billing is temporarily unreachable", and "Showing cached quota - Grok billing response changed".</p>
-        <p>For no-cache failure, provide distinct actionable copy: sign in only for <code>auth_required</code>; report the precise local auth source problem for <code>auth_source_missing</code>, <code>auth_source_unreadable</code>, <code>auth_source_malformed</code>, or <code>auth_source_incompatible</code>; say that refreshed credentials were rejected and offer retry for <code>credential_rejected</code>; install or repair the official CLI for <code>cli_not_found</code> or <code>cli_launch_failed</code>; check connectivity for <code>connectivity</code>; wait until <code>retryAt</code> for <code>rate_limited</code>; retry later for <code>quota_service</code>; and update the widget for <code>parse_incompatible</code>.</p>
+        <p>For stale success, the widget must keep rendering the cached windows and show that the values are stale, including the original refresh time and an outcome-specific warning. Examples include "Showing cached quota - Grok CLI could not refresh the session", "Showing cached quota - Grok billing is temporarily unreachable", "Showing cached quota - official Grok billing reports no quota percentage", and "Showing cached quota - Grok billing response changed".</p>
+        <p>For no-cache failure, provide distinct actionable copy: sign in only for <code>auth_required</code>; report the precise local auth source problem for <code>auth_source_missing</code>, <code>auth_source_unreadable</code>, <code>auth_source_malformed</code>, or <code>auth_source_incompatible</code>; say that refreshed credentials were rejected and offer retry for <code>credential_rejected</code>; install or repair the official CLI for <code>cli_not_found</code> or <code>cli_launch_failed</code>; check connectivity for <code>connectivity</code>; wait until <code>retryAt</code> for <code>rate_limited</code>; retry later for <code>quota_service</code>; explain that the official source reports no percentage for <code>quota_unreported</code>; and update the widget for <code>parse_incompatible</code>.</p>
+        <p>The visible manual refresh control must call the same refresh function used by <code>refreshView</code>, retain the current successful snapshot while pending, and disable itself while that shared request is pending. Repeated presses must not create overlapping billing or CLI work.</p>
         <p>Keep a retry control for all failure and stale states. Do not display diagnostics intended only for safe support metadata unless the UI has an explicit details treatment.</p>
       </section>
 
@@ -217,6 +217,7 @@ type GrokQuotaResult =
           <li>A missing CLI is <code>cli_not_found</code>. Spawn errors, non-auth nonzero exits, and timeouts are <code>cli_launch_failed</code>.</li>
           <li>DNS, TLS, network, abort, and request timeout failures are <code>connectivity</code>.</li>
           <li><code>429</code> is <code>rate_limited</code>. <code>5xx</code> and other provider-service failures are <code>quota_service</code>.</li>
+          <li>A recognized official current period without any reported quota percentage is <code>quota_unreported</code>. It must never be converted from monetary spend or shown as a fresh percentage.</li>
           <li>Missing, unreadable, malformed, and incompatible auth retain distinct auth-source outcomes after one bounded official probe. A malformed usable <code>2xx</code> billing response is <code>parse_incompatible</code>. None is sign-in-required without an explicit verified CLI authentication outcome.</li>
           <li>Every failure first checks cache. Stale data remains visible with its warning; no cache returns <code>ok: false</code>.</li>
           <li>Invalid reset timestamps are omitted while valid quota remains visible.</li>
@@ -264,14 +265,15 @@ type GrokQuotaResult =
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Acceptance Criteria</h2>
         <ul>
-          <li>The extension calls the billing API directly and never requires <code>quota-axi</code> or another quota helper.</li>
+          <li>The extension obtains official subscription usage through <code>_x.ai/billing</code> or the matching credits endpoint, verifies the normalized percentage and reset agree, and never requires <code>quota-axi</code> or another quota helper.</li>
           <li>An expired refreshable session invokes <code>grok models</code>, rereads auth, and makes at most one post-refresh billing pass.</li>
           <li>An initial all-candidate <code>401</code>/<code>403</code> result invokes one shared official refresh and one retry pass without recursion or duplicate processes.</li>
+          <li>Startup, interval, and manual refresh share one whole-acquisition single-flight, and the manual control is disabled while it is pending.</li>
           <li>Executable discovery works with a constrained GUI launch environment and preserves the inherited child environment.</li>
           <li>Last-good quota remains visible while refresh is in flight and remains visible as stale for refresh, CLI, connectivity, rate-limit, quota-service, and parser failures.</li>
           <li>No-cache outcomes preserve accurate structured kinds, and only official CLI evidence can produce <code>auth_required</code>.</li>
           <li>The renderer shows failure-specific or stale-specific copy and never replaces every result with a sign-in message.</li>
-          <li>Malformed auth and malformed billing responses never fabricate zero quota or sign-in state.</li>
+          <li>Malformed auth, malformed billing responses, and monetary monthly spend never fabricate zero quota, a subscription percentage, reset copy, or sign-in state.</li>
           <li>No token, refresh token, auth content, raw output, header, or response body is logged, returned, committed, cached separately, or exposed to the renderer.</li>
           <li>The finished generated extension is verified through Baby Menu's actual server-action and widget install path in a clean environment before reporting done.</li>
         </ul>

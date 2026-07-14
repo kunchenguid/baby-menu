@@ -40,6 +40,32 @@ describe("Grok quota recipe", () => {
     expect(html).not.toContain("only return <code>Grok sign-in required</code> after every usable candidate has been rejected");
   });
 
+  it("uses the official credits source without mislabeling monetary spend as quota", async () => {
+    const html = await readRecipe();
+
+    expect(html).toContain("GET https://cli-chat-proxy.grok.com/v1/billing?format=credits");
+    expect(html).toContain("<code>_x.ai/billing</code>");
+    expect(html).toContain("the official Grok UI source of truth");
+    expect(html).toContain("<code>config.creditUsagePercent</code>");
+    expect(html).toContain("<code>config.currentPeriod.end</code>");
+    expect(html).toContain("x-grok-client-mode: billing");
+    expect(html).toContain("<code>quota_unreported</code>");
+    expect(html).toContain("must not divide <code>config.used.val</code> by <code>config.monthlyLimit.val</code>");
+    expect(html).toContain("pay-as-you-go monetary spending cap");
+    expect(html).not.toContain("label: \"monthly credits\"");
+  });
+
+  it("shares startup, manual, and interval refresh through one bounded request", async () => {
+    const html = await readRecipe();
+
+    expect(html).toContain("The host-owned <code>refreshView</code> call is the startup refresh");
+    expect(html).toContain("Do not launch a second mount-time request from the component or store");
+    expect(html).toContain("The visible manual refresh control must call the same refresh function");
+    expect(html).toContain("disable itself while that shared request is pending");
+    expect(html).toContain("single-flight the entire <code>getQuota</code> acquisition");
+    expect(html).toContain("concurrent startup, interval, and manual calls share one billing request");
+  });
+
   it("distinguishes local auth outcomes and probes before concluding sign-in is required", async () => {
     const html = await readRecipe();
 
@@ -91,11 +117,12 @@ describe("Grok quota recipe", () => {
       "connectivity",
       "rate_limited",
       "quota_service",
+      "quota_unreported",
       "parse_incompatible",
     ]) {
       expect(html).toContain(`"${kind}"`);
     }
-    expect(html).toContain("A malformed or incompatible <code>2xx</code> response is <code>parse_incompatible</code>");
+    expect(html).toContain("A malformed or unknown incompatible <code>2xx</code> response is <code>parse_incompatible</code>");
     expect(html).toContain("It is never an authentication failure");
   });
 
@@ -119,6 +146,8 @@ describe("Grok quota recipe", () => {
     expect(html).toContain("<code>/usr/local/bin/grok</code>");
     expect(html).toContain("preserve the complete inherited <code>process.env</code>");
     expect(html).toContain("<code>shell: false</code>");
+    expect(html).toContain("bounded stdout and stderr");
+    expect(html).toContain("kill the child on timeout and wait for it to close");
     expect(html).toContain("<code>quota-axi</code> may be used as optional development evidence, but it is never a runtime dependency or refresh authority");
   });
 

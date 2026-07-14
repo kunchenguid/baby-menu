@@ -32,6 +32,11 @@ if (process.platform === "darwin") {
   app.commandLine.appendSwitch("use-mock-keychain");
 }
 
+const remoteDebuggingPort = Number(process.env.BABY_MENU_REMOTE_DEBUGGING_PORT);
+if (Number.isInteger(remoteDebuggingPort) && remoteDebuggingPort >= 1 && remoteDebuggingPort <= 65_535) {
+  app.commandLine.appendSwitch("remote-debugging-port", String(remoteDebuggingPort));
+}
+
 registerBabyMenuProtocolSchemes();
 
 let popoverWindow: BrowserWindow | null = null;
@@ -294,6 +299,10 @@ export async function startBabyMenuApp(): Promise<void> {
     },
     { iconPath: paths.trayIconPath },
   );
+
+  if (process.env.BABY_MENU_OPEN_POPOVER_ON_START === "1") {
+    await togglePopover(activeTray.getBounds());
+  }
 
   // Background tasks run on their own cadence in the main process, regardless of whether
   // the popover is open, and notify open widgets to re-read when a run completes.

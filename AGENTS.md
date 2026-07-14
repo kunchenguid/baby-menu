@@ -13,6 +13,7 @@ Embedded agents launched from baby-menu should work from the active extension wo
 - `pnpm dist:mac` - runs `package:mac` and creates `release/Baby-Menu-<version>-universal.dmg` from the dev bundle.
 - `pnpm test` - run all Vitest tests.
 - `pnpm test:e2e` - run only `tests/e2e-*.test.ts` (these include real `acpx/runtime` coverage against `acp-mock` plus bundled adapter coverage against fake local CLIs).
+- `pnpm test:e2e:grok-popover` - run the unattended macOS Grok production-wiring check described in `docs/grok-quota-e2e.md`; it uses the real popover and official Grok billing source without exposing or intentionally refreshing auth.
 - `pnpm typecheck` / `pnpm lint` - both run `tsc --noEmit` against `tsconfig.json`.
 - Single test: `pnpm vitest run tests/<name>.test.ts` (or `pnpm vitest run -t "<name pattern>"`).
 
@@ -30,6 +31,8 @@ Follow these rules:
 ## Dev mode helpers
 
 - `BABY_MENU_KEEP_POPOVER_OPEN=1` disables the blur-to-hide behavior so the popover stays open while devtools / external windows have focus.
+- `BABY_MENU_OPEN_POPOVER_ON_START=1` opens the real popover through the tray bounds path for an explicit unattended check.
+- `BABY_MENU_REMOTE_DEBUGGING_PORT=<port>` enables Electron's loopback Chrome DevTools endpoint for an explicit unattended check; invalid ports are ignored.
 - `BABY_MENU_AGENT=<agent-name>` overrides agent auto-detection when no saved Settings choice exists. E2E tests pass `acpx-mock` via `registryOverrides`.
 - `BABY_MENU_AGENT_TIMEOUT_MS=<ms>` overrides the embedded-agent request timeout.
 - `BABY_MENU_TELEMETRY=0` (or `false` / `off`) disables packaged-release telemetry; `BABY_MENU_UMAMI_HOST` and `BABY_MENU_UMAMI_WEBSITE_ID` override the self-hosted Umami target for telemetry testing.

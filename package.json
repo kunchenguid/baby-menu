@@ -21,6 +21,7 @@
     "dist:mac": "pnpm package:mac && node scripts/create-dmg.mjs \"release/mac-universal/Baby Menu Dev.app\"",
     "test": "vitest run tests",
     "test:e2e": "vitest run tests/e2e-*.test.ts",
+    "test:e2e:grok-popover": "node scripts/e2e-grok-popover.mjs",
     "lint": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

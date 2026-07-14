@@ -132,6 +132,9 @@ describe("startBabyMenuApp", () => {
     electronApp.isPackaged = false;
     browserWindowInstance.isDestroyed.mockReturnValue(false);
     browserWindowInstance.isVisible.mockReturnValue(false);
+    trayInstance.getBounds.mockReturnValue({ x: 100, y: 10, width: 24, height: 24 });
+    delete process.env.BABY_MENU_OPEN_POPOVER_ON_START;
+    delete process.env.BABY_MENU_REMOTE_DEBUGGING_PORT;
     Object.defineProperty(process, "platform", {
       configurable: true,
       value: originalPlatform,
@@ -139,6 +142,8 @@ describe("startBabyMenuApp", () => {
   });
 
   afterEach(() => {
+    delete process.env.BABY_MENU_OPEN_POPOVER_ON_START;
+    delete process.env.BABY_MENU_REMOTE_DEBUGGING_PORT;
     Object.defineProperty(process, "platform", {
       configurable: true,
       value: originalPlatform,
@@ -154,6 +159,33 @@ describe("startBabyMenuApp", () => {
     await import("../src/main/app");
 
     expect(electronApp.commandLine.appendSwitch).toHaveBeenCalledWith("use-mock-keychain");
+  });
+
+  it("accepts a validated remote debugging port for unattended popover checks", async () => {
+    process.env.BABY_MENU_REMOTE_DEBUGGING_PORT = "9333";
+
+    await import("../src/main/app");
+
+    expect(electronApp.commandLine.appendSwitch).toHaveBeenCalledWith("remote-debugging-port", "9333");
+  });
+
+  it("ignores invalid remote debugging ports", async () => {
+    process.env.BABY_MENU_REMOTE_DEBUGGING_PORT = "9333 --inspect";
+
+    await import("../src/main/app");
+
+    expect(electronApp.commandLine.appendSwitch).not.toHaveBeenCalledWith("remote-debugging-port", expect.anything());
+  });
+
+  it("opens the real popover on startup when the unattended-check seam is enabled", async () => {
+    process.env.BABY_MENU_OPEN_POPOVER_ON_START = "1";
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+
+    await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalled());
+    expect(trayInstance.getBounds).toHaveBeenCalled();
+    expect(browserWindowInstance.setBounds).toHaveBeenCalledWith({ x: 8, y: 42, width: 504, height: 620 });
   });
 
   it("retains the tray object for the app lifetime", async () => {

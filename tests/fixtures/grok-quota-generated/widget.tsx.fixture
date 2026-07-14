@@ -1,0 +1,136 @@
+import { useSyncExternalStore } from "react";
+import { Button } from "@babymenu/ui";
+import type { RefreshableBabyMenuWidget } from "@babymenu/contracts";
+
+type QuotaWindow = {
+  id: string;
+  label: string;
+  percentUsed: number;
+  percentRemaining?: number;
+  resetAt?: string;
+};
+
+type QuotaFailure = {
+  kind: string;
+  message: string;
+};
+
+type QuotaResult =
+  | {
+      ok: true;
+      data: { windows: QuotaWindow[]; refreshedAt: string; stale: boolean };
+      warning?: QuotaFailure;
+    }
+  | { ok: false; failure?: QuotaFailure; error?: string };
+
+type ViewState = {
+  refreshing: boolean;
+  completedRefreshes: number;
+  result: QuotaResult | null;
+};
+
+const EXTENSION_ID = "grok-quota-e2e";
+let state: ViewState = { refreshing: false, completedRefreshes: 0, result: null };
+let refreshInFlight: Promise<void> | undefined;
+const listeners = new Set<() => void>();
+
+function emit(next: ViewState): void {
+  state = next;
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function snapshot(): ViewState {
+  return state;
+}
+
+async function refreshQuota(): Promise<void> {
+  if (refreshInFlight) return refreshInFlight;
+  emit({ ...state, refreshing: true });
+  refreshInFlight = (async () => {
+    try {
+      const result = await window.babyMenu.capabilities.invoke<QuotaResult>(EXTENSION_ID, "getQuota");
+      emit({ refreshing: false, completedRefreshes: state.completedRefreshes + 1, result });
+    } catch (error) {
+      emit({
+        refreshing: false,
+        completedRefreshes: state.completedRefreshes + 1,
+        result: {
+          ok: false,
+          failure: {
+            kind: "bridge_failure",
+            message: error instanceof Error ? error.message : "Grok quota request failed",
+          },
+        },
+      });
+    }
+  })().finally(() => {
+    refreshInFlight = undefined;
+  });
+  return refreshInFlight;
+}
+
+function resetCopy(resetAt: string | undefined): string | null {
+  if (!resetAt) return null;
+  const reset = Date.parse(resetAt);
+  if (Number.isNaN(reset)) return null;
+  const hours = Math.max(0, Math.ceil((reset - Date.now()) / 3_600_000));
+  return `reset ${hours}h`;
+}
+
+function GrokQuotaE2EView() {
+  const view = useSyncExternalStore(subscribe, snapshot);
+  const refreshButton = (
+    <Button data-grok-refresh="true" size="sm" variant="ghost" onClick={() => void refreshQuota()} disabled={view.refreshing}>
+      {view.refreshing ? "checking" : "refresh"}
+    </Button>
+  );
+
+  if (!view.result) {
+    return (
+      <div className="flex flex-col gap-3" data-grok-e2e="waiting">
+        <div className="text-sm text-ink-strong">Grok quota check pending</div>
+        <div className="text-xxs uppercase tracking-caps text-ink-label">checked {view.completedRefreshes}</div>
+        {refreshButton}
+      </div>
+    );
+  }
+
+  if (!view.result.ok) {
+    const failure = view.result.failure;
+    return (
+      <div className="flex flex-col gap-3" data-grok-e2e="failure" data-failure-kind={failure?.kind ?? "unknown"}>
+        <div className="text-sm text-ink-strong">{failure?.message ?? view.result.error ?? "Grok quota unavailable"}</div>
+        <div className="text-xxs uppercase tracking-caps text-ink-label">{failure?.kind ?? "unknown"}</div>
+        <div className="text-xxs uppercase tracking-caps text-ink-label">checked {view.completedRefreshes}</div>
+        {refreshButton}
+      </div>
+    );
+  }
+
+  const primary = view.result.data.windows.find((window) => window.id === "credits") ?? view.result.data.windows[0];
+  const remaining = primary?.percentRemaining ?? (primary ? Math.max(0, 100 - primary.percentUsed) : undefined);
+  return (
+    <div className="flex flex-col gap-3" data-grok-e2e="success" data-stale={String(view.result.data.stale)}>
+      <div className="text-sm text-ink-strong">{remaining === undefined ? "--" : remaining}% left</div>
+      {primary ? <div className="text-xxs uppercase tracking-caps text-ink-label">{resetCopy(primary.resetAt)}</div> : null}
+      {view.result.warning ? (
+        <div className="text-xxs uppercase tracking-caps text-signal-warn">{view.result.warning.kind}</div>
+      ) : null}
+      <div className="text-xxs uppercase tracking-caps text-ink-label">checked {view.completedRefreshes}</div>
+      {refreshButton}
+    </div>
+  );
+}
+
+export const grokQuotaE2EWidget: RefreshableBabyMenuWidget = {
+  id: EXTENSION_ID,
+  title: "GROK QUOTA E2E",
+  viewRefreshIntervalMs: 300_000,
+  refreshView: refreshQuota,
+  render: () => <GrokQuotaE2EView />,
+};

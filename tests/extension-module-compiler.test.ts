@@ -142,6 +142,31 @@ describe("extension module compiler", () => {
     expect(secondStat.mtimeMs).toBe(firstStat.mtimeMs);
   });
 
+  it("recompiles a content-addressed module when its cached output was modified", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-compiler-"));
+    tempDirs.push(rootDir);
+    const extensionDir = join(rootDir, "extensions", "repaired");
+    const entryFile = join(extensionDir, "server.ts");
+    await mkdir(extensionDir, { recursive: true });
+    await writeFile(entryFile, `export const actions = { status: () => "source" };\n`);
+
+    const options = {
+      kind: "server" as const,
+      extensionId: "repaired",
+      extensionDir,
+      entryFile,
+      cacheRoot: join(rootDir, "cache", "server-actions"),
+    };
+    const first = await compileExtensionModule(options);
+    await writeFile(first.outputPath, `export const actions = { status: () => "stale-live-patch" };\n`);
+
+    const second = await compileExtensionModule(options);
+
+    expect(second.hash).toBe(first.hash);
+    await expect(readFile(second.outputPath, "utf8")).resolves.toContain('status: () => "source"');
+    await expect(readFile(second.outputPath, "utf8")).resolves.not.toContain("stale-live-patch");
+  });
+
   it("compiles TypeScript server actions with local imports into importable ESM", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-compiler-"));
     tempDirs.push(rootDir);

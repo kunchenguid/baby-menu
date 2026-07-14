@@ -1,6 +1,6 @@
 import { builtinModules } from "node:module";
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
@@ -66,31 +66,37 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
   const sourceFiles = graph.map((module) => module.filePath);
   const sourceSignature = graph.map((module) => module.signature).join("|");
 
-  if (await pathExists(outputPath)) {
-    return {
-      hash,
-      outputDir,
-      outputPath,
-      moduleUrl: pathToFileURL(outputPath).href,
-      sourceFiles,
-      sourceSignature,
-    };
-  }
-
-  await Promise.all(
-    graph.map(async (module) => {
-      const outputPath = compiledOutputPath(outputDir, extensionDir, module.filePath);
-      const output = await transpileAndRewriteModule({
+  const outputs = await Promise.all(
+    graph.map(async (module) => ({
+      outputPath: compiledOutputPath(outputDir, extensionDir, module.filePath),
+      output: await transpileAndRewriteModule({
         kind: options.kind,
         extensionId: options.extensionId,
         extensionDir,
         filePath: module.filePath,
         source: module.source,
-      });
-      await mkdir(dirname(outputPath), { recursive: true });
-      await writeFile(outputPath, output);
+      }),
+    })),
+  );
+
+  const cacheMatches = await Promise.all(
+    outputs.map(async ({ outputPath, output }) => {
+      try {
+        return (await readFile(outputPath, "utf8")) === output;
+      } catch {
+        return false;
+      }
     }),
   );
+
+  if (cacheMatches.some((matches) => !matches)) {
+    await Promise.all(
+      outputs.map(async ({ outputPath, output }) => {
+        await mkdir(dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, output);
+      }),
+    );
+  }
 
   return {
     hash,
@@ -100,15 +106,6 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
     sourceFiles,
     sourceSignature,
   };
-}
-
-async function pathExists(filePath: string): Promise<boolean> {
-  try {
-    await access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export async function rewriteExtensionModuleImports(options: {
