@@ -69,9 +69,12 @@ describe("loadRecipes", () => {
   it("keeps Grok local auth parse failures out of sign-in-required handling", async () => {
     const html = await readFile(new URL("../extensions/recipes/grok-quota.html", import.meta.url), "utf8");
 
-    expect(html).toContain("If the auth source is missing, unreadable, malformed, or local auth parsing fails before a credential candidate can be built");
-    expect(html).toContain("classify the result as <code>parse_incompatible</code>");
-    expect(html).toContain("A parsed auth object with no usable key is not sufficient by itself to show sign-in guidance");
+    expect(html).toContain("a missing resolved file is <code>auth_source_missing</code>");
+    expect(html).toContain("a permission, I/O, or other read failure is <code>auth_source_unreadable</code>");
+    expect(html).toContain("invalid JSON is <code>auth_source_malformed</code>");
+    expect(html).toContain("no usable credential is <code>auth_source_incompatible</code>");
+    expect(html).toContain("run the bounded official CLI capability probe at most once");
+    expect(html).not.toContain("classify the result as <code>parse_incompatible</code>");
     expect(html).not.toContain("missing file, empty object, or no candidate with a non-empty <code>key</code>");
     expect(html).not.toContain("return <code>Grok sign-in required</code> with <code>sourceTried: [\"local-auth\"]</code>");
   });

@@ -74,7 +74,8 @@
         <p>Order candidates by current session, expiry-unknown session, current API key, expiry-unknown API key, then expired entries. An invalid or missing <code>expires_at</code> is unknown, not expired. A local expiry timestamp is a refresh-needed hint, not proof that the user is signed out.</p>
         <p>When the selected session credential is expired, invoke the official Grok CLI refresh path before the billing request. If another non-expired candidate can satisfy the request, it is safe to try that candidate first, but never discard the expired session or turn its timestamp directly into <code>auth_required</code>.</p>
         <p>After a successful official refresh, reread the same resolved auth source from disk and rebuild candidates. Never retain or retry the pre-refresh bearer token by accident. If <code>GROK_AUTH_JSON</code> is used, reread that override consistently; an immutable expired inline override may correctly end as a refresh failure rather than falling through to a different secret source.</p>
-        <p>If the auth source is missing, unreadable, malformed, or local auth parsing fails before a credential candidate can be built, classify the result as <code>parse_incompatible</code> unless the official CLI provides an explicit authentication outcome. A parsed auth object with no usable key is not sufficient by itself to show sign-in guidance.</p>
+        <p>Preserve the exact local auth outcome: a missing resolved file is <code>auth_source_missing</code>; a permission, I/O, or other read failure is <code>auth_source_unreadable</code>; invalid JSON is <code>auth_source_malformed</code>; and a parsed value with an incompatible top-level shape or no usable credential is <code>auth_source_incompatible</code>. Apply the same malformed and incompatible distinction to <code>GROK_AUTH_JSON</code>. Do not collapse these outcomes into <code>parse_incompatible</code> or infer sign-out from any of them.</p>
+        <p>When local auth cannot produce a candidate, run the bounded official CLI capability probe at most once for that <code>getQuota</code> call, using the same single-flight refresh path, then reread and reclassify the resolved auth source. Return <code>auth_required</code> only when that probe exits with an explicit verified authentication-required marker. If the probe succeeds but reread still cannot produce a candidate, return the precise post-probe auth-source outcome. If the probe cannot be found or fails without a verified authentication marker, return its structured CLI failure instead of guessing that sign-in is required.</p>
         <p>Read the optional client version from <code>$GROK_HOME/version.json</code> or <code>~/.grok/version.json</code>. Use its non-empty <code>version</code> for <code>x-grok-client-version</code>. Omit the header when unavailable instead of guessing.</p>
         <p>Never log, echo, cache separately, or return a bearer token, refresh token, email, auth scope, raw auth file, request header, or response body.</p>
       </section>
@@ -108,7 +109,7 @@ Authorization: Bearer &lt;key&gt;
 Accept: application/json
 x-grok-client-version: &lt;version&gt;   (optional, omit if unknown)</code></pre>
         <p>Use a hard timeout around 15 seconds. Try every reasonable candidate in an initial pass. A <code>401</code> or <code>403</code> rejects that candidate but is not yet an authentication conclusion.</p>
-        <p>After every candidate in the initial pass returns <code>401</code> or <code>403</code>, invoke the official refresh path once, reread auth, and retry the billing candidate pass exactly once. Never recurse from the retry path, and never refresh again after the retry pass. Return <code>auth_required</code> only when the official CLI itself produces an explicit, verified authentication-required outcome.</p>
+        <p>After every candidate in the initial pass returns <code>401</code> or <code>403</code>, invoke the official refresh path once, reread auth, and retry the billing candidate pass exactly once. Never recurse from the retry path, and never refresh again after the retry pass. Return <code>auth_required</code> only when the official CLI itself produces an explicit, verified authentication-required outcome. If the official CLI exits successfully but every candidate in the one allowed retry pass is still rejected with <code>401</code> or <code>403</code>, return <code>credential_rejected</code>; this is a terminal structured outcome for the request and must not launch another probe or show sign-in guidance.</p>
         <p>A <code>429</code> is <code>rate_limited</code>; parse <code>Retry-After</code> into <code>retryAt</code> when possible. Network errors, DNS failures, TLS failures, aborts, and timeouts are <code>connectivity</code>. A <code>5xx</code> is <code>quota_service</code>. Other incompatible or unsupported non-auth statuses are <code>quota_service</code> with an allowlisted HTTP status. Never include a body in the diagnostic.</p>
         <p><strong>Verified live response shape</strong> from this endpoint on 2026-07-09:</p>
         <pre class="mockup-code p-4 overflow-auto"><code>{
@@ -165,6 +166,11 @@ x-grok-client-version: &lt;version&gt;   (optional, omit if unknown)</code></pre
 type QuotaFailure = {
   kind:
     | "auth_required"
+    | "auth_source_missing"
+    | "auth_source_unreadable"
+    | "auth_source_malformed"
+    | "auth_source_incompatible"
+    | "credential_rejected"
     | "cli_not_found"
     | "cli_launch_failed"
     | "connectivity"
@@ -197,8 +203,9 @@ type GrokQuotaResult =
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Renderer Contract</h2>
         <p>The renderer must use <code>failure.kind</code> and <code>failure.message</code> instead of replacing every failure with static sign-in copy. Show sign-in guidance only for <code>auth_required</code>. A local expiry timestamp or raw billing <code>401</code>/<code>403</code> alone must never produce sign-in guidance.</p>
+        <p>While a refresh request is in flight, retain the currently rendered successful windows and keep them visibly displayed until the request settles. Show an updating indicator alongside those windows, but never replace them with a blank, unavailable, or loading-only state during CLI, auth reread, billing, or parse work. If the request then fails, continue showing those same windows through the stale-success result and its warning.</p>
         <p>For stale success, the widget must keep rendering the cached windows and show that the values are stale, including the original refresh time and an outcome-specific warning. Examples include "Showing cached quota - Grok CLI could not refresh the session", "Showing cached quota - Grok billing is temporarily unreachable", and "Showing cached quota - Grok billing response changed".</p>
-        <p>For no-cache failure, provide distinct actionable copy: sign in only for <code>auth_required</code>; install or repair the official CLI for <code>cli_not_found</code> or <code>cli_launch_failed</code>; check connectivity for <code>connectivity</code>; wait until <code>retryAt</code> for <code>rate_limited</code>; retry later for <code>quota_service</code>; and update the widget for <code>parse_incompatible</code>.</p>
+        <p>For no-cache failure, provide distinct actionable copy: sign in only for <code>auth_required</code>; report the precise local auth source problem for <code>auth_source_missing</code>, <code>auth_source_unreadable</code>, <code>auth_source_malformed</code>, or <code>auth_source_incompatible</code>; say that refreshed credentials were rejected and offer retry for <code>credential_rejected</code>; install or repair the official CLI for <code>cli_not_found</code> or <code>cli_launch_failed</code>; check connectivity for <code>connectivity</code>; wait until <code>retryAt</code> for <code>rate_limited</code>; retry later for <code>quota_service</code>; and update the widget for <code>parse_incompatible</code>.</p>
         <p>Keep a retry control for all failure and stale states. Do not display diagnostics intended only for safe support metadata unless the UI has an explicit details treatment.</p>
       </section>
 
@@ -206,11 +213,11 @@ type GrokQuotaResult =
         <h2>Error and Unavailable Handling</h2>
         <ul>
           <li>An expired refreshable session triggers one official refresh, auth reread, and billing attempt. Refresh failure uses stale cache or returns the corresponding CLI failure.</li>
-          <li>Initial billing <code>401</code>/<code>403</code> across candidates triggers one official refresh and one retry pass. A retry rejection is not <code>auth_required</code> unless the official CLI explicitly established that outcome.</li>
+          <li>Initial billing <code>401</code>/<code>403</code> across candidates triggers one official refresh and one retry pass. When a successful probe is followed by another all-candidate rejection, return <code>credential_rejected</code> without another refresh; it is not <code>auth_required</code>.</li>
           <li>A missing CLI is <code>cli_not_found</code>. Spawn errors, non-auth nonzero exits, and timeouts are <code>cli_launch_failed</code>.</li>
           <li>DNS, TLS, network, abort, and request timeout failures are <code>connectivity</code>.</li>
           <li><code>429</code> is <code>rate_limited</code>. <code>5xx</code> and other provider-service failures are <code>quota_service</code>.</li>
-          <li>Malformed auth or a malformed usable <code>2xx</code> billing response is <code>parse_incompatible</code>, never sign-in-required.</li>
+          <li>Missing, unreadable, malformed, and incompatible auth retain distinct auth-source outcomes after one bounded official probe. A malformed usable <code>2xx</code> billing response is <code>parse_incompatible</code>. None is sign-in-required without an explicit verified CLI authentication outcome.</li>
           <li>Every failure first checks cache. Stale data remains visible with its warning; no cache returns <code>ok: false</code>.</li>
           <li>Invalid reset timestamps are omitted while valid quota remains visible.</li>
         </ul>
@@ -261,7 +268,7 @@ type GrokQuotaResult =
           <li>An expired refreshable session invokes <code>grok models</code>, rereads auth, and makes at most one post-refresh billing pass.</li>
           <li>An initial all-candidate <code>401</code>/<code>403</code> result invokes one shared official refresh and one retry pass without recursion or duplicate processes.</li>
           <li>Executable discovery works with a constrained GUI launch environment and preserves the inherited child environment.</li>
-          <li>Last-good quota remains visible as stale for refresh, CLI, connectivity, rate-limit, quota-service, and parser failures.</li>
+          <li>Last-good quota remains visible while refresh is in flight and remains visible as stale for refresh, CLI, connectivity, rate-limit, quota-service, and parser failures.</li>
           <li>No-cache outcomes preserve accurate structured kinds, and only official CLI evidence can produce <code>auth_required</code>.</li>
           <li>The renderer shows failure-specific or stale-specific copy and never replaces every result with a sign-in message.</li>
           <li>Malformed auth and malformed billing responses never fabricate zero quota or sign-in state.</li>

@@ -35,7 +35,27 @@ describe("Grok quota recipe", () => {
     expect(html).toContain("retry the billing candidate pass exactly once");
     expect(html).toContain("Never recurse from the retry path");
     expect(html).toContain("module-scope single-flight promise");
+    expect(html).toContain("return <code>credential_rejected</code>");
+    expect(html).toContain("must not launch another probe or show sign-in guidance");
     expect(html).not.toContain("only return <code>Grok sign-in required</code> after every usable candidate has been rejected");
+  });
+
+  it("distinguishes local auth outcomes and probes before concluding sign-in is required", async () => {
+    const html = await readRecipe();
+
+    for (const kind of [
+      "auth_source_missing",
+      "auth_source_unreadable",
+      "auth_source_malformed",
+      "auth_source_incompatible",
+    ]) {
+      expect(html).toContain(`<code>${kind}</code>`);
+      expect(html).toContain(`"${kind}"`);
+    }
+    expect(html).toContain("run the bounded official CLI capability probe at most once");
+    expect(html).toContain("then reread and reclassify the resolved auth source");
+    expect(html).toContain("Return <code>auth_required</code> only when that probe exits with an explicit verified authentication-required marker");
+    expect(html).not.toContain("classify the result as <code>parse_incompatible</code>");
   });
 
   it("requires stale cache preservation for refresh and service failures", async () => {
@@ -47,11 +67,25 @@ describe("Grok quota recipe", () => {
     expect(html).toContain("must keep rendering the cached windows");
   });
 
+  it("keeps last-good windows visible while refresh is in flight", async () => {
+    const html = await readRecipe();
+
+    expect(html).toContain("While a refresh request is in flight, retain the currently rendered successful windows");
+    expect(html).toContain("Show an updating indicator alongside those windows");
+    expect(html).toContain("never replace them with a blank, unavailable, or loading-only state");
+    expect(html).toContain("continue showing those same windows through the stale-success result");
+  });
+
   it("requires structured no-cache and malformed-response outcomes", async () => {
     const html = await readRecipe();
 
     for (const kind of [
       "auth_required",
+      "auth_source_missing",
+      "auth_source_unreadable",
+      "auth_source_malformed",
+      "auth_source_incompatible",
+      "credential_rejected",
       "cli_not_found",
       "cli_launch_failed",
       "connectivity",
