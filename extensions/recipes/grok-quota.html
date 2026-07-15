@@ -219,7 +219,7 @@ type GrokQuotaResult =
             <tr><th>Root attribute</th><th>Exact value semantics</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>data-grok-e2e</code></td><td>Lifecycle state: <code>waiting</code> while the shared acquisition is pending, then exactly <code>success</code> or <code>failure</code>.</td></tr>
+            <tr><td><code>data-grok-e2e</code></td><td>Latest completed-result state: <code>waiting</code> only before the first acquisition completes, then exactly <code>success</code> or <code>failure</code>. During a later refresh, preserve that terminal state and its parity values while the visible updating indicator reports pending work.</td></tr>
             <tr><td><code>data-grok-checked-at</code></td><td>Empty while no acquisition has completed, otherwise the exact safe ISO 8601 <code>checkedAt</code> returned for the latest completion.</td></tr>
             <tr><td><code>data-grok-stale</code></td><td>Exactly <code>true</code> only when rendering a trusted stale success, otherwise <code>false</code>.</td></tr>
             <tr><td><code>data-grok-warning-kind</code></td><td>The normalized warning kind for a stale success, otherwise <code>none</code>.</td></tr>
@@ -239,6 +239,7 @@ type GrokQuotaResult =
           </tbody>
         </table>
         <p>Every listed attribute must exist directly on the same <code>data-grok-e2e</code> root in every state; use the documented empty values rather than omitting attributes or moving aliases into descendants.</p>
+        <p>A <code>waiting</code> root has no completed result, so it must use the documented empty parity values and <code>data-grok-completed-acquisitions="0"</code>. Never replace a completed success or failure root with <code>waiting</code> during interval or manual refresh.</p>
         <p>The unattended harness validates the complete root before selecting it.</p>
         <p>For deterministic compatibility with the already installed PR 48 layout only, the harness may ignore a partial marker root and read all parity aliases from descendants of <code>[aria-label="menu widgets"]</code>: <code>data-grok-checked-at</code>, <code>data-grok-cache-schema</code>, <code>data-grok-operation</code>, <code>data-grok-source</code>, <code>data-grok-source-version</code>, <code>data-grok-period</code>, <code>data-grok-percent-used</code>, <code>data-grok-percent-remaining</code>, <code>data-grok-percentage-field</code>, <code>data-grok-reset-at</code>, <code>data-grok-reset-field</code>, and <code>data-grok-products</code>.</p>
         <p>That installed fallback requires the visible Refresh, Check again, or Checking control and visible state, stale, failure, and <code>checked N</code> copy as its lifecycle truth; new generated or managed widgets must emit the complete root contract instead.</p>

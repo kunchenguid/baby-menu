@@ -86,7 +86,7 @@ export function observeGrokPopover(document) {
     if (state === "waiting") {
       if (checkedAt || cacheSchema || source || sourceVersion || observedOperation || periodType || percentUsed ||
           percentRemaining || percentageField || resetAt || resetField || products.length > 0 ||
-          stale !== "false" || warningKind !== "none" || failureKind !== "none") return null;
+          stale !== "false" || warningKind !== "none" || failureKind !== "none" || completed !== 0) return null;
     } else if (!isExactIso(checkedAt)) {
       return null;
     } else if (state === "failure") {

@@ -15,6 +15,7 @@ const scriptUrl = new URL("../scripts/e2e-grok-popover.mjs", import.meta.url);
 const docsUrl = new URL("../docs/grok-quota-e2e.md", import.meta.url);
 const widgetFixtureUrl = new URL("./fixtures/grok-quota-generated/widget.tsx.fixture", import.meta.url);
 const mixedRootFixtureUrl = new URL("./fixtures/grok-quota-observability/pr48-mixed-root.html", import.meta.url);
+const completeRootFixtureUrl = new URL("./fixtures/grok-quota-observability/pr48-complete-root.html", import.meta.url);
 const packageUrl = new URL("../package.json", import.meta.url);
 
 describe("unattended Grok popover E2E runner", () => {
@@ -158,6 +159,72 @@ describe("unattended Grok popover E2E runner", () => {
       completed: 1,
       terminal: true,
     });
+  });
+
+  it("mechanically aligns the manually managed PR 48 copy with the complete root contract", async () => {
+    const [completeHtml, mixedHtml] = await Promise.all([
+      readFile(completeRootFixtureUrl, "utf8"),
+      readFile(mixedRootFixtureUrl, "utf8"),
+    ]);
+    const completeDom = new JSDOM(completeHtml, { runScripts: "outside-only" });
+    const mixedDom = new JSDOM(mixedHtml, { runScripts: "outside-only" });
+    const root = completeDom.window.document.querySelector("[data-grok-e2e]");
+
+    for (const attribute of GROK_OBSERVABILITY_ATTRIBUTES) {
+      expect(root?.hasAttribute(attribute), attribute).toBe(true);
+      expect(root?.querySelector(`[${attribute}]`), attribute).toBeNull();
+    }
+
+    const completeView = completeDom.window.eval(grokPopoverObservationExpression()) as GrokPopoverObservation;
+    const mixedView = mixedDom.window.eval(grokPopoverObservationExpression()) as GrokPopoverObservation;
+    expect(completeView.observabilityMode).toBe("root-contract");
+    expect(completeView).toMatchObject({
+      checkedAt: mixedView.checkedAt,
+      cacheSchema: mixedView.cacheSchema,
+      operation: mixedView.operation,
+      source: mixedView.source,
+      sourceVersion: mixedView.sourceVersion,
+      periodType: mixedView.periodType,
+      percentUsed: mixedView.percentUsed,
+      percentRemaining: mixedView.percentRemaining,
+      percentageField: mixedView.percentageField,
+      resetAt: mixedView.resetAt,
+      resetField: mixedView.resetField,
+      products: mixedView.products,
+      completed: mixedView.completed,
+    });
+
+    const button = completeDom.window.document.querySelector("button");
+    button?.setAttribute("disabled", "");
+    if (button) button.textContent = "checking";
+    const refreshingView = completeDom.window.eval(grokPopoverObservationExpression()) as GrokPopoverObservation;
+    expect(refreshingView).toMatchObject({
+      observabilityMode: "root-contract",
+      state: "success",
+      checkedAt: completeView.checkedAt,
+      completed: completeView.completed,
+    });
+  });
+
+  it("reserves waiting for the initial acquisition", () => {
+    function waitingDom(completed: string): JSDOM {
+      const attributes = GROK_OBSERVABILITY_ATTRIBUTES
+        .filter((attribute) => attribute !== "data-grok-e2e")
+        .map((attribute) => {
+          const value = attribute === "data-grok-stale" ? "false"
+            : attribute === "data-grok-warning-kind" || attribute === "data-grok-failure-kind" ? "none"
+              : attribute === "data-grok-products" ? "[]"
+                : attribute === "data-grok-completed-acquisitions" ? completed
+                  : "";
+          return `${attribute}='${value}'`;
+        })
+        .join(" ");
+      return new JSDOM(`<div data-grok-e2e="waiting" ${attributes}></div>`, { runScripts: "outside-only" });
+    }
+
+    const initialView = waitingDom("0").window.eval(grokPopoverObservationExpression()) as GrokPopoverObservation;
+    expect(initialView).toMatchObject({ state: "waiting", completed: 0, terminal: false });
+    expect(waitingDom("1").window.eval(grokPopoverObservationExpression())).toBeNull();
   });
 
   it("rejects an unsupported terminal partial root without polling to an ambiguous timeout", () => {

@@ -158,6 +158,8 @@ describe("Grok quota recipe", () => {
       expect(html, attribute).toContain(`<code>${attribute}</code>`);
     }
     expect(html).toContain("Every listed attribute must exist directly on the same <code>data-grok-e2e</code> root");
+    expect(html).toContain("<code>waiting</code> only before the first acquisition completes");
+    expect(html).toContain("Never replace a completed success or failure root with <code>waiting</code>");
     expect(html).toContain("already installed PR 48 layout only");
     expect(html).toContain("A terminal partial root that satisfies neither contract is an explicit observability failure");
     expect(html).toContain("Mechanically parity-check generated fixtures and manually managed copies");
