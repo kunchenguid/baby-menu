@@ -22,7 +22,7 @@ A known official period without a percentage must render `quota_unreported` and 
 
 The host-owned first-visible refresh must complete exactly once and render `checked 1`.
 The runner then sends a coordinate mouse event to the visible refresh button, requires a disabled `checking` transition, and requires `checked 2` after completion.
-A screenshot is written to `/tmp/baby-menu-grok-popover-e2e.png` by default.
+A screenshot named `baby-menu-grok-popover-e2e.png` is written to the system temporary directory by default.
 Set `BABY_MENU_GROK_E2E_SCREENSHOT` to choose another output path.
 
 The runner terminates its dev process, removes the temporary workspace and compiled E2E modules, and drops only its dedicated `grok_quota_e2e_cache` table.

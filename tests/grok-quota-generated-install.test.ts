@@ -287,6 +287,33 @@ describe("clean generated Grok quota installation", () => {
     expect(result.failure.kind).toBe("quota_unreported");
   });
 
+  it("preserves the exact last-good quota when the official source stops reporting a percentage", async () => {
+    const installed = await install();
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(billingResponse(18))
+      .mockResolvedValueOnce(noReportedQuotaResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const fresh = await invoke(installed);
+    expect(fresh.ok).toBe(true);
+    if (!fresh.ok) return;
+
+    const unreported = await invoke(installed);
+
+    expect(unreported.ok).toBe(true);
+    if (!unreported.ok) return;
+    expect(unreported.data).toMatchObject({
+      stale: true,
+      refreshedAt: fresh.data.refreshedAt,
+      windows: fresh.data.windows,
+    });
+    expect(unreported.warning).toMatchObject({
+      kind: "quota_unreported",
+      message: "Official Grok billing did not report a quota percentage",
+    });
+  });
+
   it("preserves last-good data for refresh and parser failures", async () => {
     const installed = await install();
     await writeCli(installed, "fail");
