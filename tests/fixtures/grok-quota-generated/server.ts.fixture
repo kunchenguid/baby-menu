@@ -823,7 +823,7 @@ async function getQuotaInternal(context) {
         sourcesTried.push("consumer-quota-api");
         let snapshot;
         try {
-            snapshot = await fetchConsumerQuota(candidate);
+            snapshot = await fetchConsumerQuota(candidate, refreshAttempted ? "single-attempt" : "retry-transient");
         }
         catch (error) {
             if (!(error instanceof QuotaFailure) || !error.officialRefreshEligible || refreshAttempted)

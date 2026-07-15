@@ -452,6 +452,34 @@ describe("clean generated Grok quota installation", () => {
     expect((fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>).Authorization).toBe("Bearer fake-refreshed");
   });
 
+  it("uses one provider request after local-expiry refresh even when it fails transiently", async () => {
+    const installed = await install();
+    await writeAuth(join(installed.grokHome, "auth.json"), { key: "fake-expired", expired: true });
+    const countPath = await configureFakeRefresh(installed, {
+      "https://auth.x.ai::fixture-client": {
+        key: "fake-refreshed",
+        auth_mode: "oidc",
+        user_id: "fixture-user",
+        team_id: "fixture-team",
+        expires_at: "2099-01-01T00:00:00Z",
+      },
+    });
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response("", { status: 503 }))
+      .mockResolvedValueOnce(consumerQuotaResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.kind).toBe("quota_service");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>).Authorization).toBe("Bearer fake-refreshed");
+    expect(await readFile(countPath, "utf8")).toBe("x");
+  });
+
   it.each([
     ["HTTP 401", () => new Response("", { status: 401 })],
     ["gRPC unauthenticated", () => new Response(responseBody(grpcFrame(
