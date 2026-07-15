@@ -22,7 +22,7 @@ Both run through bundled clean-room ACP adapters that drive the authenticated lo
 | `BABY_MENU_AGENT=<name>` | Override auto-detection before a preference is saved. |
 | `agents.json` | Override or append catalog entries manually. |
 
-If a send fails, the composer shows bounded, actionable guidance instead of raw provider diagnostics or a generic unavailable hint.
+If a send fails, the popover shows bounded, actionable guidance instead of raw provider diagnostics or a generic unavailable hint.
 For built-in agents, authentication failures prompt you to run `codex login` or launch `claude` and complete sign-in before trying again.
 If the failed turn edited files before stopping, Baby Menu keeps those partial changes available for Keep or Undo; a failed turn with no file changes closes cleanly.
 

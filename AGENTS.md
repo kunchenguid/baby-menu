@@ -144,7 +144,10 @@ Every accepted `send()` call:
 
 `GitChangeSession` (`src/main/git-change-session.ts`) is the safety boundary for Save/Rollback and maps changed git paths under the active extension workspace to extension ids or the root layout. Both operations refuse unless: the session started clean, the session is not already completed, and `HEAD` has not moved since the session began. `rollback()` runs `git reset --hard <recorded HEAD>` + `git clean -fd` - those destructive commands are only acceptable because of the preceding guards. Preserve this invariant.
 
-After a turn, `BabyMenuAgentRuntime` enriches the `GitSessionSnapshot` with `dirty` and `changes` from the actual workspace diff, never from the agent's prose. If `dirty` is false, it silently saves/closes the active session so the renderer can say no files changed instead of offering a useless Keep/Rollback prompt. When files did change, the renderer summarizes one changed extension, multiple changed extensions, or a root `layout.tsx` edit for the Keep/Undo bar; clicking Keep clears the bar without showing a second kept confirmation.
+After a successful turn, `BabyMenuAgentRuntime` enriches the `GitSessionSnapshot` with `dirty` and `changes` from the actual workspace diff, never from the agent's prose.
+If `dirty` is false, it silently saves/closes the active session so the renderer can say no files changed instead of offering a useless Keep/Rollback prompt.
+A failed turn closes a clean session without showing that no-change message, while a dirty partial session remains available for Keep/Undo beside the failure guidance.
+When files did change, the renderer summarizes one changed extension, multiple changed extensions, or a root `layout.tsx` edit for the Keep/Undo bar; clicking Keep clears the bar without showing a second kept confirmation.
 
 Packaged runtime state lives under `~/.baby-menu` and is not git-backed.
 Do not write generated extension files, the local extension database, compiled modules, preferences, logs, snapshots, or ACP session state into the `.app` bundle.
