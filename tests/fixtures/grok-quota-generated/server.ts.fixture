@@ -515,15 +515,15 @@ function validPeriod(period) {
         period.provenance === "config.currentPeriod";
 }
 
-function validWindow(window, _index, period) {
+function validWindow(window, productIndex, period) {
     if (!window || typeof window !== "object" || Array.isArray(window))
         return false;
     const global = window.id === "credits";
     const product = /^product:[a-z0-9-]+$/.test(window.id);
     const provenance = window.provenance;
     const percentageMatches = global
-        ? provenance?.percentageField === "config.creditUsagePercent"
-        : /^config\.productUsage\[(0|[1-9]\d*)\]\.usagePercent$/.test(provenance?.percentageField);
+        ? productIndex === undefined && provenance?.percentageField === "config.creditUsagePercent"
+        : productIndex !== undefined && provenance?.percentageField === `config.productUsage[${productIndex}].usagePercent`;
     const expectedReset = period.endAt ? "config.currentPeriod.end" : undefined;
     return (global || product) &&
         typeof window.label === "string" && window.label.length > 0 &&
@@ -534,6 +534,13 @@ function validWindow(window, _index, period) {
         percentageMatches &&
         provenance.resetField === expectedReset &&
         (provenance.omittedProto3Default === undefined || provenance.omittedProto3Default === true);
+}
+
+function validWindows(windows, period) {
+    let productIndex = 0;
+    return Array.isArray(windows) &&
+        windows.length > 0 &&
+        windows.every((window) => validWindow(window, window?.id === "credits" ? undefined : productIndex++, period));
 }
 
 function validCredits(credits) {
@@ -559,9 +566,7 @@ function isTrustedSnapshot(snapshot, expectedBinding) {
         /^[a-f0-9]{64}$/.test(snapshot.accountBinding) &&
         snapshot.accountBinding === expectedBinding &&
         validPeriod(snapshot.period) &&
-        Array.isArray(snapshot.windows) &&
-        snapshot.windows.length > 0 &&
-        snapshot.windows.every((window, index) => validWindow(window, index, snapshot.period)) &&
+        validWindows(snapshot.windows, snapshot.period) &&
         validCredits(snapshot.credits) &&
         validIso(snapshot.refreshedAt) &&
         snapshot.stale === false;

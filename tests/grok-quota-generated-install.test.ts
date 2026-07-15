@@ -328,6 +328,38 @@ describe("clean generated Grok quota installation", () => {
     };
   }
 
+  function trustedProductSnapshot(): QuotaSnapshot & { accountBinding: string } {
+    const snapshot = trustedSnapshot();
+    return {
+      ...snapshot,
+      windows: [
+        ...snapshot.windows,
+        {
+          id: "product:grok-build",
+          label: "Grok Build",
+          percentUsed: 33.25,
+          percentRemaining: 66.75,
+          resetAt: snapshot.period.endAt,
+          provenance: {
+            percentageField: "config.productUsage[0].usagePercent",
+            resetField: "config.currentPeriod.end",
+          },
+        },
+        {
+          id: "product:grok-chat",
+          label: "Chat",
+          percentUsed: 12.5,
+          percentRemaining: 87.5,
+          resetAt: snapshot.period.endAt,
+          provenance: {
+            percentageField: "config.productUsage[1].usagePercent",
+            resetField: "config.currentPeriod.end",
+          },
+        },
+      ],
+    };
+  }
+
   it("calls the exact bounded consumer gRPC-web operation without mutation headers or account data", async () => {
     const installed = await install();
     const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => consumerQuotaResponse());
@@ -725,6 +757,40 @@ describe("clean generated Grok quota installation", () => {
       {
         ...trustedSnapshot(),
         credits: { remaining: 450, unit: "credits" },
+      },
+    ],
+    [
+      "duplicate product provenance index",
+      {
+        ...trustedProductSnapshot(),
+        windows: trustedProductSnapshot().windows.map((window, index) =>
+          index === 2
+            ? {
+                ...window,
+                provenance: {
+                  ...window.provenance,
+                  percentageField: "config.productUsage[0].usagePercent",
+                },
+              }
+            : window,
+        ),
+      },
+    ],
+    [
+      "gapped product provenance indexes",
+      {
+        ...trustedProductSnapshot(),
+        windows: trustedProductSnapshot().windows.map((window, index) =>
+          index === 1
+            ? {
+                ...window,
+                provenance: {
+                  ...window.provenance,
+                  percentageField: "config.productUsage[1].usagePercent",
+                },
+              }
+            : window,
+        ),
       },
     ],
   ])("fails closed for a %s cache row", async (_label, cacheValue) => {
