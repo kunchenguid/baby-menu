@@ -40,6 +40,9 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
 - **Bundled ACP adapters.**
   Built-in Claude Code and Codex launch `out/adapters/<name>/index.mjs`, wrapping the local authenticated CLI in isolation from user-level agent config.
   Codex still reuses only the top-level `model` from `$CODEX_HOME/config.toml` (or `~/.codex/config.toml`) so `--ignore-user-config` does not force an unsupported default.
+- **Terminal failure semantics.**
+  CLI, authentication, rate-limit, and provider failures reject through ACP with typed, bounded messages; raw provider payloads are never streamed or logged as user-facing errors.
+  Baby Menu also treats a completed ACP refusal as a failed editing turn, records failed diagnostics and telemetry, and strips nested transport error wrappers before displaying the safe message.
 - **Stale session recovery.**
   If a restart leaves a persisted ACP session an adapter cannot resume, Baby Menu records the failed attempt, deletes the stale record, and retries once with a fresh session.
 - **Live custom agent catalog.**
@@ -61,6 +64,7 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
   Existing user-owned `.git` metadata is ignored and preserved, while `.git` metadata created by a turn is removed with the rest of that created subtree.
 - **Diff-derived Keep / Undo.**
   The bar reflects the actual git or snapshot diff, not agent wording - it names created, updated, or removed extensions, reports `layout.tsx` edits as layout changes, and clears itself when nothing changed on disk.
+  Successful clean turns still report that no changes were made; failed clean sessions close without that no-op message, while partial changes from failed turns remain available for Keep or Undo alongside the failure guidance.
 
 ## Updates and telemetry
 

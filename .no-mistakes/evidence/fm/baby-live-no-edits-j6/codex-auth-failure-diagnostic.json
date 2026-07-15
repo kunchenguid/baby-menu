@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "agentName": "codex",
+  "requestId": "a2961781-4661-48ae-8b5b-755a5a6a5ee0",
+  "promptPreview": "PROVIDER_AUTH_ERROR",
+  "startedAt": "2026-07-15T19:36:11.037Z",
+  "status": "failed",
+  "events": [],
+  "gitStatusBeforeTimeout": "?? .no-mistakes/tmp-bin/",
+  "endedAt": "2026-07-15T19:36:11.529Z",
+  "error": {
+    "message": "Authentication required: Codex is not authenticated. Run `codex login` and try again.",
+    "code": "RUNTIME",
+    "detailCode": "AUTH_REQUIRED"
+  }
+}

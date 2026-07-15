@@ -166,6 +166,41 @@ describe("BabyMenuAgentRuntime ACP e2e", () => {
   );
 
   it.skipIf(process.platform === "win32")(
+    "keeps partial workspace changes reviewable when an ACP refusal follows an edit",
+    async () => {
+      const repo = await createRepo();
+      tempDirs.push(repo);
+      await writeFile(join(repo, ".gitignore"), ".cache/\n");
+      await git(repo, ["add", ".gitignore"]);
+      await git(repo, ["commit", "-m", "ignore runtime cache"]);
+
+      const runtime = new BabyMenuAgentRuntime(repo, {
+        agentName: "refusal-agent",
+        registryOverrides: {
+          "refusal-agent": `node ${JSON.stringify(refusalAgentPath)}`,
+        },
+      });
+
+      await expect(runtime.send("PARTIAL_EDIT then fail")).rejects.toMatchObject({
+        name: "AgentTurnFailedError",
+        code: "AGENT_REFUSED",
+      });
+
+      expect(existsSync(join(repo, "extensions", "partial-widget", "widget.tsx"))).toBe(true);
+      expect(await runtime.currentSessionSnapshot()).toMatchObject({
+        canSave: true,
+        canRollback: true,
+        dirty: true,
+        changes: [{ type: "extension", extensionId: "partial-widget", kind: "created" }],
+      });
+
+      expect((await runtime.rollback()).ok).toBe(true);
+      expect(existsSync(join(repo, "extensions", "partial-widget"))).toBe(false);
+    },
+    30_000,
+  );
+
+  it.skipIf(process.platform === "win32")(
     "recovers a stale persisted session after a restart instead of failing the turn",
     async () => {
       const repo = await createRepo();
