@@ -117,7 +117,7 @@ function responseBody(bytes: Uint8Array): ArrayBuffer {
 
 function consumerQuotaResponse(options: {
   percentUsed?: number;
-  products?: Array<{ product: number; usagePercent?: number }>;
+  products?: Array<{ product?: number; usagePercent?: number }>;
   periodType?: 1 | 2;
   resetEpoch?: number;
   billingResetEpoch?: number;
@@ -137,7 +137,8 @@ function consumerQuotaResponse(options: {
   configParts.push(message(4, timestamp(startEpoch)));
   configParts.push(message(5, timestamp(billingResetEpoch)));
   for (const product of products) {
-    const parts = [scalar(1, product.product)];
+    const parts: Uint8Array[] = [];
+    if (product.product !== undefined) parts.push(scalar(1, product.product));
     if (product.usagePercent !== undefined) parts.push(fixed32(2, product.usagePercent));
     configParts.push(message(7, concat(...parts)));
   }
@@ -967,6 +968,40 @@ describe("clean generated Grok quota installation", () => {
       unit: "credits",
       sourceField: "config.prepaidBalance.val",
     });
+    expect(cachedValue(installed)).toMatchObject(result.data);
+  });
+
+  it("decodes an omitted product enum as UNSPECIFIED with indexed cache provenance", async () => {
+    const installed = await install();
+    vi.stubGlobal("fetch", vi.fn(async () => consumerQuotaResponse({
+      products: [
+        { usagePercent: 7.5 },
+        { product: 4, usagePercent: 12.5 },
+      ],
+    })));
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.windows.slice(1)).toMatchObject([
+      {
+        id: "product:unspecified",
+        label: "Other",
+        percentUsed: 7.5,
+        provenance: {
+          percentageField: "config.productUsage[0].usagePercent",
+        },
+      },
+      {
+        id: "product:grok-chat",
+        label: "Chat",
+        percentUsed: 12.5,
+        provenance: {
+          percentageField: "config.productUsage[1].usagePercent",
+        },
+      },
+    ]);
     expect(cachedValue(installed)).toMatchObject(result.data);
   });
 

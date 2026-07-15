@@ -341,8 +341,8 @@ function normalizeConsumerPayload(payload, accountBinding) {
     }
     fieldsAt(config, 7, 2).forEach((entryField, index) => {
         const entry = scanMessage(entryField.value);
-        const productNumber = scalarAt(entry, 1);
-        if (productNumber === undefined || productNumber > BigInt(Number.MAX_SAFE_INTEGER))
+        const productNumber = scalarAt(entry, 1) ?? 0n;
+        if (productNumber > BigInt(Number.MAX_SAFE_INTEGER))
             return;
         const numericProduct = Number(productNumber);
         const product = PRODUCT_NAMES[numericProduct] ?? {
