@@ -1,4 +1,4 @@
-export function refreshLifecycleStatus({ expected, lifecycle, view }) {
+export function refreshLifecycleStatus({ expected, lifecycle, view, previousCheckedAt }) {
   if (lifecycle.started < expected) {
     return { settled: false, stage: "bridge-pending" };
   }
@@ -10,6 +10,14 @@ export function refreshLifecycleStatus({ expected, lifecycle, view }) {
   }
   if (!view.terminal) {
     return { settled: false, stage: `renderer-${view.state || "pending"}` };
+  }
+  if (previousCheckedAt !== undefined) {
+    if (!Number.isFinite(Date.parse(view.checkedAt))) {
+      return { settled: false, stage: "renderer-missing-completion-marker" };
+    }
+    if (previousCheckedAt !== null && view.checkedAt === previousCheckedAt) {
+      return { settled: false, stage: "renderer-previous-result" };
+    }
   }
   if (view.completed > 0 && view.completed !== expected) {
     return {

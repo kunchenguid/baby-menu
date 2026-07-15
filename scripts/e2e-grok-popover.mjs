@@ -396,7 +396,7 @@ async function evaluate(expression) {
   return response.result?.value;
 }
 
-async function waitForCompletedRefresh(expected) {
+async function waitForCompletedRefresh(expected, previousCheckedAt) {
   let lastView = null;
   let lastLifecycle = { started: 0, resolved: 0, rejected: 0, stage: "none" };
   let lastStatus = { settled: false, stage: "not-observed" };
@@ -436,7 +436,7 @@ async function waitForCompletedRefresh(expected) {
           } : null;
         })()`);
         lastLifecycle = readSanitizedLifecycle();
-        lastStatus = refreshLifecycleStatus({ expected, lifecycle: lastLifecycle, view: lastView });
+        lastStatus = refreshLifecycleStatus({ expected, lifecycle: lastLifecycle, view: lastView, previousCheckedAt });
         return lastStatus.settled ? lastView : null;
       },
       25_000,
@@ -605,18 +605,18 @@ async function main() {
   seedLegacyCache();
   await startApp(extensionsDir);
 
-  const startupView = await waitForCompletedRefresh(1);
+  const startupView = await waitForCompletedRefresh(1, null);
   const startupLifecycle = assertLifecycleCount(1, "startup");
   assertMatchesOfficial(startupView, official);
   const startupCacheStatus = readSanitizedCacheStatus();
   assertCacheMigration(startupCacheStatus, official);
-  if (!installedSourceMode && !Number.isFinite(Date.parse(startupView.checkedAt))) {
+  if (!Number.isFinite(Date.parse(startupView.checkedAt))) {
     fail("startup acquisition did not visibly settle with a safe checkedAt timestamp");
   }
 
   let intervalView;
   if (!installedSourceMode) {
-    intervalView = await waitForCompletedRefresh(2);
+    intervalView = await waitForCompletedRefresh(2, startupView.checkedAt);
     assertLifecycleCount(2, "interval");
     assertMatchesOfficial(intervalView, official);
     if (!Number.isFinite(Date.parse(intervalView.checkedAt)) || intervalView.checkedAt === startupView.checkedAt) {
@@ -626,15 +626,15 @@ async function main() {
 
   const beforeClickLifecycle = await clickVisibleRefresh();
   const expectedManualLifecycle = beforeClickLifecycle.started + 1;
-  const manualView = await waitForCompletedRefresh(expectedManualLifecycle);
+  const priorView = installedSourceMode ? startupView : intervalView;
+  const manualView = await waitForCompletedRefresh(expectedManualLifecycle, priorView.checkedAt);
   const manualLifecycle = assertManualLifecycle(beforeClickLifecycle, readSanitizedLifecycle());
   assertMatchesOfficial(manualView, official);
   const transitions = await evaluate("window.__grokE2ETransitions");
   if (!transitions.some((entry) => entry.text === "checking" && entry.disabled === true)) {
     fail("manual refresh control never entered its visible checking state");
   }
-  if (!installedSourceMode &&
-      (!Number.isFinite(Date.parse(manualView.checkedAt)) || manualView.checkedAt === intervalView.checkedAt)) {
+  if (!Number.isFinite(Date.parse(manualView.checkedAt)) || manualView.checkedAt === priorView.checkedAt) {
     fail("manual acquisition did not visibly settle with a new safe checkedAt timestamp");
   }
   const manualCacheStatus = readSanitizedCacheStatus();

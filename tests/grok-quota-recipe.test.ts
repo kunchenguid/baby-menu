@@ -87,7 +87,7 @@ describe("Grok quota recipe", () => {
   it("requires stale cache preservation for refresh and service failures", async () => {
     const html = await readRecipe();
 
-    expect(html).toContain("read the last-good snapshot before returning any failure");
+    expect(html).toContain("On any later failure except <code>quota_unreported</code>, read the last-good snapshot");
     expect(html).toContain("Refresh failures, CLI discovery or launch failures, connectivity failures, rate limits, quota-service failures, and parse failures all use this stale-cache path");
     expect(html).toContain("When no last-good snapshot exists, return the structured failure instead");
     expect(html).toContain("must keep rendering the cached windows");
@@ -103,8 +103,11 @@ describe("Grok quota recipe", () => {
     expect(html).toContain("Legacy, unversioned, unknown-version, future-version, malformed, or provenance-free cache rows are untrusted");
     expect(html).toContain("delete the rejected row instead of rewriting, inferring, or promoting it");
     expect(html).toContain("only a fully valid official-percentage success may write schema version <code>1</code>");
-    expect(html).toContain("An official <code>quota_unreported</code> result with only an untrusted cache row is a no-cache failure");
-    expect(html).toContain("no old percentage, reset, or credit amount");
+    expect(html).toContain("Every official <code>quota_unreported</code> result is a no-data failure");
+    expect(html).toContain("no old percentage, reset, credit amount, stale state, or warning");
+    expect(html).toContain("Preserve a trusted row in storage when quota is unreported");
+    expect(html).toContain("without reading it into the result");
+    expect(html).toContain("no old percentage, reset, credits, stale state, or a warning-backed last-good result");
   });
 
   it("requires every refresh path to visibly settle with a fresh safe check timestamp", async () => {

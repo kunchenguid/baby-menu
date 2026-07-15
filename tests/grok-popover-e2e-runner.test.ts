@@ -32,19 +32,48 @@ describe("unattended Grok popover E2E runner", () => {
     })).toEqual({ settled: true, stage: "renderer-settled" });
   });
 
+  it("requires a new safe renderer completion marker after the action settles", () => {
+    const lifecycle = { started: 2, resolved: 2, rejected: 0 };
+
+    expect(refreshLifecycleStatus({
+      expected: 2,
+      lifecycle,
+      view: { state: "success", terminal: true, completed: 0, checkedAt: null },
+      previousCheckedAt: "2026-07-14T20:00:00.000Z",
+    })).toEqual({ settled: false, stage: "renderer-missing-completion-marker" });
+    expect(refreshLifecycleStatus({
+      expected: 2,
+      lifecycle,
+      view: { state: "success", terminal: true, completed: 0, checkedAt: "2026-07-14T20:00:00.000Z" },
+      previousCheckedAt: "2026-07-14T20:00:00.000Z",
+    })).toEqual({ settled: false, stage: "renderer-previous-result" });
+    expect(refreshLifecycleStatus({
+      expected: 2,
+      lifecycle,
+      view: { state: "success", terminal: true, completed: 0, checkedAt: "2026-07-14T20:00:01.000Z" },
+      previousCheckedAt: "2026-07-14T20:00:00.000Z",
+    })).toEqual({ settled: true, stage: "renderer-settled" });
+    expect(refreshLifecycleStatus({
+      expected: 1,
+      lifecycle: { started: 1, resolved: 1, rejected: 0 },
+      view: { state: "success", terminal: true, completed: 0, checkedAt: "2026-07-14T20:00:00.000Z" },
+      previousCheckedAt: null,
+    })).toEqual({ settled: true, stage: "renderer-settled" });
+  });
+
   it("opens the real popover and drives startup and manual refresh without accessibility input", async () => {
     const script = await readFile(scriptUrl, "utf8");
 
     expect(script).toContain('mkdtemp(join(rootDir, "extensions-dev", "grok-popover-e2e-"))');
     expect(script).toContain('BABY_MENU_OPEN_POPOVER_ON_START: "1"');
     expect(script).toContain("BABY_MENU_REMOTE_DEBUGGING_PORT");
-    expect(script).toContain("waitForCompletedRefresh(1)");
-    expect(script).toContain("waitForCompletedRefresh(2)");
+    expect(script).toContain("waitForCompletedRefresh(1, null)");
+    expect(script).toContain("waitForCompletedRefresh(2, startupView.checkedAt)");
     expect(script).toContain("readSanitizedLifecycle");
     expect(script).toContain("refreshLifecycleStatus");
     expect(script).toContain("observedStage: lastStatus.stage");
     expect(script).toContain('root.getAttribute("data-grok-e2e") !== "waiting"');
-    expect(script).toContain("waitForCompletedRefresh(expectedManualLifecycle)");
+    expect(script).toContain("waitForCompletedRefresh(expectedManualLifecycle, priorView.checkedAt)");
     expect(script).toContain("startupView.checkedAt");
     expect(script).toContain("intervalView.checkedAt");
     expect(script).toContain("manualView.checkedAt");

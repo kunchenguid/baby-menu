@@ -515,7 +515,7 @@ describe("clean generated Grok quota installation", () => {
     expect(cachedValue(installed)).toBeUndefined();
   });
 
-  it("preserves a trusted current-schema row exactly through a structured failure", async () => {
+  it("preserves a trusted row in storage but does not render it for unreported quota", async () => {
     const installed = await install();
     const trusted = trustedSnapshot();
     const trustedText = JSON.stringify(trusted);
@@ -524,10 +524,12 @@ describe("clean generated Grok quota installation", () => {
 
     const result = await invoke(installed);
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data).toEqual({ ...trusted, stale: true, status: "quota-unreported" });
-    expect(result.warning?.kind).toBe("quota_unreported");
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.kind).toBe("quota_unreported");
+    expect(result.failure.sourcesTried).not.toContain("cache");
+    expect(result).not.toHaveProperty("data");
+    expect(result).not.toHaveProperty("warning");
     expect(cachedValue(installed)).toEqual(trusted);
     expect(cachedText(installed)).toBe(trustedText);
   });
@@ -573,7 +575,7 @@ describe("clean generated Grok quota installation", () => {
     expect(result.failure.kind).toBe("quota_unreported");
   });
 
-  it("preserves the exact last-good quota when the official source stops reporting a percentage", async () => {
+  it("returns honest no-data semantics when the official source stops reporting a percentage", async () => {
     const installed = await install();
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -587,17 +589,15 @@ describe("clean generated Grok quota installation", () => {
 
     const unreported = await invoke(installed);
 
-    expect(unreported.ok).toBe(true);
-    if (!unreported.ok) return;
-    expect(unreported.data).toMatchObject({
-      stale: true,
-      refreshedAt: fresh.data.refreshedAt,
-      windows: fresh.data.windows,
-    });
-    expect(unreported.warning).toMatchObject({
+    expect(unreported.ok).toBe(false);
+    if (unreported.ok) return;
+    expect(unreported.failure).toMatchObject({
       kind: "quota_unreported",
       message: "Official Grok billing did not report a quota percentage",
     });
+    expect(unreported).not.toHaveProperty("data");
+    expect(unreported).not.toHaveProperty("warning");
+    expect(cachedValue(installed)).toEqual(fresh.data);
   });
 
   it("preserves last-good data for refresh and parser failures", async () => {

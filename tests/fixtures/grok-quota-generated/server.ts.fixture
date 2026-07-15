@@ -408,7 +408,7 @@ function isTrustedSnapshot(snapshot) {
 function deleteCachedSnapshot(context) {
     context.db.run(`DELETE FROM ${CACHE_TABLE} WHERE key = ?`, [EXTENSION_ID]);
 }
-function readCachedSnapshot(context, status) {
+function readTrustedCachedSnapshot(context) {
     const row = context.db.get(`SELECT value FROM ${CACHE_TABLE} WHERE key = ?`, [EXTENSION_ID]);
     if (!row)
         return undefined;
@@ -418,12 +418,16 @@ function readCachedSnapshot(context, status) {
             deleteCachedSnapshot(context);
             return undefined;
         }
-        return { ...snapshot, stale: true, status };
+        return snapshot;
     }
     catch {
         deleteCachedSnapshot(context);
         return undefined;
     }
+}
+function readCachedSnapshot(context, status) {
+    const snapshot = readTrustedCachedSnapshot(context);
+    return snapshot ? { ...snapshot, stale: true, status } : undefined;
 }
 function writeCachedSnapshot(context, snapshot) {
     if (!isTrustedSnapshot(snapshot))
@@ -501,9 +505,13 @@ async function getQuotaInternal(context) {
     }
     catch (error) {
         const failure = error instanceof QuotaFailure ? error : new QuotaFailure("quota_service", "Grok quota is unavailable");
+        const checkedAt = new Date().toISOString();
+        if (failure.kind === "quota_unreported") {
+            readTrustedCachedSnapshot(context);
+            return { ok: false, checkedAt, error: failure.message, sourceTried: sourcesTried, failure: { kind: failure.kind, message: failure.message, sourcesTried, diagnostic: failure.diagnostic } };
+        }
         sourcesTried.push("cache");
         const cached = readCachedSnapshot(context, staleStatus(failure.kind));
-        const checkedAt = new Date().toISOString();
         if (cached)
             return { ok: true, checkedAt, data: cached, warning: { kind: failure.kind, message: failure.message, sourcesTried, diagnostic: failure.diagnostic } };
         return { ok: false, checkedAt, error: failure.message, sourceTried: sourcesTried, failure: { kind: failure.kind, message: failure.message, sourcesTried, diagnostic: failure.diagnostic } };
