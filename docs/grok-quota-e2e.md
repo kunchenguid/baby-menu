@@ -42,8 +42,7 @@ No raw protobuf, token, header, scope, user id, team id, account-binding digest,
 The host-owned first-visible refresh must complete exactly once and visibly settle with a safe last-checked timestamp.
 A test-owned server wrapper records only bounded `action-started`, `action-resolved`, or `action-rejected` lifecycle markers in the isolated database, so the runner proves the bridge reached the installed-equivalent action without logging inputs, outputs, credentials, or provider data.
 The renderer's `waiting` state is intermediate: the runner waits for both the expected action settlement and a terminal widget state, and timeout errors report the last sanitized lifecycle stage.
-The complete stable contract is one `data-grok-e2e` root that also owns `data-grok-checked-at`, `data-grok-stale`, `data-grok-warning-kind`, `data-grok-failure-kind`, `data-grok-cache-schema`, `data-grok-source`, `data-grok-source-version`, `data-grok-operation`, `data-grok-period`, `data-grok-percent-used`, `data-grok-percent-remaining`, `data-grok-percentage-field`, `data-grok-reset-at`, `data-grok-reset-field`, `data-grok-products`, and `data-grok-completed-acquisitions`.
-The Grok recipe defines the exact value semantics for every state.
+The [Grok recipe](../extensions/recipes/grok-quota.html) owns the complete stable `data-grok-e2e` root contract and exact value semantics for every state.
 The harness validates the complete root before selecting it.
 For the already installed PR 48 shape only, it deterministically falls back to the documented prefixed descendant aliases and visible lifecycle copy under `[aria-label="menu widgets"]`.
 A terminal partial root with no valid fallback fails immediately with a contract error instead of polling to an ambiguous timeout.
