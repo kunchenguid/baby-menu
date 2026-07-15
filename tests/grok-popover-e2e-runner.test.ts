@@ -4,6 +4,7 @@ import { refreshLifecycleStatus } from "../scripts/grok-popover-lifecycle.mjs";
 
 const scriptUrl = new URL("../scripts/e2e-grok-popover.mjs", import.meta.url);
 const docsUrl = new URL("../docs/grok-quota-e2e.md", import.meta.url);
+const widgetFixtureUrl = new URL("./fixtures/grok-quota-generated/widget.tsx.fixture", import.meta.url);
 const packageUrl = new URL("../package.json", import.meta.url);
 
 describe("unattended Grok popover E2E runner", () => {
@@ -89,21 +90,37 @@ describe("unattended Grok popover E2E runner", () => {
     expect(script).not.toContain("AXPress");
   });
 
-  it("compares rendered quota semantics to the official Grok ACP source without exposing auth", async () => {
+  it("compares both surfaces to the same-window exact consumer quota operation without exposing auth", async () => {
     const script = await readFile(scriptUrl, "utf8");
 
-    expect(script).toContain('method: "_x.ai/billing"');
-    expect(script).toContain("rendered percentage does not match official Grok billing");
-    expect(script).toContain("rendered reset does not match official Grok billing");
-    expect(script).toContain("expected quota_unreported");
-    expect(script).toContain("rendered a fabricated quota, reset, or credit balance");
-    expect(script).toContain("rendered stale state does not match official Grok billing");
-    expect(script).toContain("rendered warning does not match official Grok billing");
-    expect(script).toContain("rendered credits do not match official Grok billing");
-    expect(script).not.toContain("refusing a read-only E2E that could refresh it");
-    expect(script).not.toContain("Grok auth metadata changed during read-only E2E");
-    expect(script).not.toContain("JSON.stringify(afterAuthMetadata) !== JSON.stringify(beforeAuth.metadata)");
-    expect(script).not.toMatch(/console\.log\([^\n]*(?:authPath|message\.result|config)/);
+    expect(script).toContain("grok_api_v2.GrokBuildBilling.GetGrokCreditsConfig");
+    expect(script).toContain("https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig");
+    expect(script).toContain("application/grpc-web+proto");
+    expect(script).toContain("consumerOracle");
+    expect(script).toContain("identityScopeEqual");
+    expect(script).toContain("rendered percentage does not match official Grok consumer quota");
+    expect(script).toContain("rendered product usage does not match official Grok consumer quota");
+    expect(script).toContain("rendered reset does not match official Grok consumer quota");
+    expect(script).toContain("quota_unreported while official Grok consumer quota is usable");
+    expect(script).toContain("rendered credits do not match official Grok consumer quota");
+    expect(script).not.toContain('method: "_x.ai/billing"');
+    expect(script).not.toContain("billing?format=credits");
+    expect(script).not.toContain("CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT");
+    expect(script).not.toMatch(/console\.log\([^\n]*(?:authPath|rawResponse|responseBody|token)/);
+  });
+
+  it("keeps exact values in state and rounds only visible used and remaining copy", async () => {
+    const fixture = await readFile(widgetFixtureUrl, "utf8");
+
+    expect(fixture).toContain('data-percent-used={primary ? String(primary.percentUsed) : ""}');
+    expect(fixture).toContain('data-percent-remaining={remaining === undefined ? "" : String(remaining)}');
+    expect(fixture).toContain('`${Math.round(primary.percentUsed)}% used`');
+    expect(fixture).toContain('`${Math.round(remaining)}% left`');
+    expect(fixture).toContain('data-products={JSON.stringify(products)}');
+    expect(fixture).toContain('view.result.data.period.type === "unspecified" ? "Credits" : view.result.data.period.type');
+    expect(fixture).toContain('productWindows.filter((window) => window.percentUsed > 0).map');
+    expect(fixture).toContain('{Math.round(window.percentUsed)}% used');
+    expect(fixture).not.toContain("useEffect");
   });
 
   it("seeds and repairs an isolated installed-equivalent legacy cache", async () => {
@@ -116,18 +133,23 @@ describe("unattended Grok popover E2E runner", () => {
     expect(script).toContain("grok_quota_e2e_lifecycle");
     expect(script).toContain('recordLifecycle(context, "action-started")');
     expect(script).toContain('recordLifecycle(context, "action-resolved")');
-    expect(script).toContain("status.schemaVersion !== 1");
+    expect(script).toContain("status.schemaVersion !== 2");
+    expect(script).toContain("status.operation !== official.operation");
+    expect(script).toContain("!status.identityScopeEqual");
     expect(script).toContain("status.percentageField !== official.percentageField");
-    expect(script).toContain("legacy fabricated cache survived migration");
+    expect(script).toContain("cache migration did not produce schema version 2");
     expect(script).toContain("BABY_MENU_GROK_E2E_INSTALLED_SOURCE");
   });
 
   it("waits for the app process group and requires successful database cleanup", async () => {
     const script = await readFile(scriptUrl, "utf8");
 
-    expect(script).toContain("await stopDevProcess()");
+    expect(script).toContain("const failures = []");
+    expect(script).toContain("() => stopDevProcess()");
     expect(script).toContain("await waitForProcessGroupExit(pid, 10_000)");
     expect(script).toContain('signalProcessGroup(pid, "SIGKILL")');
+    expect(script).toContain('error?.code === "EPERM" && !hasOwnedProcessGroupMember(pid)');
+    expect(script).toContain('spawnSync("/bin/ps", ["-axo", "pgid=,uid="]');
     expect(script).toContain('if (result.status !== 0) fail(`failed to clean Grok E2E database:');
   });
 
@@ -138,10 +160,13 @@ describe("unattended Grok popover E2E runner", () => {
     expect(packageJson.scripts?.["test:e2e:grok-popover"]).toBe("node scripts/e2e-grok-popover.mjs");
     expect(docs).toContain("pnpm test:e2e:grok-popover");
     expect(docs).toContain("no accessibility click or human interaction is required");
-    expect(docs).toContain("official Grok ACP agent");
+    expect(docs).toContain("exact consumer `GetGrokCreditsConfig` gRPC-web operation");
+    expect(docs).toContain("CodexBar");
     expect(docs).toContain("installed-widget source mode");
-    expect(docs).toContain("normal credential refresh");
+    expect(docs).toContain("never refreshes or mutates credentials");
     expect(docs).toContain("schema/provenance status");
+    expect(docs).toContain("identity/scope equality");
+    expect(docs).toContain("never imports browser cookies");
     expect(docs).toContain("The renderer's `waiting` state is intermediate");
     expect(docs).toContain("`grok_quota_e2e_cache` and `grok_quota_e2e_lifecycle` tables");
   });

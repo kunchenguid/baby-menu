@@ -25,6 +25,15 @@ type QuotaResult =
       checkedAt: string;
       data: {
         schemaVersion: number;
+        source: "grok-credits-grpc-web";
+        sourceVersion: 1;
+        operation: "grok_api_v2.GrokBuildBilling.GetGrokCreditsConfig";
+        period: {
+          type: "weekly" | "monthly" | "unspecified";
+          startAt?: string;
+          endAt?: string;
+          provenance: "config.currentPeriod";
+        };
         windows: QuotaWindow[];
         credits?: { remaining?: number; unit?: string; sourceField: string };
         refreshedAt: string;
@@ -140,6 +149,8 @@ function GrokQuotaE2EView() {
 
   const primary = view.result.data.windows.find((window) => window.id === "credits") ?? view.result.data.windows[0];
   const remaining = primary?.percentRemaining ?? (primary ? Math.max(0, 100 - primary.percentUsed) : undefined);
+  const productWindows = view.result.data.windows.filter((window) => window.id.startsWith("product:"));
+  const products = productWindows.map((window) => ({ id: window.id, percentUsed: window.percentUsed }));
   const credits = view.result.data.credits?.remaining;
   return (
     <div
@@ -147,10 +158,34 @@ function GrokQuotaE2EView() {
       data-cache-schema={String(view.result.data.schemaVersion)}
       data-checked-at={view.result.checkedAt}
       data-grok-e2e="success"
+      data-operation={view.result.data.operation}
+      data-percent-remaining={remaining === undefined ? "" : String(remaining)}
+      data-percent-used={primary ? String(primary.percentUsed) : ""}
+      data-percentage-field={primary?.provenance.percentageField ?? ""}
+      data-period={view.result.data.period.type}
+      data-products={JSON.stringify(products)}
+      data-reset-at={primary?.resetAt ?? ""}
+      data-reset-field={primary?.provenance.resetField ?? ""}
+      data-source={view.result.data.source}
+      data-source-version={String(view.result.data.sourceVersion)}
       data-stale={String(view.result.data.stale)}
       data-warning-kind={view.result.warning?.kind ?? "none"}
     >
-      <div className="text-sm text-ink-strong">{remaining === undefined ? "--" : remaining}% left</div>
+      <div className="text-xxs uppercase tracking-caps text-ink-label">
+        {view.result.data.period.type === "unspecified" ? "Credits" : view.result.data.period.type}
+      </div>
+      <div className="text-sm text-ink-strong">
+        {primary ? `${Math.round(primary.percentUsed)}% used` : "--"}
+      </div>
+      <div className="text-xxs uppercase tracking-caps text-ink-label">
+        {remaining === undefined ? "--" : `${Math.round(remaining)}% left`}
+      </div>
+      {productWindows.filter((window) => window.percentUsed > 0).map((window) => (
+        <div className="flex items-baseline justify-between gap-3 text-xxs uppercase tracking-caps" key={window.id}>
+          <span className="text-ink-label">{window.label}</span>
+          <span className="text-ink-strong">{Math.round(window.percentUsed)}% used</span>
+        </div>
+      ))}
       {primary ? <div className="text-xxs uppercase tracking-caps text-ink-label">{resetCopy(primary.resetAt)}</div> : null}
       {credits !== undefined ? <div className="text-xxs uppercase tracking-caps text-ink-label">{credits} credits</div> : null}
       {view.result.warning ? (

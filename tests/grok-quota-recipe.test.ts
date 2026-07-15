@@ -18,166 +18,126 @@ describe("Grok quota recipe", () => {
     return readFile(recipeUrl, "utf8");
   }
 
-  it("requires official CLI refresh for an expired session before retrying billing", async () => {
+  it("specifies the exact consumer gRPC-web request", async () => {
     const html = await readRecipe();
 
-    expect(html).toContain("When the selected session credential is expired, invoke the official Grok CLI refresh path before the billing request");
-    expect(html).toContain("<code>grok models</code>");
-    expect(html).toContain("reread the auth source after the command succeeds");
-    expect(html).toContain("Never implement the OIDC refresh-token exchange directly");
-    expect(html).not.toContain("There is no CLI fallback for Grok in this recipe");
+    expect(html).toContain("POST https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig");
+    expect(html).toContain("grok_api_v2.GrokBuildBilling.GetGrokCreditsConfig");
+    expect(html).toContain("Content-Type: application/grpc-web+proto");
+    expect(html).toContain("Origin: https://grok.com");
+    expect(html).toContain("Referer: https://grok.com/?_s=usage");
+    expect(html).toContain("x-grpc-web: 1");
+    expect(html).toContain("x-user-agent: connect-es/2.1.1");
+    expect(html).toContain("00 00 00 00 00");
   });
 
-  it("requires one refresh and retry after authenticated 401 or 403 responses", async () => {
+  it("forbids every regressed, mutating, monetary, or cookie fallback", async () => {
     const html = await readRecipe();
 
-    expect(html).toContain("After every candidate in the initial pass returns <code>401</code> or <code>403</code>");
-    expect(html).toContain("retry the billing candidate pass exactly once");
-    expect(html).toContain("Never recurse from the retry path");
-    expect(html).toContain("module-scope single-flight promise");
-    expect(html).toContain("return <code>credential_rejected</code>");
-    expect(html).toContain("must not launch another probe or show sign-in guidance");
-    expect(html).not.toContain("only return <code>Grok sign-in required</code> after every usable candidate has been rejected");
-  });
-
-  it("uses the official credits source without mislabeling monetary spend as quota", async () => {
-    const html = await readRecipe();
-
-    expect(html).toContain("GET https://cli-chat-proxy.grok.com/v1/billing?format=credits");
+    expect(html).toContain("Do not send <code>x-grok-client-mode: billing</code>");
+    expect(html).toContain("Never execute <code>grok models</code>");
+    expect(html).toContain("no browser cookies");
+    expect(html).toContain("must not be written or reused");
+    expect(html).toContain("Never divide <code>config.used.val</code> by <code>config.monthlyLimit.val</code>");
+    expect(html).toContain("Do not call <code>GET https://cli-chat-proxy.grok.com/v1/billing?format=credits</code>");
     expect(html).toContain("<code>_x.ai/billing</code>");
-    expect(html).toContain("the official Grok UI source of truth");
-    expect(html).toContain("<code>config.creditUsagePercent</code>");
-    expect(html).toContain("<code>config.currentPeriod.end</code>");
-    expect(html).toContain("x-grok-client-mode: billing");
-    expect(html).toContain("<code>quota_unreported</code>");
-    expect(html).toContain("must not divide <code>config.used.val</code> by <code>config.monthlyLimit.val</code>");
-    expect(html).toContain("pay-as-you-go monetary spending cap");
-    expect(html).not.toContain("label: \"monthly credits\"");
   });
 
-  it("shares startup, manual, and interval refresh through one bounded request", async () => {
+  it("requires deterministic read-only OIDC principal selection", async () => {
     const html = await readRecipe();
 
-    expect(html).toContain("The host-owned <code>refreshView</code> call is the startup refresh");
-    expect(html).toContain("Do not launch a second mount-time request from the component or store");
-    expect(html).toContain("The visible manual refresh control must call the same refresh function");
-    expect(html).toContain("disable itself while that shared request is pending");
-    expect(html).toContain("single-flight the entire <code>getQuota</code> acquisition");
-    expect(html).toContain("concurrent startup, interval, and manual calls share one billing request");
+    expect(html).toContain("<code>https://auth.x.ai::</code>");
+    expect(html).toContain("<code>https://accounts.x.ai/sign-in</code>");
+    expect(html).toContain("Ignore unrelated and API-key-shaped scopes");
+    expect(html).toContain("<code>auth_expired</code>");
+    expect(html).toContain("<code>auth_scope_ambiguous</code>");
+    expect(html).toContain("before network access");
+    expect(html).toContain("internal SHA-256 account binding");
+    expect(html).toContain("Never return the account binding");
   });
 
-  it("distinguishes local auth outcomes and probes before concluding sign-in is required", async () => {
+  it("defines the whole-request timeout, response cap, status validation, and narrow retry", async () => {
     const html = await readRecipe();
 
-    for (const kind of [
-      "auth_source_missing",
-      "auth_source_unreadable",
-      "auth_source_malformed",
-      "auth_source_incompatible",
-    ]) {
-      expect(html).toContain(`<code>${kind}</code>`);
-      expect(html).toContain(`"${kind}"`);
-    }
-    expect(html).toContain("run the bounded official CLI capability probe at most once");
-    expect(html).toContain("then reread and reclassify the resolved auth source");
-    expect(html).toContain("Return <code>auth_required</code> only when that probe exits with an explicit verified authentication-required marker");
-    expect(html).not.toContain("classify the result as <code>parse_incompatible</code>");
+    expect(html).toContain("15-second whole-request deadline");
+    expect(html).toContain("64 KiB streamed response cap");
+    expect(html).toContain("both HTTP headers and gRPC-web trailer frames");
+    expect(html).toContain("Retry exactly once only");
+    expect(html).toContain("Never retry authentication, permission, team scope, parser, schema, or response-size failures");
   });
 
-  it("requires stale cache preservation for refresh and service failures", async () => {
+  it("documents the exact typed protobuf wire contract", async () => {
     const html = await readRecipe();
 
-    expect(html).toContain("On any later failure except <code>quota_unreported</code>, read the last-good snapshot");
-    expect(html).toContain("Refresh failures, CLI discovery or launch failures, connectivity failures, rate limits, quota-service failures, and parse failures all use this stale-cache path");
-    expect(html).toContain("When no last-good snapshot exists, return the structured failure instead");
-    expect(html).toContain("must keep rendering the cached windows");
+    expect(html).toContain("<code>creditUsagePercent</code>");
+    expect(html).toContain("<code>productUsage</code>");
+    expect(html).toContain("<code>currentPeriod</code>");
+    expect(html).toContain("<code>prepaidBalance</code>");
+    expect(html).toContain("Map product enum 1 through 6 to API, Grok Build, Grok Plugins, Chat, Imagine, and Voice");
+    expect(html).toContain("<code>omittedProto3Default: true</code>");
+    expect(html).toContain("Use only <code>config.currentPeriod.end</code> as a quota reset");
+    expect(html).toContain("return <code>quota_unreported</code> rather than inventing zero");
   });
 
-  it("defines a versioned cache trust boundary with exact official field provenance", async () => {
+  it("defines schema 2 exact-source and principal-bound cache trust", async () => {
     const html = await readRecipe();
 
-    expect(html).toContain("schemaVersion: 1");
-    expect(html).toContain('percentageField: "config.creditUsagePercent" | `config.productUsage[${number}].usagePercent`');
-    expect(html).toContain('resetField?: "config.currentPeriod.end" | "config.billingPeriodEnd"');
-    expect(html).toContain('sourceField: "config.prepaidBalance.val"');
-    expect(html).toContain("Legacy, unversioned, unknown-version, future-version, malformed, or provenance-free cache rows are untrusted");
-    expect(html).toContain("delete the rejected row instead of rewriting, inferring, or promoting it");
-    expect(html).toContain("only a fully valid official-percentage success may write schema version <code>1</code>");
-    expect(html).toContain("Every official <code>quota_unreported</code> result is a no-data failure");
-    expect(html).toContain("no old percentage, reset, credit amount, stale state, or warning");
-    expect(html).toContain("Preserve a trusted row in storage when quota is unreported");
-    expect(html).toContain("without reading it into the result");
-    expect(html).toContain("no old percentage, reset, credits, stale state, or a warning-backed last-good result");
+    expect(html).toContain("schemaVersion: 2");
+    expect(html).toContain('source: "grok-credits-grpc-web"');
+    expect(html).toContain("sourceVersion: 1");
+    expect(html).toContain('operation: "grok_api_v2.GrokBuildBilling.GetGrokCreditsConfig"');
+    expect(html).toContain("accountBinding: string; // storage only, never renderer output");
+    expect(html).toContain("schema version <code>1</code>");
+    expect(html).toContain("wrong-principal rows are untrusted");
+    expect(html).toContain("Delete the rejected row instead of rewriting, inferring, or promoting it");
+    expect(html).toContain("same-principal trusted row as stale without changing the stored bytes");
   });
 
-  it("requires every refresh path to visibly settle with a fresh safe check timestamp", async () => {
-    const html = await readRecipe();
-
-    expect(html).toContain("checkedAt: string");
-    expect(html).toContain("Every completed startup, interval, and manual acquisition must visibly settle");
-    expect(html).toContain("last checked time");
-    expect(html).toContain("must not keep or reattach an untrusted prior client-side snapshot");
-  });
-
-  it("keeps last-good windows visible while refresh is in flight", async () => {
-    const html = await readRecipe();
-
-    expect(html).toContain("While a refresh request is in flight, retain the currently rendered successful windows");
-    expect(html).toContain("Show an updating indicator alongside those windows");
-    expect(html).toContain("never replace them with a blank, unavailable, or loading-only state");
-    expect(html).toContain("continue showing those same windows through the stale-success result");
-  });
-
-  it("requires structured no-cache and malformed-response outcomes", async () => {
+  it("defines complete structured failure semantics", async () => {
     const html = await readRecipe();
 
     for (const kind of [
-      "auth_required",
-      "auth_source_missing",
-      "auth_source_unreadable",
-      "auth_source_malformed",
-      "auth_source_incompatible",
+      "auth_expired",
+      "auth_scope_ambiguous",
       "credential_rejected",
-      "cli_not_found",
-      "cli_launch_failed",
       "connectivity",
       "rate_limited",
       "quota_service",
+      "official_quota_source_unavailable",
+      "team_scope_unsupported",
+      "response_too_large",
       "quota_unreported",
       "parse_incompatible",
     ]) {
       expect(html).toContain(`"${kind}"`);
     }
-    expect(html).toContain("A malformed or unknown incompatible <code>2xx</code> response is <code>parse_incompatible</code>");
-    expect(html).toContain("It is never an authentication failure");
+    expect(html).toContain("Arbitrary gRPC 7 is not authentication");
+    expect(html).toContain("known no-personal-team condition");
+    expect(html).toContain("Raw response data and gRPC messages never leave the server action");
   });
 
-  it("forbids misleading sign-in copy and carries failures through the renderer", async () => {
+  it("preserves the shared lifecycle and visible parity contract", async () => {
     const html = await readRecipe();
 
-    expect(html).toContain("The renderer must use <code>failure.kind</code> and <code>failure.message</code>");
-    expect(html).toContain("Show sign-in guidance only for <code>auth_required</code>");
-    expect(html).toContain("A local expiry timestamp or raw billing <code>401</code>/<code>403</code> alone must never produce sign-in guidance");
-    expect(html).not.toContain("How the widget presents it - layout, states, copy, refresh controls - is left to the implementer");
+    expect(html).toContain("The host-owned <code>refreshView</code> call is the startup refresh");
+    expect(html).toContain("do not launch a mount-time request");
+    expect(html).toContain("disable itself while pending");
+    expect(html).toContain("keep the currently rendered successful windows");
+    expect(html).toContain("fresh safe <code>checkedAt</code>");
+    expect(html).toContain("Show both official used percentage and derived remaining percentage");
+    expect(html).toContain("Round only rendered values");
+    expect(html).toContain("reset only from <code>config.currentPeriod.end</code>");
   });
 
-  it("requires GUI-safe executable discovery and a safe inherited environment", async () => {
+  it("requires a same-window exact-source oracle with safe identity equality", async () => {
     const html = await readRecipe();
 
-    expect(html).toContain("<code>$GROK_CLI_PATH</code>");
-    expect(html).toContain("<code>$GROK_HOME/bin/grok</code>");
-    expect(html).toContain("<code>~/.local/bin/grok</code>");
-    expect(html).toContain("<code>~/.grok/bin/grok</code>");
-    expect(html).toContain("<code>/opt/homebrew/bin/grok</code>");
-    expect(html).toContain("<code>/usr/local/bin/grok</code>");
-    expect(html).toContain("preserve the complete inherited <code>process.env</code>");
-    expect(html).toContain("<code>shell: false</code>");
-    expect(html).toContain("bounded stdout and stderr");
-    expect(html).toContain("kill the child on timeout and wait for it to close");
-    expect(html).toContain("<code>quota-axi</code> may be used as optional development evidence, but it is never a runtime dependency or refresh authority");
+    expect(html).toContain("unattended E2E independently calls the same exact operation in the same time window");
+    expect(html).toContain("account-binding equality");
+    expect(html).toContain("No credential, cookie, raw principal, account-binding material, header, or raw provider payload");
   });
 
-  it("ships the corrected recipe through the real workspace seeding and discovery path", async () => {
+  it("ships the corrected recipe through workspace seeding and discovery", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-grok-recipe-install-"));
     tempDirs.push(rootDir);
     const extensionsDir = join(rootDir, "extensions");

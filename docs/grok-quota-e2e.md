@@ -6,9 +6,9 @@ Run the unattended macOS check with:
 pnpm test:e2e:grok-popover
 ```
 
-The command requires an installed official Grok CLI with a local session.
-The captain-authorized check lets the official Grok client perform its normal credential refresh when needed.
-It does not run `grok login`, change account configuration, print credential values, or retain raw provider output.
+The command requires a current supported OIDC or legacy sign-in entry in the provider-owned Grok auth file.
+It uses the bearer read-only and never refreshes or mutates credentials.
+It does not run `grok login`, execute the Grok CLI, change account configuration, print credential values, import browser credentials, or retain raw provider output.
 
 The command starts the current source app with a temporary extension workspace under `extensions-dev/`, keeps the real Electron popover open, and connects to its renderer over a loopback-only Chrome DevTools port.
 `BABY_MENU_OPEN_POPOVER_ON_START=1` opens the same `BrowserWindow` through the tray controller's real bounds path, so no accessibility click or human interaction is required.
@@ -16,19 +16,25 @@ The command starts the current source app with a temporary extension workspace u
 The normal `WidgetHost`, preload capability bridge, server-action registry, extension compiler, SQLite store, renderer, and host-owned refresh scheduling are all exercised.
 
 The default generated-install mode uses the committed generated extension contract.
-Set `BABY_MENU_GROK_E2E_INSTALLED_SOURCE=1` for installed-widget source mode.
-That mode copies `~/.baby-menu/extensions/grok-quota` into the temporary workspace, rewrites its copied extension id and cache table to test-owned names, and leaves the installed source and live cache untouched.
+Set `BABY_MENU_GROK_E2E_INSTALLED_SOURCE=1` for installed-widget source mode after the installed source implements the same schema version 2 contract.
+That mode copies `~/.baby-menu/extensions/grok-quota` into the temporary workspace, rewrites only its copied extension id and cache table to test-owned names, and leaves the installed source and live cache untouched.
 Set `BABY_MENU_GROK_E2E_INSTALLED_SOURCE_DIR` only when the authoritative installed source is at another path.
 
 Both modes wrap the copied server action with test-only lifecycle instrumentation.
+Before Electron starts, the runner seeds its isolated cache table with an unversioned, wrong-source, expired-reset row whose writer provenance is unknown.
+The startup acquisition must reject that row and replace it only after exact-source success with schema version 2, source version 1, operation provenance, field provenance, and an equal principal binding.
+The runner reads back only schema/provenance status and an identity/scope equality boolean, never cached values, principal material, or raw provider data.
 
-Before Electron starts, the runner seeds its isolated cache table with the legacy fabricated `1%`, expired-reset, zero-credit shape.
-The startup acquisition must either replace it with schema version `1` and exact official percentage/reset provenance or reject and remove it when Grok reports `quota_unreported`.
-The runner reads back only sanitized schema/provenance status, never cached values or raw provider data.
+The independent `consumerOracle` calls the exact consumer `GetGrokCreditsConfig` gRPC-web operation used by the Grok Usage page and CodexBar's web strategy.
+It uses the same deterministic OIDC-over-legacy principal rules as the runtime but has its own bounded frame and typed protobuf parser.
+It applies a 15-second deadline, a 64 KiB response limit, exact gRPC-web headers, and the five-byte empty request frame.
+It never imports browser cookies.
 
-The runner asks the installed official Grok ACP agent for `_x.ai/billing`, then compares the rendered extension state against that normalized result.
-A reported official percentage must match the rendered remaining percentage, reset, credit balance, fresh state, and absence of warnings.
-A known official period without a percentage must render `quota_unreported` without stale state, warning-backed last-good data, an old percentage, a reset, or a credit amount.
+The oracle and widget run in the same refresh window.
+The runner compares operation, schema, source version, identity/scope equality, period type, exact global used and remaining percentages, product ids and percentages, reset, field provenance, credits, and final display rounding.
+A valid current period with an omitted proto3 scalar is exact-source zero usage, not `quota_unreported`.
+Any `quota_unreported` widget result while the oracle has exact-source quota data fails the run.
+No raw protobuf, token, header, scope, user id, team id, account-binding digest, or exact provider payload is printed or persisted as evidence.
 
 The host-owned first-visible refresh must complete exactly once and visibly settle with a safe last-checked timestamp.
 A test-owned server wrapper records only bounded `action-started`, `action-resolved`, or `action-rejected` lifecycle markers in the isolated database, so the runner proves the bridge reached the installed-equivalent action without logging inputs, outputs, credentials, or provider data.
@@ -39,7 +45,7 @@ Startup, interval, and manual calls use the same bounded widget and server-actio
 
 A screenshot named `baby-menu-grok-popover-e2e.png` is written to the system temporary directory by default.
 Set `BABY_MENU_GROK_E2E_SCREENSHOT` to choose another output path.
-The JSON summary contains only normalized official semantics, refresh completion flags, source mode, and cache schema/provenance status.
+The JSON summary contains only equality booleans, refresh completion flags, source mode, and sanitized schema/provenance status.
 
 The runner terminates its dev process, removes the temporary workspace and compiled E2E modules, and drops only its dedicated `grok_quota_e2e_cache` and `grok_quota_e2e_lifecycle` tables.
-It does not package an app, modify the installed production bundle, modify the live installed widget, or leave a macOS application bundle for LaunchServices to register.
+It does not package an app, modify the installed production bundle, modify the live installed widget, modify the live widget cache, or leave a macOS application bundle for LaunchServices to register.

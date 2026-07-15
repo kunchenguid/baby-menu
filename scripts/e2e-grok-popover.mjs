@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cp, mkdtemp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -10,7 +11,9 @@ import { refreshLifecycleStatus } from "./grok-popover-lifecycle.mjs";
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureDir = join(rootDir, "tests", "fixtures", "grok-quota-generated");
 const grokHome = process.env.GROK_HOME || join(process.env.HOME || "", ".grok");
-const grokExecutable = join(grokHome, "bin", "grok");
+const consumerQuotaUrl = "https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig";
+const consumerOperation = "grok_api_v2.GrokBuildBilling.GetGrokCreditsConfig";
+const responseLimitBytes = 64 * 1024;
 const installedSourceMode = process.env.BABY_MENU_GROK_E2E_INSTALLED_SOURCE === "1";
 const installedSourceDir = process.env.BABY_MENU_GROK_E2E_INSTALLED_SOURCE_DIR ||
   join(process.env.HOME || "", ".baby-menu", "extensions", "grok-quota");
@@ -94,18 +97,29 @@ function seedLegacyCache() {
   ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at;`);
 }
 
-function readSanitizedCacheStatus() {
+function readSanitizedCacheStatus(expectedAccountBinding) {
+  if (!/^[a-f0-9]{64}$/.test(expectedAccountBinding)) fail("Grok E2E oracle has no stable principal binding");
   const output = runSqlite(`SELECT
     CASE WHEN json_valid(value) THEN COALESCE(json_extract(value, '$.schemaVersion'), '') ELSE 'malformed' END,
+    CASE WHEN json_valid(value) THEN COALESCE(json_extract(value, '$.source'), '') ELSE '' END,
+    CASE WHEN json_valid(value) THEN COALESCE(json_extract(value, '$.sourceVersion'), '') ELSE '' END,
+    CASE WHEN json_valid(value) THEN COALESCE(json_extract(value, '$.operation'), '') ELSE '' END,
+    CASE WHEN json_valid(value) AND json_extract(value, '$.accountBinding') = '${expectedAccountBinding}' THEN '1' ELSE '0' END,
+    CASE WHEN json_valid(value) THEN COALESCE(json_extract(value, '$.period.type'), '') ELSE '' END,
     CASE WHEN json_valid(value) THEN COALESCE(json_extract(value, '$.windows[0].provenance.percentageField'), '') ELSE '' END,
     CASE WHEN json_valid(value) THEN COALESCE(json_extract(value, '$.windows[0].provenance.resetField'), '') ELSE '' END,
     CASE WHEN json_valid(value) THEN COALESCE(json_extract(value, '$.credits.sourceField'), '') ELSE '' END
     FROM grok_quota_e2e_cache WHERE key = 'grok-quota-e2e';`);
-  if (!output) return { present: false };
-  const [schemaVersion, percentageField, resetField, creditsSourceField] = output.split("|");
+  if (!output) return { present: false, identityScopeEqual: false };
+  const [schemaVersion, source, sourceVersion, operation, identityScopeEqual, periodType, percentageField, resetField, creditsSourceField] = output.split("|");
   return {
     present: true,
     schemaVersion: Number(schemaVersion),
+    source,
+    sourceVersion: Number(sourceVersion),
+    operation,
+    identityScopeEqual: identityScopeEqual === "1",
+    periodType,
     percentageField,
     resetField,
     creditsSourceField,
@@ -132,112 +146,245 @@ function readSanitizedLifecycle() {
   return lifecycle;
 }
 
-async function officialBilling() {
-  const child = spawn(grokExecutable, ["agent", "--no-leader", "stdio"], {
-    env: { ...process.env, NO_COLOR: "1", TERM: "dumb" },
-    shell: false,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  child.stderr.resume();
-  const result = await new Promise((resolveResult, rejectResult) => {
-    let buffer = "";
-    const timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      rejectResult(new Error("official Grok billing ACP timed out"));
-    }, 20_000);
-    const send = (message) => child.stdin.write(`${JSON.stringify(message)}\n`);
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => {
-      buffer += chunk;
-      if (Buffer.byteLength(buffer, "utf8") > 1024 * 1024) {
-        clearTimeout(timer);
-        child.kill("SIGTERM");
-        rejectResult(new Error("official Grok billing ACP exceeded the safe output bound"));
-        return;
-      }
-      while (buffer.includes("\n")) {
-        const index = buffer.indexOf("\n");
-        const line = buffer.slice(0, index);
-        buffer = buffer.slice(index + 1);
-        let message;
-        try {
-          message = JSON.parse(line);
-        } catch {
-          continue;
-        }
-        if (message.id === 1 && message.result) {
-          send({ jsonrpc: "2.0", id: 2, method: "_x.ai/billing", params: {} });
-        }
-        if (message.id === 2) {
-          clearTimeout(timer);
-          if (message.error) {
-            rejectResult(new Error(`official Grok billing ACP failed with code ${message.error.code ?? "unknown"}`));
-          } else {
-            resolveResult(message.result);
-          }
-        }
-      }
-    });
-    child.once("error", (error) => {
-      clearTimeout(timer);
-      rejectResult(error);
-    });
-    child.once("close", (code) => {
-      if (code && code !== 0) {
-        clearTimeout(timer);
-        rejectResult(new Error(`official Grok billing ACP exited ${code}`));
-      }
-    });
-    send({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "initialize",
-      params: { protocolVersion: 1, clientCapabilities: {} },
-    });
-  }).finally(() => {
-    child.kill("SIGTERM");
-  });
+function oracleReadVarint(bytes, start) {
+  let value = 0n;
+  let shift = 0n;
+  let index = start;
+  while (index < bytes.length && shift <= 63n) {
+    const byte = bytes[index++];
+    value |= BigInt(byte & 0x7f) << shift;
+    if ((byte & 0x80) === 0) return { value, index };
+    shift += 7n;
+  }
+  fail("consumerOracle rejected malformed protobuf");
+}
 
-  const config = result && typeof result === "object" && result.config && typeof result.config === "object"
-    ? result.config
-    : {};
-  const productUsage = Array.isArray(config.productUsage) ? config.productUsage : [];
-  const productIndex = productUsage.findIndex(
-    (entry) => entry && typeof entry === "object" && Number.isFinite(entry.usagePercent),
-  );
-  const productPercent = productIndex >= 0 ? productUsage[productIndex].usagePercent : undefined;
-  const hasGlobalPercentage = Number.isFinite(config.creditUsagePercent);
-  const rawPercentage = hasGlobalPercentage ? config.creditUsagePercent : productPercent;
-  const percentage = Number.isFinite(rawPercentage) ? Math.max(0, Math.min(100, rawPercentage)) : null;
-  const currentPeriodReset = typeof config.currentPeriod?.end === "string" ? config.currentPeriod.end : null;
-  const billingPeriodReset = typeof config.billingPeriodEnd === "string" ? config.billingPeriodEnd : null;
-  const resetText = currentPeriodReset || billingPeriodReset;
-  const resetAt = resetText ? Date.parse(resetText) : Number.NaN;
-  const hasKnownPeriod = Boolean(currentPeriodReset || billingPeriodReset);
-  const prepaidBalance = config.prepaidBalance && typeof config.prepaidBalance === "object" &&
-    Number.isFinite(config.prepaidBalance.val)
-    ? config.prepaidBalance.val
-    : null;
-  if (percentage === null && !hasKnownPeriod) fail("official Grok billing returned no recognizable quota period");
+function oracleFields(bytes) {
+  const fields = [];
+  let index = 0;
+  while (index < bytes.length) {
+    const key = oracleReadVarint(bytes, index);
+    index = key.index;
+    const field = Number(key.value >> 3n);
+    const wire = Number(key.value & 7n);
+    if (field <= 0) fail("consumerOracle rejected malformed protobuf");
+    if (wire === 0) {
+      const scalar = oracleReadVarint(bytes, index);
+      fields.push({ field, wire, value: scalar.value });
+      index = scalar.index;
+      continue;
+    }
+    if (wire === 2) {
+      const length = oracleReadVarint(bytes, index);
+      index = length.index;
+      const end = index + Number(length.value);
+      if (!Number.isSafeInteger(end) || end > bytes.length) fail("consumerOracle rejected truncated protobuf");
+      fields.push({ field, wire, value: bytes.slice(index, end) });
+      index = end;
+      continue;
+    }
+    if (wire === 5) {
+      if (index + 4 > bytes.length) fail("consumerOracle rejected truncated protobuf");
+      fields.push({ field, wire, value: bytes.slice(index, index + 4) });
+      index += 4;
+      continue;
+    }
+    if (wire === 1) {
+      if (index + 8 > bytes.length) fail("consumerOracle rejected truncated protobuf");
+      index += 8;
+      continue;
+    }
+    fail("consumerOracle rejected unsupported protobuf wire type");
+  }
+  return fields;
+}
+
+function oracleAt(fields, number, wire) {
+  return fields.filter((field) => field.field === number && field.wire === wire);
+}
+
+function oracleMessage(fields, number) {
+  const field = oracleAt(fields, number, 2)[0];
+  return field ? oracleFields(field.value) : undefined;
+}
+
+function oracleScalar(fields, number) {
+  return oracleAt(fields, number, 0)[0]?.value;
+}
+
+function oracleFloat(fields, number) {
+  const field = oracleAt(fields, number, 5)[0];
+  if (!field) return undefined;
+  const value = new DataView(field.value.buffer, field.value.byteOffset, 4).getFloat32(0, true);
+  if (!Number.isFinite(value)) fail("consumerOracle rejected non-finite percentage");
+  return value;
+}
+
+function oracleTimestamp(fields, number) {
+  const timestamp = oracleMessage(fields, number);
+  const seconds = timestamp ? oracleScalar(timestamp, 1) : undefined;
+  if (seconds === undefined || seconds > BigInt(Number.MAX_SAFE_INTEGER)) return undefined;
+  const date = new Date(Number(seconds) * 1_000);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function oracleGrpcPayload(bytes) {
+  let index = 0;
+  const frames = [];
+  let framed = bytes.length >= 5;
+  let grpcStatus = 0;
+  while (framed && index < bytes.length) {
+    if (index + 5 > bytes.length) {
+      framed = false;
+      break;
+    }
+    const flags = bytes[index];
+    const length = new DataView(bytes.buffer, bytes.byteOffset + index + 1, 4).getUint32(0);
+    const start = index + 5;
+    const end = start + length;
+    if (end > bytes.length || (flags & 0x7f) !== 0) {
+      framed = false;
+      break;
+    }
+    if ((flags & 0x80) !== 0) {
+      const trailer = new TextDecoder().decode(bytes.slice(start, end));
+      const match = /(?:^|\r?\n)grpc-status:\s*(\d+)/i.exec(trailer);
+      grpcStatus = match ? Number(match[1]) : grpcStatus;
+    } else {
+      frames.push(bytes.slice(start, end));
+    }
+    index = end;
+  }
+  if (!framed || index !== bytes.length) return bytes;
+  if (grpcStatus !== 0) fail(`consumerOracle received gRPC status ${grpcStatus}`);
+  if (frames.length !== 1) fail("consumerOracle expected one data frame");
+  return frames[0];
+}
+
+function oracleAccountBinding(kind, entry) {
+  const userId = typeof entry.user_id === "string" && entry.user_id ? entry.user_id : undefined;
+  if (!userId) fail("consumerOracle could not form a stable principal binding");
+  const teamId = typeof entry.team_id === "string" ? entry.team_id : "";
+  return createHash("sha256").update(JSON.stringify({ kind, userId, teamId })).digest("hex");
+}
+
+async function selectOracleAuth() {
+  let root;
+  if (process.env.GROK_AUTH_JSON) {
+    root = JSON.parse(process.env.GROK_AUTH_JSON);
+  } else {
+    const authPath = process.env.GROK_AUTH_PATH || join(grokHome, "auth.json");
+    root = JSON.parse(await readFile(authPath, "utf8"));
+  }
+  if (!root || typeof root !== "object" || Array.isArray(root)) fail("consumerOracle auth source is incompatible");
+  const now = Date.now();
+  const candidates = [];
+  for (const [scopeKey, value] of Object.entries(root)) {
+    if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.key !== "string" || !value.key) continue;
+    const kind = scopeKey.startsWith("https://auth.x.ai::")
+      ? "oidc"
+      : (scopeKey === "https://accounts.x.ai/sign-in" || scopeKey.includes("/sign-in")) ? "legacy" : undefined;
+    if (!kind) continue;
+    const expiresAt = typeof value.expires_at === "string" ? Date.parse(value.expires_at) : Number.NaN;
+    if (Number.isFinite(expiresAt) && expiresAt <= now) continue;
+    candidates.push({ scopeKey, kind, key: value.key, accountBinding: oracleAccountBinding(kind, value) });
+  }
+  const oidc = candidates.filter((candidate) => candidate.kind === "oidc");
+  const winning = oidc.length > 0 ? oidc : candidates.filter((candidate) => candidate.kind === "legacy");
+  if (winning.length === 0) fail("consumerOracle found no current supported auth entry");
+  if (new Set(winning.map((candidate) => candidate.accountBinding)).size !== 1) fail("consumerOracle refused ambiguous principals");
+  winning.sort((left, right) => left.scopeKey.localeCompare(right.scopeKey));
+  return winning[0];
+}
+
+async function oracleResponseBytes(response) {
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks = [];
+  let length = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.length;
+    if (length > responseLimitBytes) {
+      await reader.cancel();
+      fail("consumerOracle response exceeded 64 KiB");
+    }
+    chunks.push(value);
+  }
+  const output = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return output;
+}
+
+function normalizeOraclePayload(payload, accountBinding) {
+  const response = oracleFields(payload);
+  const config = oracleMessage(response, 1);
+  if (!config) fail("consumerOracle response has no config");
+  const period = oracleMessage(config, 8);
+  const rawPeriodType = period ? oracleScalar(period, 1) : undefined;
+  const periodType = rawPeriodType === 2n ? "weekly" : rawPeriodType === 1n ? "monthly" : "unspecified";
+  const startAt = period ? oracleTimestamp(period, 2) : undefined;
+  const endAt = period ? oracleTimestamp(period, 3) : undefined;
+  const validPeriod = (periodType === "weekly" || periodType === "monthly") && Boolean(startAt && endAt);
+  const explicitPercent = oracleFloat(config, 1);
+  if (explicitPercent === undefined && !validPeriod) fail("consumerOracle found no official percentage or proto3-zero evidence");
+  const percentUsed = Math.min(100, Math.max(0, explicitPercent ?? 0));
+  const productNames = ["unspecified", "api", "grok-build", "grok-plugins", "grok-chat", "grok-imagine", "grok-voice"];
+  const products = oracleAt(config, 7, 2).map((field) => {
+    const entry = oracleFields(field.value);
+    const product = Number(oracleScalar(entry, 1));
+    const usage = oracleFloat(entry, 2) ?? 0;
+    return { id: `product:${productNames[product] ?? `unknown-${product}`}`, percentUsed: Math.min(100, Math.max(0, usage)) };
+  });
+  const prepaid = oracleMessage(config, 12);
+  const credits = prepaid ? Number(oracleScalar(prepaid, 1) ?? 0n) : null;
   return {
-    kind: percentage === null ? "quota_unreported" : "quota",
-    percentRemaining: percentage === null ? null : 100 - percentage,
-    percentageField: percentage === null
-      ? null
-      : hasGlobalPercentage
-        ? "config.creditUsagePercent"
-        : `config.productUsage[${productIndex}].usagePercent`,
-    resetField: currentPeriodReset
-      ? "config.currentPeriod.end"
-      : billingPeriodReset
-        ? "config.billingPeriodEnd"
-        : null,
-    resetInHours: Number.isFinite(resetAt) ? Math.max(0, Math.ceil((resetAt - Date.now()) / 3_600_000)) : null,
-    credits: percentage === null ? null : prepaidBalance,
-    periodType: typeof config.currentPeriod?.type === "string" && config.currentPeriod.type.includes("WEEKLY")
-      ? "weekly"
-      : "unknown",
+    operation: consumerOperation,
+    accountBinding,
+    periodType,
+    startAt: startAt ?? null,
+    resetAt: endAt ?? null,
+    percentUsed,
+    percentRemaining: 100 - percentUsed,
+    percentageField: "config.creditUsagePercent",
+    percentageOmitted: explicitPercent === undefined,
+    resetField: endAt ? "config.currentPeriod.end" : null,
+    products,
+    credits,
   };
+}
+
+async function consumerOracle() {
+  const auth = await selectOracleAuth();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(consumerQuotaUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${auth.key}`,
+        Accept: "*/*",
+        "Content-Type": "application/grpc-web+proto",
+        Origin: "https://grok.com",
+        Referer: "https://grok.com/?_s=usage",
+        "x-grpc-web": "1",
+        "x-user-agent": "connect-es/2.1.1",
+      },
+      body: Uint8Array.from([0, 0, 0, 0, 0]),
+      signal: controller.signal,
+    });
+    if (!response.ok) fail(`consumerOracle received HTTP ${response.status}`);
+    const headerStatus = Number(response.headers.get("grpc-status") ?? 0);
+    if (headerStatus !== 0) fail(`consumerOracle received gRPC status ${headerStatus}`);
+    return normalizeOraclePayload(oracleGrpcPayload(await oracleResponseBytes(response)), auth.accountBinding);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function installActionInstrumentation(extensionDir) {
@@ -414,6 +561,16 @@ async function waitForCompletedRefresh(expected, previousCheckedAt) {
               stale: root.getAttribute("data-stale"),
               warningKind: root.getAttribute("data-warning-kind"),
               cacheSchema: root.getAttribute("data-cache-schema"),
+              operation: root.getAttribute("data-operation"),
+              source: root.getAttribute("data-source"),
+              sourceVersion: root.getAttribute("data-source-version"),
+              periodType: root.getAttribute("data-period"),
+              percentUsed: root.getAttribute("data-percent-used"),
+              percentRemaining: root.getAttribute("data-percent-remaining"),
+              percentageField: root.getAttribute("data-percentage-field"),
+              resetAt: root.getAttribute("data-reset-at"),
+              resetField: root.getAttribute("data-reset-field"),
+              products: root.getAttribute("data-products"),
               completed: Number([...String(root.textContent || "").matchAll(/checked (\\d+)/ig)].at(-1)?.[1] || 0),
               terminal: root.getAttribute("data-grok-e2e") !== "waiting" &&
                 !String(root.textContent || "").toLowerCase().includes("checking"),
@@ -431,6 +588,16 @@ async function waitForCompletedRefresh(expected, previousCheckedAt) {
             stale: String(lower.includes("stale")),
             warningKind: lower.includes("stale") && lower.includes("quota unreported") ? "quota_unreported" : "none",
             cacheSchema: region.querySelector("[data-grok-cache-schema]")?.getAttribute("data-grok-cache-schema") || null,
+            operation: region.querySelector("[data-grok-operation]")?.getAttribute("data-grok-operation") || null,
+            source: region.querySelector("[data-grok-source]")?.getAttribute("data-grok-source") || null,
+            sourceVersion: region.querySelector("[data-grok-source-version]")?.getAttribute("data-grok-source-version") || null,
+            periodType: region.querySelector("[data-grok-period]")?.getAttribute("data-grok-period") || null,
+            percentUsed: region.querySelector("[data-grok-percent-used]")?.getAttribute("data-grok-percent-used") || null,
+            percentRemaining: region.querySelector("[data-grok-percent-remaining]")?.getAttribute("data-grok-percent-remaining") || null,
+            percentageField: region.querySelector("[data-grok-percentage-field]")?.getAttribute("data-grok-percentage-field") || null,
+            resetAt: region.querySelector("[data-grok-reset-at]")?.getAttribute("data-grok-reset-at") || null,
+            resetField: region.querySelector("[data-grok-reset-field]")?.getAttribute("data-grok-reset-field") || null,
+            products: region.querySelector("[data-grok-products]")?.getAttribute("data-grok-products") || null,
             completed: 0,
             terminal: !button.disabled && button.textContent?.trim().toLowerCase() !== "checking" && !lower.includes("reading"),
           } : null;
@@ -454,32 +621,46 @@ async function waitForCompletedRefresh(expected, previousCheckedAt) {
 
 function assertMatchesOfficial(view, official) {
   const text = String(view.text || "");
-  if (official.kind === "quota") {
-    if (view.state !== "success") fail(`expected quota success, rendered ${view.state}`);
-    if (!text.includes(`${official.percentRemaining}% left`)) fail("rendered percentage does not match official Grok billing");
-    if (view.stale !== "false") fail("rendered stale state does not match official Grok billing");
-    if (view.warningKind !== "none") fail("rendered warning does not match official Grok billing");
-    if (!installedSourceMode && view.cacheSchema !== "1") fail("rendered cache schema does not match the trusted contract");
-    if (official.resetInHours !== null) {
-      const renderedReset = /reset (\d+)h/i.exec(text);
-      if (!renderedReset || Math.abs(Number(renderedReset[1]) - official.resetInHours) > 1) {
-        fail("rendered reset does not match official Grok billing");
-      }
-    } else if (/reset \d+h/i.test(text)) {
-      fail("rendered reset does not match official Grok billing");
-    }
-    if (official.credits !== null) {
-      if (!text.includes(`${official.credits} credits`)) fail("rendered credits do not match official Grok billing");
-    } else if (/\b\d+(?:\.\d+)? credits\b/i.test(text)) {
-      fail("rendered credits do not match official Grok billing");
-    }
-    return;
+  if (view.failureKind === "quota_unreported") {
+    fail("Baby Menu rendered quota_unreported while official Grok consumer quota is usable");
   }
-  if (view.failureKind !== "quota_unreported") fail(`expected quota_unreported, rendered ${view.failureKind || view.state}`);
-  if (view.stale !== "false") fail("rendered stale state does not match official Grok billing");
-  if (view.warningKind !== "none") fail("rendered warning does not match official Grok billing");
-  if (/monthly credits|% left|reset \d+|\b\d+(?:\.\d+)? credits\b/i.test(text)) {
-    fail("rendered a fabricated quota, reset, or credit balance while official Grok reported no percentage");
+  if (view.state !== "success") fail(`expected consumer quota success, rendered ${view.state}`);
+  if (view.operation !== official.operation || view.operation !== consumerOperation) {
+    fail("rendered operation does not match official Grok consumer quota");
+  }
+  if (view.source !== "grok-credits-grpc-web" || view.sourceVersion !== "1" || view.cacheSchema !== "2") {
+    fail("rendered exact-source schema does not match official Grok consumer quota");
+  }
+  if (view.periodType !== official.periodType) fail("rendered period does not match official Grok consumer quota");
+  if (Number(view.percentUsed) !== official.percentUsed || Number(view.percentRemaining) !== official.percentRemaining) {
+    fail("rendered percentage does not match official Grok consumer quota");
+  }
+  if (view.percentageField !== official.percentageField) {
+    fail("rendered percentage provenance does not match official Grok consumer quota");
+  }
+  let products;
+  try {
+    products = JSON.parse(view.products || "[]");
+  } catch {
+    fail("rendered product usage does not match official Grok consumer quota");
+  }
+  if (JSON.stringify(products) !== JSON.stringify(official.products)) {
+    fail("rendered product usage does not match official Grok consumer quota");
+  }
+  if ((view.resetAt || null) !== official.resetAt || (view.resetField || null) !== official.resetField) {
+    fail("rendered reset does not match official Grok consumer quota");
+  }
+  if (view.stale !== "false" || view.warningKind !== "none") {
+    fail("rendered freshness does not match official Grok consumer quota");
+  }
+  if (!text.includes(`${Math.round(official.percentUsed)}% used`) ||
+      !text.includes(`${Math.round(official.percentRemaining)}% left`)) {
+    fail("rendered display rounding does not match official Grok consumer quota");
+  }
+  if (official.credits !== null) {
+    if (!text.includes(`${official.credits} credits`)) fail("rendered credits do not match official Grok consumer quota");
+  } else if (/\b\d+(?:\.\d+)? credits\b/i.test(text)) {
+    fail("rendered credits do not match official Grok consumer quota");
   }
 }
 
@@ -528,11 +709,25 @@ async function captureScreenshot() {
 }
 
 async function cleanup() {
-  cdp?.socket.close();
-  await stopDevProcess();
-  await cleanE2EDatabase();
-  await rm(join(rootDir, ".cache", "baby-menu", "server-actions", "grok-quota-e2e"), { recursive: true, force: true });
-  if (tempRoot) await rm(tempRoot, { recursive: true, force: true });
+  const failures = [];
+  try {
+    cdp?.socket.close();
+  } catch (error) {
+    failures.push(error);
+  }
+  for (const operation of [
+    () => stopDevProcess(),
+    () => cleanE2EDatabase(),
+    () => rm(join(rootDir, ".cache", "baby-menu", "server-actions", "grok-quota-e2e"), { recursive: true, force: true }),
+    () => tempRoot ? rm(tempRoot, { recursive: true, force: true }) : Promise.resolve(),
+  ]) {
+    try {
+      await operation();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length > 0) throw failures[0];
 }
 
 async function stopDevProcess() {
@@ -554,6 +749,16 @@ function signalProcessGroup(pid, signal) {
   }
 }
 
+function hasOwnedProcessGroupMember(pgid) {
+  const result = spawnSync("/bin/ps", ["-axo", "pgid=,uid="], { encoding: "utf8" });
+  if (result.error || result.status !== 0) return true;
+  const uid = typeof process.getuid === "function" ? process.getuid() : undefined;
+  return result.stdout.split("\n").some((line) => {
+    const [rawPgid, rawUid] = line.trim().split(/\s+/);
+    return Number(rawPgid) === pgid && (uid === undefined || Number(rawUid) === uid);
+  });
+}
+
 async function waitForProcessGroupExit(pid, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -561,6 +766,7 @@ async function waitForProcessGroupExit(pid, timeoutMs) {
       process.kill(-pid, 0);
     } catch (error) {
       if (error?.code === "ESRCH") return true;
+      if (error?.code === "EPERM" && !hasOwnedProcessGroupMember(pid)) return true;
       throw error;
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
@@ -586,20 +792,28 @@ function assertManualLifecycle(before, after) {
 }
 
 function assertCacheMigration(status, official) {
-  if (official.kind === "quota_unreported") {
-    if (status.present) fail("legacy fabricated cache survived migration after quota_unreported");
-    return;
+  if (!status.present || status.schemaVersion !== 2) fail("cache migration did not produce schema version 2");
+  if (status.source !== "grok-credits-grpc-web" || status.sourceVersion !== 1) {
+    fail("cache source does not match official Grok consumer quota");
   }
-  if (!status.present || status.schemaVersion !== 1) fail("cache migration did not produce the current trusted schema");
-  if (status.percentageField !== official.percentageField) fail("cache percentage provenance does not match official Grok billing");
-  if ((status.resetField || null) !== official.resetField) fail("cache reset provenance does not match official Grok billing");
+  if (status.operation !== official.operation) fail("cache operation does not match official Grok consumer quota");
+  if (!status.identityScopeEqual) fail("cache identity/scope does not equal the consumerOracle principal");
+  if (status.periodType !== official.periodType) fail("cache period does not match official Grok consumer quota");
+  if (status.percentageField !== official.percentageField) {
+    fail("cache percentage provenance does not match official Grok consumer quota");
+  }
+  if ((status.resetField || null) !== official.resetField) {
+    fail("cache reset provenance does not match official Grok consumer quota");
+  }
   const expectedCreditsSource = official.credits === null ? "" : "config.prepaidBalance.val";
-  if (status.creditsSourceField !== expectedCreditsSource) fail("cache credit provenance does not match official Grok billing");
+  if (status.creditsSourceField !== expectedCreditsSource) {
+    fail("cache credit provenance does not match official Grok consumer quota");
+  }
 }
 
 async function main() {
   if (process.platform !== "darwin") fail("Grok popover E2E requires macOS");
-  const official = await officialBilling();
+  const startupOfficial = await consumerOracle();
   const extensionsDir = await prepareExtensionWorkspace();
   await cleanE2EDatabase();
   seedLegacyCache();
@@ -607,29 +821,34 @@ async function main() {
 
   const startupView = await waitForCompletedRefresh(1, null);
   const startupLifecycle = assertLifecycleCount(1, "startup");
-  assertMatchesOfficial(startupView, official);
-  const startupCacheStatus = readSanitizedCacheStatus();
-  assertCacheMigration(startupCacheStatus, official);
+  assertMatchesOfficial(startupView, startupOfficial);
+  const startupCacheStatus = readSanitizedCacheStatus(startupOfficial.accountBinding);
+  assertCacheMigration(startupCacheStatus, startupOfficial);
   if (!Number.isFinite(Date.parse(startupView.checkedAt))) {
     fail("startup acquisition did not visibly settle with a safe checkedAt timestamp");
   }
 
   let intervalView;
+  let intervalOfficial = startupOfficial;
   if (!installedSourceMode) {
     intervalView = await waitForCompletedRefresh(2, startupView.checkedAt);
+    intervalOfficial = await consumerOracle();
+    if (intervalOfficial.accountBinding !== startupOfficial.accountBinding) fail("consumerOracle principal changed during E2E");
     assertLifecycleCount(2, "interval");
-    assertMatchesOfficial(intervalView, official);
+    assertMatchesOfficial(intervalView, intervalOfficial);
     if (!Number.isFinite(Date.parse(intervalView.checkedAt)) || intervalView.checkedAt === startupView.checkedAt) {
       fail("interval acquisition did not visibly settle with a new safe checkedAt timestamp");
     }
   }
 
+  const manualOfficial = await consumerOracle();
+  if (manualOfficial.accountBinding !== startupOfficial.accountBinding) fail("consumerOracle principal changed during E2E");
   const beforeClickLifecycle = await clickVisibleRefresh();
   const expectedManualLifecycle = beforeClickLifecycle.started + 1;
   const priorView = installedSourceMode ? startupView : intervalView;
   const manualView = await waitForCompletedRefresh(expectedManualLifecycle, priorView.checkedAt);
   const manualLifecycle = assertManualLifecycle(beforeClickLifecycle, readSanitizedLifecycle());
-  assertMatchesOfficial(manualView, official);
+  assertMatchesOfficial(manualView, manualOfficial);
   const transitions = await evaluate("window.__grokE2ETransitions");
   if (!transitions.some((entry) => entry.text === "checking" && entry.disabled === true)) {
     fail("manual refresh control never entered its visible checking state");
@@ -637,27 +856,32 @@ async function main() {
   if (!Number.isFinite(Date.parse(manualView.checkedAt)) || manualView.checkedAt === priorView.checkedAt) {
     fail("manual acquisition did not visibly settle with a new safe checkedAt timestamp");
   }
-  const manualCacheStatus = readSanitizedCacheStatus();
-  assertCacheMigration(manualCacheStatus, official);
+  const manualCacheStatus = readSanitizedCacheStatus(manualOfficial.accountBinding);
+  assertCacheMigration(manualCacheStatus, manualOfficial);
 
   await captureScreenshot();
 
   console.log(JSON.stringify({
     ok: true,
     sourceMode: installedSourceMode ? "installed-widget-copy" : "generated-install",
+    oracle: "consumerOracle",
+    operationEqual: manualView.operation === manualOfficial.operation,
+    identityScopeEqual: manualCacheStatus.identityScopeEqual,
+    periodEqual: manualView.periodType === manualOfficial.periodType,
+    globalPercentageEqual: Number(manualView.percentUsed) === manualOfficial.percentUsed,
+    productUsageEqual: manualView.products === JSON.stringify(manualOfficial.products),
+    resetEqual: (manualView.resetAt || null) === manualOfficial.resetAt,
     startupRefreshes: 1,
     intervalRefreshes: installedSourceMode ? "not-shortened" : 1,
     manualRefreshes: 1,
     startupAcquisitionSettled: startupLifecycle.stage === "action-resolved",
     intervalAcquisitionSettled: !installedSourceMode,
     manualAcquisitionSettled: manualLifecycle.stage === "action-resolved",
-    officialKind: official.kind,
-    officialPeriodType: official.periodType,
-    officialResetInHours: official.resetInHours,
     renderedState: manualView.state,
     renderedFailureKind: manualView.failureKind,
-    cacheStatus: manualCacheStatus.present ? "current-schema-official-provenance" : "legacy-rejected-no-cache",
-    credentialRefreshAllowed: true,
+    cacheStatus: "schema-v2-exact-source-principal-bound",
+    credentialRefreshAllowed: false,
+    browserCookieImportAllowed: false,
     screenshot: screenshotPath,
     devLog: devLogPath,
   }));
