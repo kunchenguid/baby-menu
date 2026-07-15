@@ -303,6 +303,14 @@ function grpcFailure(status, message) {
     });
 }
 
+function parseGrpcStatus(value) {
+    if (value === null || value === undefined)
+        return 0;
+    if (!/^(?:[0-9]|1[0-6])$/.test(value))
+        throw new QuotaFailure("parse_incompatible", "Grok consumer quota response contained invalid gRPC status metadata");
+    return Number(value);
+}
+
 function normalizeConsumerPayload(payload, accountBinding) {
     const response = scanMessage(payload);
     const config = firstMessage(response, 1);
@@ -456,8 +464,8 @@ async function fetchConsumerQuotaOnce(candidate, signal) {
             retryable,
         });
     }
-    const headerStatus = Number(response.headers.get("grpc-status") ?? 0);
-    if (Number.isInteger(headerStatus) && headerStatus !== 0)
+    const headerStatus = parseGrpcStatus(response.headers.get("grpc-status"));
+    if (headerStatus !== 0)
         throw grpcFailure(headerStatus, response.headers.get("grpc-message"));
     let responseBytes;
     try {
@@ -473,8 +481,8 @@ async function fetchConsumerQuotaOnce(candidate, signal) {
         });
     }
     const decoded = decodeGrpcWeb(responseBytes);
-    const trailerStatus = Number(decoded.trailers["grpc-status"] ?? 0);
-    if (Number.isInteger(trailerStatus) && trailerStatus !== 0)
+    const trailerStatus = parseGrpcStatus(decoded.trailers["grpc-status"]);
+    if (trailerStatus !== 0)
         throw grpcFailure(trailerStatus, decoded.trailers["grpc-message"]);
     if (decoded.dataFrames.length !== 1)
         throw new QuotaFailure("parse_incompatible", "Grok consumer quota response did not contain one protobuf payload");

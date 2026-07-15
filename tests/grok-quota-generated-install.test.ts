@@ -577,6 +577,30 @@ describe("clean generated Grok quota installation", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["header", "invalid"],
+    ["header", "17"],
+    ["trailer", "invalid"],
+    ["trailer", "17"],
+  ])("rejects malformed or out-of-range gRPC status in the %s", async (location, status) => {
+    const installed = await install();
+    const response = location === "header"
+      ? new Response("", { status: 200, headers: { "grpc-status": status } })
+      : new Response(responseBody(grpcFrame(
+          new TextEncoder().encode(`grpc-status: ${status}\r\n`),
+          0x80,
+        )), { status: 200 });
+    const fetchMock = vi.fn(async () => response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.kind).toBe("parse_incompatible");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects compressed frames and gRPC header errors before protobuf parsing", async () => {
     const installed = await install();
     const compressed = responseBody(grpcFrame(message(1, new Uint8Array()), 0x01));
