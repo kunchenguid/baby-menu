@@ -42,11 +42,10 @@ No raw protobuf, token, header, scope, user id, team id, account-binding digest,
 The host-owned first-visible refresh must complete exactly once and visibly settle with a safe last-checked timestamp.
 A test-owned server wrapper records only bounded `action-started`, `action-resolved`, or `action-rejected` lifecycle markers in the isolated database, so the runner proves the bridge reached the installed-equivalent action without logging inputs, outputs, credentials, or provider data.
 The renderer's `waiting` state is intermediate: the runner waits for both the expected action settlement and a terminal widget state, and timeout errors report the last sanitized lifecycle stage.
-The [Grok recipe](../extensions/recipes/grok-quota.html) owns the complete stable `data-grok-e2e` root contract and exact value semantics for every state.
-The harness validates the complete root before selecting it.
-For the already installed PR 48 shape only, it deterministically falls back to the documented prefixed descendant aliases and visible lifecycle copy under `[aria-label="menu widgets"]`.
-A terminal partial root with no valid fallback fails immediately with a contract error instead of polling to an ambiguous timeout.
-Run `pnpm vitest run tests/grok-quota-recipe.test.ts tests/grok-popover-e2e-runner.test.ts` to mechanically check the recipe, generated fixture, and PR 48 mixed-root regression before applying a generated or manually managed copy live.
+The [Grok recipe](../extensions/recipes/grok-quota.html) owns the future complete stable `data-grok-e2e` root contract and exact value semantics for every state.
+The harness validates that complete root for generated-install mode, and also accepts the exact current installed root shape (unprefixed parity attributes plus same-root `data-grok-*` aliases and `data-grok-completed-refreshes`).
+A terminal partial root that matches neither shape fails immediately with a contract error instead of polling to an ambiguous timeout.
+Run `pnpm vitest run tests/grok-quota-recipe.test.ts tests/grok-popover-e2e-runner.test.ts` to check the recipe table, generated-fixture bindings, complete-root observer cases, and exact installed-root compatibility before applying a generated or managed copy live.
 In generated-install mode, the runner shortens only the copied fixture's visible interval, requires one interval acquisition to settle with a new safe timestamp, and leaves the production five-minute contract unchanged.
 The runner then sends a coordinate mouse event to the visible refresh button, requires a disabled `checking` transition, requires another completed acquisition, and requires a new safe last-checked timestamp.
 Startup, interval, and manual calls use the same bounded widget and server-action single-flight paths.

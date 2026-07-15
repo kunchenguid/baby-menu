@@ -153,19 +153,35 @@ describe("Grok quota recipe", () => {
 
   it("enumerates one safe, mechanically checkable root observability contract", async () => {
     const html = await readRecipe();
+    // Mutation killed: deleting a normative table row while leaving the attribute name in fallback prose.
+    const tableMatch = html.match(
+      /<table class="table table-zebra">[\s\S]*?<th>Root attribute<\/th>[\s\S]*?<\/table>/,
+    );
+    expect(tableMatch, "normative observability table").toBeTruthy();
+    const table = tableMatch![0];
+    // First-column attribute names only - second-column prose may mention related attributes.
+    const tableAttributes = [...table.matchAll(/<tr><td><code>(data-grok-[a-z0-9-]+)<\/code><\/td>/g)]
+      .map((match) => match[1]);
 
-    for (const attribute of GROK_OBSERVABILITY_ATTRIBUTES) {
-      expect(html, attribute).toContain(`<code>${attribute}</code>`);
-    }
-    expect(html).toContain("Every listed attribute must exist directly on the same <code>data-grok-e2e</code> root");
-    expect(html).toContain("<code>waiting</code> only before the first acquisition completes");
-    expect(html).toContain("at least <code>1</code> for <code>success</code> or <code>failure</code>");
-    expect(html).toContain("Never replace a completed success or failure root with <code>waiting</code>");
-    expect(html).toContain("already installed PR 48 layout only");
-    expect(html).toContain("A terminal partial root that satisfies neither contract is an explicit observability failure");
-    expect(html).toContain("Mechanically parity-check generated fixtures and manually managed copies");
-    expect(html).toContain("visible UI remains the user-facing truth");
-    expect(html).toContain("Never place account binding, user or team ids, auth values, scopes, headers, raw protobuf, raw provider payload, or credential-refresh output in the DOM");
+    expect(tableAttributes).toEqual([...GROK_OBSERVABILITY_ATTRIBUTES]);
+    expect(table).toContain("<code>waiting</code> only before the first acquisition completes");
+    expect(table).toContain("at least <code>1</code> for <code>success</code> or <code>failure</code>");
+
+    const sectionStart = html.indexOf("One rendered widget root must own the complete stable observability contract");
+    const sectionEnd = html.indexOf("Label the shared window Weekly", sectionStart);
+    expect(sectionStart).toBeGreaterThanOrEqual(0);
+    expect(sectionEnd).toBeGreaterThan(sectionStart);
+    const section = html.slice(sectionStart, sectionEnd);
+    expect(section).toContain("Every listed attribute must exist directly on the same <code>data-grok-e2e</code> root");
+    expect(section).toContain("Never replace a completed success or failure root with <code>waiting</code>");
+    expect(section).toContain("A terminal partial root is an explicit observability failure");
+    expect(section).toContain("visible UI remains the user-facing truth");
+    expect(section).toContain(
+      "Never place account binding, user or team ids, auth values, scopes, headers, raw protobuf, raw provider payload, or credential-refresh output in the DOM",
+    );
+    expect(section).not.toContain("PR 48");
+    expect(section).not.toContain("mixed-root");
+    expect(section).not.toContain("descendant");
   });
 
   it("requires a same-window exact-source oracle with safe identity equality", async () => {

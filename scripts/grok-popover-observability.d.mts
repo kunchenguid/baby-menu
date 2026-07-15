@@ -1,7 +1,7 @@
 export const GROK_OBSERVABILITY_ATTRIBUTES: readonly string[];
 
 export type GrokPopoverObservation = {
-  observabilityMode: "root-contract" | "installed-fallback" | "invalid";
+  observabilityMode: "root-contract" | "installed-root" | "invalid";
   observabilityError?: string;
   state: string | null;
   text: string | null;
@@ -24,5 +24,8 @@ export type GrokPopoverObservation = {
   terminal: boolean;
 };
 
-export function observeGrokPopover(document: Document): GrokPopoverObservation | null;
+export function observeGrokPopover(
+  document: Document,
+  attributeNames?: readonly string[],
+): GrokPopoverObservation | null;
 export function grokPopoverObservationExpression(): string;

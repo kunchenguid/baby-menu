@@ -238,13 +238,10 @@ type GrokQuotaResult =
             <tr><td><code>data-grok-completed-acquisitions</code></td><td>A base-10 non-negative integer counting settled renderer acquisitions, exactly <code>0</code> for <code>waiting</code> and at least <code>1</code> for <code>success</code> or <code>failure</code>, incremented once for each startup, interval, or manual completion and unchanged while a shared request is pending.</td></tr>
           </tbody>
         </table>
-        <p>Every listed attribute must exist directly on the same <code>data-grok-e2e</code> root in every state; use the documented empty values rather than omitting attributes or moving aliases into descendants.</p>
+        <p>Every listed attribute must exist directly on the same <code>data-grok-e2e</code> root in every state; use the documented empty values rather than omitting attributes or nesting aliases under children.</p>
         <p>A <code>waiting</code> root has no completed result, so it must use the documented empty parity values and <code>data-grok-completed-acquisitions="0"</code>. Never replace a completed success or failure root with <code>waiting</code> during interval or manual refresh.</p>
-        <p>The unattended harness validates the complete root before selecting it.</p>
-        <p>For deterministic compatibility with the already installed PR 48 layout only, the harness may ignore a partial marker root and read all parity aliases from descendants of <code>[aria-label="menu widgets"]</code>: <code>data-grok-checked-at</code>, <code>data-grok-cache-schema</code>, <code>data-grok-operation</code>, <code>data-grok-source</code>, <code>data-grok-source-version</code>, <code>data-grok-period</code>, <code>data-grok-percent-used</code>, <code>data-grok-percent-remaining</code>, <code>data-grok-percentage-field</code>, <code>data-grok-reset-at</code>, <code>data-grok-reset-field</code>, and <code>data-grok-products</code>.</p>
-        <p>That installed fallback requires the visible Refresh, Check again, or Checking control and visible state, stale, failure, and <code>checked N</code> copy as its lifecycle truth; new generated or managed widgets must emit the complete root contract instead.</p>
-        <p>A terminal partial root that satisfies neither contract is an explicit observability failure, not an intermediate state to poll until timeout.</p>
-        <p>Mechanically parity-check generated fixtures and manually managed copies against the complete attribute list and mixed-root regression fixture before applying them to a live installation.</p>
+        <p>The unattended harness validates this complete root contract for generated and future managed widgets.</p>
+        <p>A terminal partial root is an explicit observability failure, not an intermediate state to poll until timeout.</p>
         <p>Hidden observability values are limited to the non-secret normalized values already allowed in renderer state.</p>
         <p>Never place account binding, user or team ids, auth values, scopes, headers, raw protobuf, raw provider payload, or credential-refresh output in the DOM.</p>
         <p>Label the shared window Weekly, Monthly, or Credits from the decoded current period.</p>
@@ -310,7 +307,7 @@ type GrokQuotaResult =
           <li>Schema version <code>1</code> never renders, and schema version <code>2</code> cache reuse requires the same account binding.</li>
           <li>Startup, interval, and manual refresh preserve renderer-causal single-flight, pending, settle, completion-count, checked-at, stale, and cleanup behavior.</li>
           <li>Waiting, success, and failure render every stable <code>data-grok-*</code> observability attribute directly on one root with the exact documented values.</li>
-          <li>The generated fixture passes the complete-root mechanical contract check, and the PR 48 mixed-root regression safely uses the documented fallback instead of selecting a partial root.</li>
+          <li>The generated fixture binds those attributes from renderer state and passes the complete-root observer contract for waiting, success, and failure.</li>
           <li>The unattended E2E independently calls the same exact operation in the same time window and compares safe operation, account-binding equality, period, global, product, reset, provenance, and lifecycle fields.</li>
           <li>No credential, cookie, raw principal, account-binding material, header, or raw provider payload appears in logs, renderer data, fixtures, screenshots, or evidence.</li>
         </ul>
