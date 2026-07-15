@@ -16,6 +16,18 @@ const isResume = resumeIdx >= 0;
 // The prompt is the final positional arg.
 const prompt = argv[argv.length - 1] ?? "";
 
+if (prompt.includes("PROVIDER_AUTH_ERROR")) {
+  emit({ type: "system", subtype: "init", session_id: "fake-session", model: "fake", cwd: process.cwd() });
+  emit({
+    type: "result",
+    subtype: "error_during_execution",
+    is_error: true,
+    result: "401 Unauthorized: Missing bearer authentication sk-private-fixture",
+    session_id: "fake-session",
+  });
+  process.exit(1);
+}
+
 if (prompt.includes("SLOW_CANCEL")) {
   // Register the SIGTERM handler BEFORE announcing readiness. The parent reads
   // "ready" the instant the bytes hit the pipe and may fire SIGTERM while this

@@ -245,7 +245,10 @@ function verbFor(kind: WorkspaceChangeKind): string {
 // so we keep only the trailing message the main process actually threw.
 function failureReason(error: unknown): string | null {
   if (!(error instanceof Error)) return null;
-  const message = error.message.replace(/^Error invoking remote method '[^']*':\s*/, "").replace(/^Error:\s*/, "").trim();
+  const message = error.message
+    .replace(/^Error invoking remote method '[^']*':\s*/, "")
+    .replace(/^(?:(?:[A-Za-z][A-Za-z0-9]*Error|Error):\s*)+/, "")
+    .trim();
   return message || null;
 }
 

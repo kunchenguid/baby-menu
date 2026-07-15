@@ -92,6 +92,20 @@ describe("mapCodexEvent (codex exec --json)", () => {
     expect(result.stopReason).toBe("end_turn");
   });
 
+  it("classifies terminal authentication failures without retaining provider text", () => {
+    const result = mapCodexEvent({
+      type: "turn.failed",
+      message: "401 Unauthorized: Missing bearer authentication sk-private-fixture",
+    });
+    expect(result.stopReason).toBeUndefined();
+    expect(result.terminalError).toMatchObject({
+      name: "AdapterTurnError",
+      code: "AUTHENTICATION_FAILED",
+      message: "Codex is not authenticated. Run `codex login` and try again.",
+    });
+    expect(result.terminalError?.message).not.toContain("sk-private-fixture");
+  });
+
   describe("against real recorded fixtures", () => {
     it("hello turn emits one assistant chunk and ends end_turn", () => {
       const { updates, stopReason } = runFixture("exec-01-hello.jsonl");

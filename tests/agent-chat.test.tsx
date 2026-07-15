@@ -148,7 +148,9 @@ describe("AgentChat", () => {
   it("surfaces the real failure reason when a send rejects", async () => {
     installBabyMenuAgentMock();
     window.babyMenu!.agent.send = vi.fn(async () => {
-      throw new Error("codex CLI exited with code 127");
+      throw new Error(
+        "Error invoking remote method 'baby-menu:agent:send': Error: AgentTurnFailedError: Codex CLI exited with code 127",
+      );
     });
     render(<AgentChat />);
 
@@ -156,7 +158,9 @@ describe("AgentChat", () => {
     fireEvent.change(composer, { target: { value: "add a widget" } });
     fireEvent.submit(composer.closest("form")!);
 
-    expect(await screen.findByText("codex CLI exited with code 127")).toBeTruthy();
+    expect(await screen.findByText("Codex CLI exited with code 127")).toBeTruthy();
+    expect(screen.queryByText("No changes were made")).toBeNull();
+    expect(screen.queryByText("the agent did not edit anything")).toBeNull();
   });
 
   it("labels the Keep prompt from the diff, not the agent prose (updated extension)", async () => {

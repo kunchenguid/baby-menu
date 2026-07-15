@@ -1,5 +1,5 @@
 import type * as schema from "@agentclientprotocol/sdk";
-import type { MapResult } from "../shared/types.js";
+import { providerTurnError, type MapResult } from "../shared/types.js";
 
 /**
  * Pure mapping from a single `codex exec --json` event to the ACP session
@@ -56,7 +56,7 @@ export function mapCodexEvent(event: CodexExecEvent): MapResult {
       return { updates: [], stopReason: "end_turn" };
     case "turn.failed":
     case "error":
-      return { updates: [], stopReason: "refusal", errorMessage: event.message };
+      return { updates: [], terminalError: providerTurnError("Codex", event.message) };
     // thread.started / turn.started carry no ACP content (thread_id is read by
     // the driver directly, not the mapper).
     default:

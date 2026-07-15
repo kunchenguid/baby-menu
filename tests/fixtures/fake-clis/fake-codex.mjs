@@ -27,6 +27,19 @@ if (isResume && argv.includes("--color")) {
   process.exit(2);
 }
 
+if (prompt.includes("EXIT_NONZERO")) {
+  process.stderr.write("synthetic CLI failure with private detail\n");
+  process.exit(42);
+}
+
+if (prompt.includes("PROVIDER_AUTH_ERROR")) {
+  emit({ type: "thread.started", thread_id: "fake-thread" });
+  emit({ type: "turn.started" });
+  emit({ type: "error", message: "401 Unauthorized: Missing bearer authentication sk-private-fixture" });
+  emit({ type: "turn.failed", message: "401 Unauthorized: Missing bearer authentication sk-private-fixture" });
+  process.exit(1);
+}
+
 if (prompt.includes("SLOW_CANCEL")) {
   // Register the SIGTERM handler BEFORE announcing readiness. The parent reads
   // "ready" the instant the bytes hit the pipe and may fire SIGTERM while this

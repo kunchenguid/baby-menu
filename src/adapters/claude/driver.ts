@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type * as schema from "@agentclientprotocol/sdk";
-import type { SessionDriver, UpdateSink } from "../shared/types.js";
+import { AdapterTurnError, type SessionDriver, type UpdateSink } from "../shared/types.js";
 import { LineReader } from "../shared/line-reader.js";
 import { logDebug, logError } from "../shared/log.js";
 import { childEnv } from "../shared/child-env.js";
@@ -85,6 +85,7 @@ export class ClaudeDriver implements SessionDriver {
     const activePrompt = new Promise<schema.StopReason>((resolve, reject) => {
       let settled = false;
       let stopReason: schema.StopReason | null = null;
+      let terminalError: AdapterTurnError | null = null;
       let cancelled = false;
       let forceKillTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -132,17 +133,15 @@ export class ClaudeDriver implements SessionDriver {
           if (event.session_id) this.sessionId = event.session_id;
           const result = mapClaudeEvent(event);
           for (const update of result.updates) sink(update);
-          if (result.errorMessage) {
-            sink({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: result.errorMessage } });
-          }
+          if (result.terminalError) terminalError = result.terminalError;
           if (result.stopReason) stopReason = result.stopReason;
         }
       });
       child.stderr.setEncoding("utf8");
       child.stderr.on("data", (chunk: string) => logDebug(SCOPE, "stderr", chunk.trimEnd()));
-      child.on("error", (err) => {
+      child.on("error", () => {
         if (cancelled) settle("cancelled");
-        else fail(err instanceof Error ? err : new Error(String(err)));
+        else fail(new AdapterTurnError("CLI_START_FAILED", "Claude CLI could not be started."));
       });
       child.on("exit", (code) => {
         logDebug(SCOPE, "claude exited", code);
@@ -150,9 +149,15 @@ export class ClaudeDriver implements SessionDriver {
           settle("cancelled");
           return;
         }
-        if (stopReason) settle(stopReason);
-        else if (code === 0) settle("end_turn");
-        else fail(new Error(`claude exited with code ${code}`));
+        if (terminalError) {
+          fail(terminalError);
+          return;
+        }
+        if (code !== 0) {
+          fail(new AdapterTurnError("CLI_EXIT_FAILED", `Claude CLI exited with code ${code ?? "unknown"}.`));
+          return;
+        }
+        settle(stopReason ?? "end_turn");
       });
       if (signal.aborted) onAbort();
       else signal.addEventListener("abort", onAbort, { once: true });

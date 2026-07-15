@@ -70,6 +70,17 @@ describe("ClaudeDriver (against a fake claude CLI)", () => {
     });
   });
 
+  it("rejects a terminal provider authentication failure with safe guidance", async () => {
+    const d = makeDriver();
+    await d.start(tmpdir());
+
+    await expect(d.prompt("PROVIDER_AUTH_ERROR", () => {}, new AbortController().signal)).rejects.toMatchObject({
+      name: "AdapterTurnError",
+      code: "AUTHENTICATION_FAILED",
+      message: "Claude is not authenticated. Run `claude` and complete sign-in, then try again.",
+    });
+  });
+
   it("surfaces a tool_call and tool_call_update", async () => {
     const d = makeDriver();
     await d.start(tmpdir());

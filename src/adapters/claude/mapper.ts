@@ -1,5 +1,5 @@
 import type * as schema from "@agentclientprotocol/sdk";
-import type { MapResult } from "../shared/types.js";
+import { providerTurnError, type MapResult } from "../shared/types.js";
 
 /**
  * Pure mapping from a single `claude -p --output-format stream-json` event to
@@ -82,8 +82,8 @@ function mapResult(event: ClaudeEvent): MapResult {
   // The final `result` text was already streamed via assistant chunks; do not
   // re-emit it. Just resolve the turn with the mapped stop reason.
   const stopReason = mapStopReason(event);
-  if (event.is_error && event.subtype && event.subtype !== "success") {
-    return { updates: [], stopReason, errorMessage: event.result };
+  if (event.is_error) {
+    return { updates: [], terminalError: providerTurnError("Claude", event.result) };
   }
   return { updates: [], stopReason };
 }

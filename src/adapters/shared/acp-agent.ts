@@ -1,8 +1,8 @@
 import { Readable, Writable } from "node:stream";
 import { randomUUID } from "node:crypto";
-import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION, type Agent } from "@agentclientprotocol/sdk";
+import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION, RequestError, type Agent } from "@agentclientprotocol/sdk";
 import type * as schema from "@agentclientprotocol/sdk";
-import type { SessionDriver } from "./types.js";
+import { safeAdapterTurnError, type SessionDriver } from "./types.js";
 import { logDebug, logError } from "./log.js";
 
 /**
@@ -68,14 +68,15 @@ export class BridgeAgent implements Agent {
     try {
       const stopReason = await this.driver.prompt(text, sink, abort.signal);
       return { stopReason };
-    } catch (err) {
-      logError(this.scope, "prompt failed", err);
-      // Surface the failure as a final assistant message so the user sees why.
-      sink({
-        sessionUpdate: "agent_message_chunk",
-        content: { type: "text", text: `Agent error: ${err instanceof Error ? err.message : String(err)}` },
-      });
-      return { stopReason: "refusal" };
+    } catch (error) {
+      const safeError = safeAdapterTurnError(error);
+      // Throwing rejects the ACP prompt so acpx and Baby Menu preserve failure
+      // semantics. Log only the typed safe fields, never raw provider output.
+      logError(this.scope, "prompt failed", safeError.code, safeError.message);
+      const data = { adapterCode: safeError.code };
+      throw safeError.code === "AUTHENTICATION_FAILED"
+        ? RequestError.authRequired(data, safeError.message)
+        : RequestError.internalError(data, safeError.message);
     } finally {
       this.activeAbort = null;
     }

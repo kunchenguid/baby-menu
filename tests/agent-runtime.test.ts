@@ -36,17 +36,19 @@ async function waitUntil(condition: () => boolean, timeoutMs = 1000) {
 
 function fakeTurn({
   events,
+  result = Promise.resolve({ status: "completed" as const }),
   cancel = vi.fn(async () => undefined),
   closeStream = vi.fn(async () => undefined),
 }: {
   events: AsyncIterable<AcpRuntimeEvent>;
+  result?: AcpRuntimeTurn["result"];
   cancel?: AcpRuntimeTurn["cancel"];
   closeStream?: AcpRuntimeTurn["closeStream"];
 }): AcpRuntimeTurn {
   return {
     requestId: "test-turn",
     events,
-    result: Promise.resolve({ status: "completed" }),
+    result,
     cancel,
     closeStream,
   };
@@ -159,6 +161,27 @@ describe("agent runtime defaults", () => {
 
     await expect(collected).resolves.toBe("done");
     vi.useRealTimers();
+  });
+
+  it("rejects a completed ACP refusal without exposing its output as an error", async () => {
+    async function* events(): AsyncIterable<AcpRuntimeEvent> {
+      yield { type: "text_delta", stream: "output", text: "Bearer secret-provider-detail" };
+    }
+
+    const collected = collectAgentTurnOutput(
+      fakeTurn({
+        events: events(),
+        result: Promise.resolve({ status: "completed", stopReason: "refusal" }),
+      }),
+      { idleTimeoutMs: 50 },
+    );
+
+    await expect(collected).rejects.toMatchObject({
+      name: "AgentTurnFailedError",
+      code: "AGENT_REFUSED",
+      message: "Agent refused the request.",
+    });
+    await expect(collected).rejects.not.toThrow(/secret-provider-detail/);
   });
 
   it("cancels the ACP turn when it produces no activity before the idle timeout", async () => {

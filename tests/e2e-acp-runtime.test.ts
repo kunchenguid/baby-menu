@@ -11,6 +11,7 @@ import { BabyMenuAgentRuntime } from "../src/main/agent-runtime";
 const execFileAsync = promisify(execFile);
 const repoRoot = resolve(import.meta.dirname, "..");
 const acpMockBinPath = join(repoRoot, "node_modules", "acp-mock", "dist", "cli.js");
+const refusalAgentPath = join(repoRoot, "tests", "fixtures", "fake-acp-refusal.mjs");
 
 async function git(cwd: string, args: string[]) {
   return execFileAsync("git", args, { cwd });
@@ -122,6 +123,44 @@ describe("BabyMenuAgentRuntime ACP e2e", () => {
       expect(save.ok).toBe(true);
       expect(await gitText(repo, ["rev-list", "--count", "HEAD"])).toBe("2");
       expect(await gitText(repo, ["log", "-1", "--pretty=%s"])).toBe("Accept acp-mock changes");
+    },
+    30_000,
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "rejects an ACP refusal, records failure, and closes its clean change session",
+    async () => {
+      const repo = await createRepo();
+      tempDirs.push(repo);
+      await writeFile(join(repo, ".gitignore"), ".cache/\n");
+      await git(repo, ["add", ".gitignore"]);
+      await git(repo, ["commit", "-m", "ignore runtime cache"]);
+
+      const runtime = new BabyMenuAgentRuntime(repo, {
+        agentName: "refusal-agent",
+        registryOverrides: {
+          "refusal-agent": `node ${JSON.stringify(refusalAgentPath)}`,
+        },
+      });
+
+      await expect(runtime.send("make an edit")).rejects.toMatchObject({
+        name: "AgentTurnFailedError",
+        code: "AGENT_REFUSED",
+        message: "Agent refused the request.",
+      });
+      expect(await runtime.currentSessionSnapshot()).toBeNull();
+      expect(await gitText(repo, ["status", "--porcelain"])).toBe("");
+
+      const turnLogs = await readTurnLogs(repo);
+      expect(turnLogs).toHaveLength(1);
+      expect(turnLogs[0]).toMatchObject({
+        status: "failed",
+        error: {
+          message: "Agent refused the request.",
+          code: "AGENT_REFUSED",
+        },
+      });
+      expect(JSON.stringify(turnLogs[0])).not.toContain("secret-provider-detail");
     },
     30_000,
   );

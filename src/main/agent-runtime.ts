@@ -251,6 +251,18 @@ export function collectAgentTurnOutput(
     if (result.status === "cancelled") {
       throw new Error("Agent turn was cancelled");
     }
+    // ACP refusal is a normal protocol stop reason, so acpx reports it as a
+    // completed turn. For Baby Menu's editing contract it is still a failure.
+    // Never use streamed provider text as the error because it may contain
+    // credential-bearing diagnostics or raw upstream payload details.
+    if (result.stopReason === "refusal") {
+      throw new AgentTurnFailedError({
+        message: "Agent refused the request.",
+        code: "AGENT_REFUSED",
+        detailCode: "ACP_REFUSAL",
+        retryable: false,
+      });
+    }
     return output;
   })();
   void collectOutput.catch(() => undefined);
@@ -460,9 +472,11 @@ export class BabyMenuAgentRuntime {
         try {
           return await this.runTurnAttempt(prompt, options, agentCwd, changeSession, telemetryAgent);
         } catch (retryError) {
+          await this.closeCleanFailedSession(changeSession);
           throw this.reportTurnError(retryError, telemetryAgent);
         }
       }
+      await this.closeCleanFailedSession(changeSession);
       throw this.reportTurnError(error, telemetryAgent);
     }
   }
@@ -557,6 +571,21 @@ export class BabyMenuAgentRuntime {
       await this.refreshRuntimeAfterRegistryChange();
     }
     return snapshot;
+  }
+
+  private async closeCleanFailedSession(session: AgentChangeSession): Promise<void> {
+    if (this.activeSession !== session) return;
+    try {
+      if (await session.hasChanges()) return;
+    } catch {
+      // If inspection fails, preserve the session so a possible partial change
+      // remains reviewable instead of being silently discarded.
+      return;
+    }
+
+    await session.save().catch(() => undefined);
+    this.activeSession = null;
+    await this.refreshRuntimeAfterRegistryChange();
   }
 
   private reportTurnError(error: unknown, telemetryAgent: string): unknown {

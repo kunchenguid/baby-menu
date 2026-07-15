@@ -109,9 +109,19 @@ describe("mapClaudeEvent", () => {
     expect(result.stopReason).toBe("end_turn");
   });
 
-  it("maps an error result to refusal", () => {
-    const result = mapClaudeEvent({ type: "result", subtype: "error_during_execution", is_error: true });
-    expect(result.stopReason).toBe("refusal");
+  it("classifies an error result as a terminal provider failure", () => {
+    const result = mapClaudeEvent({
+      type: "result",
+      subtype: "error_during_execution",
+      is_error: true,
+      result: "401 Unauthorized: Missing bearer authentication sk-private-fixture",
+    });
+    expect(result.stopReason).toBeUndefined();
+    expect(result.terminalError).toMatchObject({
+      name: "AdapterTurnError",
+      code: "AUTHENTICATION_FAILED",
+      message: "Claude is not authenticated. Run `claude` and complete sign-in, then try again.",
+    });
   });
 
   describe("against real recorded fixtures", () => {

@@ -131,6 +131,30 @@ describe("CodexDriver (against a fake codex CLI)", () => {
     }
   });
 
+  it("rejects a nonzero CLI exit with a typed sanitized error", async () => {
+    const d = makeDriver();
+    await d.start(tmpdir());
+
+    const prompt = d.prompt("EXIT_NONZERO", () => {}, new AbortController().signal);
+    await expect(prompt).rejects.toMatchObject({
+      name: "AdapterTurnError",
+      code: "CLI_EXIT_FAILED",
+      message: "Codex CLI exited with code 42.",
+    });
+    await expect(prompt).rejects.not.toThrow(/private detail/);
+  });
+
+  it("rejects a terminal provider authentication failure with safe guidance", async () => {
+    const d = makeDriver();
+    await d.start(tmpdir());
+
+    await expect(d.prompt("PROVIDER_AUTH_ERROR", () => {}, new AbortController().signal)).rejects.toMatchObject({
+      name: "AdapterTurnError",
+      code: "AUTHENTICATION_FAILED",
+      message: "Codex is not authenticated. Run `codex login` and try again.",
+    });
+  });
+
   it("surfaces a command tool_call and tool_call_update", async () => {
     const d = makeDriver();
     await d.start(tmpdir());
