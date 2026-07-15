@@ -134,7 +134,7 @@ describe("clean generated Grok quota installation", () => {
       behavior === "refresh"
         ? '#!/bin/sh\nprintf x >> "$GROK_TEST_CLI_COUNT"\ncp "$GROK_TEST_AUTH_AFTER" "$GROK_HOME/auth.json"\n'
         : behavior === "timeout"
-          ? '#!/bin/sh\nprintf x >> "$GROK_TEST_CLI_COUNT"\ntrap "" TERM\nsleep 5\n'
+          ? '#!/bin/sh\nprintf x >> "$GROK_TEST_CLI_COUNT"\ntrap "" TERM\nwhile :; do :; done\n'
           : '#!/bin/sh\nprintf x >> "$GROK_TEST_CLI_COUNT"\nexit 7\n';
     await writeFile(executable, body);
     await chmod(executable, 0o755);
