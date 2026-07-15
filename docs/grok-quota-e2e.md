@@ -42,6 +42,12 @@ No raw protobuf, token, header, scope, user id, team id, account-binding digest,
 The host-owned first-visible refresh must complete exactly once and visibly settle with a safe last-checked timestamp.
 A test-owned server wrapper records only bounded `action-started`, `action-resolved`, or `action-rejected` lifecycle markers in the isolated database, so the runner proves the bridge reached the installed-equivalent action without logging inputs, outputs, credentials, or provider data.
 The renderer's `waiting` state is intermediate: the runner waits for both the expected action settlement and a terminal widget state, and timeout errors report the last sanitized lifecycle stage.
+The complete stable contract is one `data-grok-e2e` root that also owns `data-grok-checked-at`, `data-grok-stale`, `data-grok-warning-kind`, `data-grok-failure-kind`, `data-grok-cache-schema`, `data-grok-source`, `data-grok-source-version`, `data-grok-operation`, `data-grok-period`, `data-grok-percent-used`, `data-grok-percent-remaining`, `data-grok-percentage-field`, `data-grok-reset-at`, `data-grok-reset-field`, `data-grok-products`, and `data-grok-completed-acquisitions`.
+The Grok recipe defines the exact value semantics for every state.
+The harness validates the complete root before selecting it.
+For the already installed PR 48 shape only, it deterministically falls back to the documented prefixed descendant aliases and visible lifecycle copy under `[aria-label="menu widgets"]`.
+A terminal partial root with no valid fallback fails immediately with a contract error instead of polling to an ambiguous timeout.
+Run `pnpm vitest run tests/grok-quota-recipe.test.ts tests/grok-popover-e2e-runner.test.ts` to mechanically check the recipe, generated fixture, and PR 48 mixed-root regression before applying a generated or manually managed copy live.
 In generated-install mode, the runner shortens only the copied fixture's visible interval, requires one interval acquisition to settle with a new safe timestamp, and leaves the production five-minute contract unchanged.
 The runner then sends a coordinate mouse event to the visible refresh button, requires a disabled `checking` transition, requires another completed acquisition, and requires a new safe last-checked timestamp.
 Startup, interval, and manual calls use the same bounded widget and server-action single-flight paths.

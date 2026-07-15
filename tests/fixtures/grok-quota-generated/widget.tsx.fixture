@@ -119,7 +119,26 @@ function GrokQuotaE2EView() {
 
   if (!view.result) {
     return (
-      <div className="flex flex-col gap-3" data-grok-e2e="waiting">
+      <div
+        className="flex flex-col gap-3"
+        data-grok-e2e="waiting"
+        data-grok-checked-at=""
+        data-grok-stale="false"
+        data-grok-warning-kind="none"
+        data-grok-failure-kind="none"
+        data-grok-cache-schema=""
+        data-grok-source=""
+        data-grok-source-version=""
+        data-grok-operation=""
+        data-grok-period=""
+        data-grok-percent-used=""
+        data-grok-percent-remaining=""
+        data-grok-percentage-field=""
+        data-grok-reset-at=""
+        data-grok-reset-field=""
+        data-grok-products="[]"
+        data-grok-completed-acquisitions={String(view.completedRefreshes)}
+      >
         <div className="text-sm text-ink-strong">Grok quota check pending</div>
         <div className="text-xxs uppercase tracking-caps text-ink-label">checked {view.completedRefreshes}</div>
         {refreshButton}
@@ -133,10 +152,22 @@ function GrokQuotaE2EView() {
       <div
         className="flex flex-col gap-3"
         data-grok-e2e="failure"
-        data-checked-at={view.result.checkedAt}
-        data-failure-kind={failure?.kind ?? "unknown"}
-        data-stale="false"
-        data-warning-kind="none"
+        data-grok-checked-at={view.result.checkedAt}
+        data-grok-stale="false"
+        data-grok-warning-kind="none"
+        data-grok-failure-kind={failure?.kind ?? "unknown"}
+        data-grok-cache-schema=""
+        data-grok-source=""
+        data-grok-source-version=""
+        data-grok-operation=""
+        data-grok-period=""
+        data-grok-percent-used=""
+        data-grok-percent-remaining=""
+        data-grok-percentage-field=""
+        data-grok-reset-at=""
+        data-grok-reset-field=""
+        data-grok-products="[]"
+        data-grok-completed-acquisitions={String(view.completedRefreshes)}
       >
         <div className="text-sm text-ink-strong">{failure?.message ?? view.result.error ?? "Grok quota unavailable"}</div>
         <div className="text-xxs uppercase tracking-caps text-ink-label">{failure?.kind ?? "unknown"}</div>
@@ -155,21 +186,23 @@ function GrokQuotaE2EView() {
   return (
     <div
       className="flex flex-col gap-3"
-      data-cache-schema={String(view.result.data.schemaVersion)}
-      data-checked-at={view.result.checkedAt}
       data-grok-e2e="success"
-      data-operation={view.result.data.operation}
-      data-percent-remaining={remaining === undefined ? "" : String(remaining)}
-      data-percent-used={primary ? String(primary.percentUsed) : ""}
-      data-percentage-field={primary?.provenance.percentageField ?? ""}
-      data-period={view.result.data.period.type}
-      data-products={JSON.stringify(products)}
-      data-reset-at={primary?.resetAt ?? ""}
-      data-reset-field={primary?.provenance.resetField ?? ""}
-      data-source={view.result.data.source}
-      data-source-version={String(view.result.data.sourceVersion)}
-      data-stale={String(view.result.data.stale)}
-      data-warning-kind={view.result.warning?.kind ?? "none"}
+      data-grok-checked-at={view.result.checkedAt}
+      data-grok-stale={String(view.result.data.stale)}
+      data-grok-warning-kind={view.result.warning?.kind ?? "none"}
+      data-grok-failure-kind="none"
+      data-grok-cache-schema={String(view.result.data.schemaVersion)}
+      data-grok-source={view.result.data.source}
+      data-grok-source-version={String(view.result.data.sourceVersion)}
+      data-grok-operation={view.result.data.operation}
+      data-grok-period={view.result.data.period.type}
+      data-grok-percent-used={primary ? String(primary.percentUsed) : ""}
+      data-grok-percent-remaining={remaining === undefined ? "" : String(remaining)}
+      data-grok-percentage-field={primary?.provenance.percentageField ?? ""}
+      data-grok-reset-at={primary?.resetAt ?? ""}
+      data-grok-reset-field={primary?.provenance.resetField ?? ""}
+      data-grok-products={JSON.stringify(products)}
+      data-grok-completed-acquisitions={String(view.completedRefreshes)}
     >
       <div className="text-xxs uppercase tracking-caps text-ink-label">
         {view.result.data.period.type === "unspecified" ? "Credits" : view.result.data.period.type}

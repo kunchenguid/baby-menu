@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { GROK_OBSERVABILITY_ATTRIBUTES } from "../scripts/grok-popover-observability.mjs";
 import { seedExtensionWorkspace } from "../src/main/extension-seeder";
 import { loadRecipes } from "../src/main/recipe-loader";
 
@@ -148,6 +149,20 @@ describe("Grok quota recipe", () => {
     expect(html).toContain("Show both official used percentage and derived remaining percentage");
     expect(html).toContain("Round only rendered values");
     expect(html).toContain("reset only from <code>config.currentPeriod.end</code>");
+  });
+
+  it("enumerates one safe, mechanically checkable root observability contract", async () => {
+    const html = await readRecipe();
+
+    for (const attribute of GROK_OBSERVABILITY_ATTRIBUTES) {
+      expect(html, attribute).toContain(`<code>${attribute}</code>`);
+    }
+    expect(html).toContain("Every listed attribute must exist directly on the same <code>data-grok-e2e</code> root");
+    expect(html).toContain("already installed PR 48 layout only");
+    expect(html).toContain("A terminal partial root that satisfies neither contract is an explicit observability failure");
+    expect(html).toContain("Mechanically parity-check generated fixtures and manually managed copies");
+    expect(html).toContain("visible UI remains the user-facing truth");
+    expect(html).toContain("Never place account binding, user or team ids, auth values, scopes, headers, raw protobuf, raw provider payload, or credential-refresh output in the DOM");
   });
 
   it("requires a same-window exact-source oracle with safe identity equality", async () => {

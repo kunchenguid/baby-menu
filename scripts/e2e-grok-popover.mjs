@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureGrokAuthIntegrity, grokAuthIntegrityEqual, resolveGrokAuthPath } from "./grok-auth-integrity.mjs";
+import { grokPopoverObservationExpression } from "./grok-popover-observability.mjs";
 import { refreshLifecycleStatus } from "./grok-popover-lifecycle.mjs";
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -557,61 +558,12 @@ async function waitForCompletedRefresh(expected, previousCheckedAt) {
   let lastView = null;
   let lastLifecycle = { started: 0, resolved: 0, rejected: 0, stage: "none" };
   let lastStatus = { settled: false, stage: "not-observed" };
+  let observed;
   try {
-    return await waitFor(
+    observed = await waitFor(
       async () => {
-        lastView = await evaluate(`(() => {
-          const root = document.querySelector("[data-grok-e2e]");
-          if (root) {
-            return {
-              state: root.getAttribute("data-grok-e2e"),
-              text: root.textContent,
-              failureKind: root.getAttribute("data-failure-kind"),
-              checkedAt: root.getAttribute("data-checked-at"),
-              stale: root.getAttribute("data-stale"),
-              warningKind: root.getAttribute("data-warning-kind"),
-              cacheSchema: root.getAttribute("data-cache-schema"),
-              operation: root.getAttribute("data-operation"),
-              source: root.getAttribute("data-source"),
-              sourceVersion: root.getAttribute("data-source-version"),
-              periodType: root.getAttribute("data-period"),
-              percentUsed: root.getAttribute("data-percent-used"),
-              percentRemaining: root.getAttribute("data-percent-remaining"),
-              percentageField: root.getAttribute("data-percentage-field"),
-              resetAt: root.getAttribute("data-reset-at"),
-              resetField: root.getAttribute("data-reset-field"),
-              products: root.getAttribute("data-products"),
-              completed: Number([...String(root.textContent || "").matchAll(/checked (\\d+)/ig)].at(-1)?.[1] || 0),
-              terminal: root.getAttribute("data-grok-e2e") !== "waiting" &&
-                !String(root.textContent || "").toLowerCase().includes("checking"),
-            };
-          }
-          const region = document.querySelector("[aria-label='menu widgets']");
-          const text = region?.textContent || "";
-          const button = [...(region?.querySelectorAll("button") || [])].find((node) => /^(?:refresh|check again|checking)$/i.test(node.textContent?.trim() || ""));
-          const lower = text.toLowerCase();
-          return region && button ? {
-            state: lower.includes("quota unreported") && !lower.includes("stale") ? "failure" : "success",
-            text,
-            failureKind: lower.includes("quota unreported") ? "quota_unreported" : null,
-            checkedAt: region.querySelector("[data-grok-checked-at]")?.getAttribute("data-grok-checked-at") || null,
-            stale: String(lower.includes("stale")),
-            warningKind: lower.includes("stale") && lower.includes("quota unreported") ? "quota_unreported" : "none",
-            cacheSchema: region.querySelector("[data-grok-cache-schema]")?.getAttribute("data-grok-cache-schema") || null,
-            operation: region.querySelector("[data-grok-operation]")?.getAttribute("data-grok-operation") || null,
-            source: region.querySelector("[data-grok-source]")?.getAttribute("data-grok-source") || null,
-            sourceVersion: region.querySelector("[data-grok-source-version]")?.getAttribute("data-grok-source-version") || null,
-            periodType: region.querySelector("[data-grok-period]")?.getAttribute("data-grok-period") || null,
-            percentUsed: region.querySelector("[data-grok-percent-used]")?.getAttribute("data-grok-percent-used") || null,
-            percentRemaining: region.querySelector("[data-grok-percent-remaining]")?.getAttribute("data-grok-percent-remaining") || null,
-            percentageField: region.querySelector("[data-grok-percentage-field]")?.getAttribute("data-grok-percentage-field") || null,
-            resetAt: region.querySelector("[data-grok-reset-at]")?.getAttribute("data-grok-reset-at") || null,
-            resetField: region.querySelector("[data-grok-reset-field]")?.getAttribute("data-grok-reset-field") || null,
-            products: region.querySelector("[data-grok-products]")?.getAttribute("data-grok-products") || null,
-            completed: 0,
-            terminal: !button.disabled && button.textContent?.trim().toLowerCase() !== "checking" && !lower.includes("reading"),
-          } : null;
-        })()`);
+        lastView = await evaluate(grokPopoverObservationExpression());
+        if (lastView?.observabilityError) return lastView;
         lastLifecycle = readSanitizedLifecycle();
         lastStatus = refreshLifecycleStatus({ expected, lifecycle: lastLifecycle, view: lastView, previousCheckedAt });
         return lastStatus.settled ? lastView : null;
@@ -627,6 +579,10 @@ async function waitForCompletedRefresh(expected, previousCheckedAt) {
     }))()`);
     fail(`timed out waiting for completed refresh ${expected}; lifecycle=${JSON.stringify({ ...lastLifecycle, observedStage: lastStatus.stage })}; renderer=${JSON.stringify({ lastView, shell })}; log=${devLogPath}`);
   }
+  if (observed.observabilityError) {
+    fail(`Grok renderer observability contract invalid: ${observed.observabilityError}`);
+  }
+  return observed;
 }
 
 function assertMatchesOfficial(view, official) {
