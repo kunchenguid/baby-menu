@@ -484,24 +484,42 @@ function assertMatchesOfficial(view, official) {
 }
 
 async function clickVisibleRefresh() {
-  await evaluate(`(() => {
-    const button = document.querySelector("button[data-grok-refresh='true']") ||
-      [...document.querySelectorAll("[aria-label='menu widgets'] button")].find((node) => /^(?:refresh|check again)$/i.test(node.textContent?.trim() || ""));
-    if (!button) throw new Error("refresh button missing");
-    window.__grokE2ETransitions = [{ text: button.textContent, disabled: button.disabled, at: performance.now() }];
-    new MutationObserver(() => window.__grokE2ETransitions.push({ text: button.textContent, disabled: button.disabled, at: performance.now() }))
-      .observe(button, { attributes: true, childList: true, subtree: true, characterData: true });
-  })()`);
-  const point = await evaluate(`(() => {
-    const button = document.querySelector("button[data-grok-refresh='true']") ||
-      [...document.querySelectorAll("[aria-label='menu widgets'] button")].find((node) => /^(?:refresh|check again)$/i.test(node.textContent?.trim() || ""));
-    const rect = button.getBoundingClientRect();
-    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    if (hit !== button && !button.contains(hit)) throw new Error("refresh button is visibly obstructed");
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-  })()`);
+  const point = await waitFor(
+    () => evaluate(`(() => {
+      const button = document.querySelector("button[data-grok-refresh='true']") ||
+        [...document.querySelectorAll("[aria-label='menu widgets'] button")].find((node) => /^(?:refresh|check again)$/i.test(node.textContent?.trim() || ""));
+      if (!button || button.disabled) return null;
+      const rect = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      if (hit !== button && !button.contains(hit)) return null;
+      window.__grokE2ETransitionObserver?.disconnect();
+      window.__grokE2ETransitionObserver = new MutationObserver(() => {
+        window.__grokE2ETransitions.push({ text: button.textContent, disabled: button.disabled, at: performance.now() });
+      });
+      window.__grokE2ETransitions = [{ text: button.textContent, disabled: button.disabled, at: performance.now() }];
+      window.__grokE2ETransitionObserver.observe(button, { attributes: true, childList: true, subtree: true, characterData: true });
+      window.__grokE2EClick = { count: 0, disabled: null, trusted: null };
+      button.addEventListener("click", (event) => {
+        window.__grokE2EClick = { count: window.__grokE2EClick.count + 1, disabled: button.disabled, trusted: event.isTrusted };
+      }, { once: true });
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })()`),
+    10_000,
+    "enabled refresh button",
+  );
+  const beforeClickLifecycle = readSanitizedLifecycle();
+  if (beforeClickLifecycle.started !== beforeClickLifecycle.resolved || beforeClickLifecycle.rejected !== 0) {
+    fail("manual refresh baseline was not settled immediately before the click");
+  }
   await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
   await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
+  const click = await waitFor(
+    () => evaluate("window.__grokE2EClick?.count === 1 ? window.__grokE2EClick : null"),
+    2_000,
+    "trusted refresh click",
+  );
+  if (click.disabled || click.trusted !== true) fail("refresh click was not delivered to the enabled visible control");
+  return beforeClickLifecycle;
 }
 
 async function captureScreenshot() {
@@ -558,6 +576,15 @@ function assertLifecycleCount(expected, label) {
   return lifecycle;
 }
 
+function assertManualLifecycle(before, after) {
+  if (after.started !== before.started + 1 ||
+      after.resolved !== before.resolved + 1 ||
+      after.rejected !== before.rejected) {
+    fail("manual click did not cause exactly one acquisition lifecycle");
+  }
+  return after;
+}
+
 function assertCacheMigration(status, official) {
   if (official.kind === "quota_unreported") {
     if (status.present) fail("legacy fabricated cache survived migration after quota_unreported");
@@ -597,10 +624,10 @@ async function main() {
     }
   }
 
-  await clickVisibleRefresh();
-  const expectedManualLifecycle = installedSourceMode ? 2 : 3;
+  const beforeClickLifecycle = await clickVisibleRefresh();
+  const expectedManualLifecycle = beforeClickLifecycle.started + 1;
   const manualView = await waitForCompletedRefresh(expectedManualLifecycle);
-  const manualLifecycle = assertLifecycleCount(expectedManualLifecycle, "manual");
+  const manualLifecycle = assertManualLifecycle(beforeClickLifecycle, readSanitizedLifecycle());
   assertMatchesOfficial(manualView, official);
   const transitions = await evaluate("window.__grokE2ETransitions");
   if (!transitions.some((entry) => entry.text === "checking" && entry.disabled === true)) {

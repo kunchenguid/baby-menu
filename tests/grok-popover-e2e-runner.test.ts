@@ -49,7 +49,12 @@ describe("unattended Grok popover E2E runner", () => {
     expect(script).toContain("intervalView.checkedAt");
     expect(script).toContain("manualView.checkedAt");
     expect(script).toContain('button[data-grok-refresh=\'true\']');
+    expect(script).toContain("if (!button || button.disabled) return null");
+    expect(script).toContain("const beforeClickLifecycle = readSanitizedLifecycle()");
     expect(script).toContain('Input.dispatchMouseEvent", { type: "mousePressed"');
+    expect(script).toContain("event.isTrusted");
+    expect(script).toContain("after.started !== before.started + 1");
+    expect(script).toContain("after.resolved !== before.resolved + 1");
     expect(script).toContain('entry.text === "checking" && entry.disabled === true');
     expect(script).not.toContain("System Events");
     expect(script).not.toContain("AXPress");
