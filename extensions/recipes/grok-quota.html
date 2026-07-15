@@ -134,9 +134,10 @@ x-grok-client-version: &lt;version&gt;   (optional, omit if unknown)</code></pre
 }</code></pre>
         <p>This structural example intentionally contains no account values, identifiers, subscription label, token data, or raw provider payload.</p>
         <p><strong>Live output is authoritative.</strong> Inspect the official ACP result and direct credits response before writing the parser. Tolerate added fields and missing optional product or prepaid fields, but do not guess a missing usage percentage.</p>
-        <p>A finite <code>config.creditUsagePercent</code> maps to the global credits window. Clamp it to <code>0..100</code>, derive remaining as <code>100 - percentUsed</code>, and use <code>config.currentPeriod.end</code> as the preferred reset with <code>config.billingPeriodEnd</code> as fallback.</p>
-        <p>Each valid <code>config.productUsage[]</code> entry may add a product window. Its percentage must agree with the official result and must never be synthesized from monetary spend.</p>
-        <p>A known current-period response that omits every quota percentage is <code>quota_unreported</code>, not a successful zero or monetary quota, not <code>auth_required</code>, and not generic parser drift. Preserve a last-good snapshot as stale with accurate copy that the official Grok source currently reports no quota percentage. With no cache, show that explicit unavailable state.</p>
+        <p>A finite <code>config.creditUsagePercent</code> maps to the global credits window. Clamp it to <code>0..100</code> without rounding, derive remaining as <code>100 - percentUsed</code>, and record <code>config.creditUsagePercent</code> as its exact percentage provenance.</p>
+        <p>Each valid <code>config.productUsage[]</code> entry may add a product window. Preserve its finite percentage without rounding, record the exact indexed field such as <code>config.productUsage[0].usagePercent</code> as its provenance, and never synthesize it from monetary spend.</p>
+        <p>Use <code>config.currentPeriod.end</code> as the preferred reset and record that exact field as reset provenance. Use <code>config.billingPeriodEnd</code> only as a compatibility fallback and record it as such. A reset value without matching allowlisted reset provenance is invalid.</p>
+        <p>A known current-period response that omits every quota percentage is <code>quota_unreported</code>, not a successful zero or monetary quota, not <code>auth_required</code>, and not generic parser drift. Preserve only a current-schema, provenance-validated last-good snapshot as stale with accurate copy that the official Grok source currently reports no quota percentage. With no cache, show that explicit unavailable state.</p>
         <p>A malformed or unknown incompatible <code>2xx</code> response is <code>parse_incompatible</code>. It is never an authentication failure. Do not fabricate zero usage.</p>
         <p>Only a successful response with an official percentage may replace the last-good cache, update <code>refreshedAt</code>, and clear stale and warning state.</p>
         <p><code>percentUsed</code> is always percent used. Remaining is <code>100 - percentUsed</code>. Labels, values, meters, and reset copy must all describe the same official quota window.</p>
@@ -145,6 +146,7 @@ x-grok-client-version: &lt;version&gt;   (optional, omit if unknown)</code></pre
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Normalized Types</h2>
         <pre class="mockup-code p-4 overflow-auto"><code>type GrokQuotaSnapshot = {
+  schemaVersion: 1;
   source: "api";
   plan?: string;
   windows: Array&lt;{
@@ -152,10 +154,18 @@ x-grok-client-version: &lt;version&gt;   (optional, omit if unknown)</code></pre
     label: string;
     kind?: "credits";
     percentUsed: number;
-    percentRemaining?: number;
+    percentRemaining: number;
     resetAt?: string;
+    provenance: {
+      percentageField: "config.creditUsagePercent" | `config.productUsage[${number}].usagePercent`;
+      resetField?: "config.currentPeriod.end" | "config.billingPeriodEnd";
+    };
   }&gt;;
-  credits?: { remaining?: number; unit?: string };
+  credits?: {
+    remaining: number;
+    unit: "credits";
+    sourceField: "config.prepaidBalance.val";
+  };
   refreshedAt: string;
   stale: boolean;
 };
@@ -183,16 +193,19 @@ type QuotaFailure = {
 };
 
 type GrokQuotaResult =
-  | { ok: true; data: GrokQuotaSnapshot; warning?: QuotaFailure }
-  | { ok: false; failure: QuotaFailure };</code></pre>
+  | { ok: true; checkedAt: string; data: GrokQuotaSnapshot; warning?: QuotaFailure }
+  | { ok: false; checkedAt: string; failure: QuotaFailure };</code></pre>
         <p>Diagnostics are allowlisted metadata only. Safe examples are an exit code, timeout, HTTP status, missing field names, and searched path categories. Unsafe examples are raw stderr, stdout, response bodies, headers, tokens, emails, ids, auth scopes, and auth file contents.</p>
       </section>
 
       <section class="card border border-base-300 bg-base-100 shadow-sm p-6">
         <h2>Implementation Contract</h2>
         <p>All acquisition belongs in <code>grok-quota/server.ts</code>: auth resolution, executable discovery, official refresh, billing requests, cache access, timeouts, parsing, and safe failure classification. Expose <code>getQuota</code> through <code>window.babyMenu.capabilities.invoke("grok-quota", "getQuota", input)</code>. Do not add preload methods, per-widget IPC channels, core widgets, or <code>WidgetHost</code> registration.</p>
-        <p>Use <code>context.db</code> for one last-good snapshot without credentials. On every successful live parse, replace that snapshot. On any later failure, read the last-good snapshot before returning any failure. If one exists, return <code>ok: true</code>, keep its original <code>refreshedAt</code>, set <code>stale: true</code>, and attach the current structured failure as <code>warning</code>.</p>
-        <p>Refresh failures, CLI discovery or launch failures, connectivity failures, rate limits, quota-service failures, and parse failures all use this stale-cache path. When no last-good snapshot exists, return the structured failure instead. Never erase the last-good row because a refresh failed.</p>
+        <p>Use <code>context.db</code> for one last-good snapshot without credentials. On every successful live parse, replace that snapshot. On any later failure, read the last-good snapshot before returning any failure. If one exists and passes the complete current trust contract, return <code>ok: true</code>, keep its original <code>refreshedAt</code>, set <code>stale: true</code>, and attach the current structured failure as <code>warning</code>.</p>
+        <p><strong>Cache trust boundary:</strong> schema version <code>1</code> is the only current trusted version. Validate the complete snapshot, every percentage and reset provenance field, percentage/remaining agreement, timestamps, and optional credit provenance before rendering a cache row. Legacy, unversioned, unknown-version, future-version, malformed, or provenance-free cache rows are untrusted. Treat each as unavailable and delete the rejected row instead of rewriting, inferring, or promoting it.</p>
+        <p>The observed legacy shape with a numeric <code>1%</code> remaining window, an expired reset, and zero credits is specifically untrusted because numeric shape does not establish official field provenance. An official <code>quota_unreported</code> result with only an untrusted cache row is a no-cache failure. Render the current unreported warning with no old percentage, reset, or credit amount.</p>
+        <p>Refresh failures, CLI discovery or launch failures, connectivity failures, rate limits, quota-service failures, and parse failures all use this stale-cache path only for a trusted current-schema row. When no last-good snapshot exists, return the structured failure instead; an untrusted row does not count as last-good. Preserve a trusted row byte-for-byte and value-for-value through pending and failure states. The renderer must not keep or reattach an untrusted prior client-side snapshot.</p>
+        <p>Cache writes are fail-closed: only a fully valid official-percentage success may write schema version <code>1</code>. Never write after <code>quota_unreported</code>, a parser fallback, a monetary-spend calculation, or a rejected cache migration.</p>
         <p>The data is safe to refresh about every five minutes while visible. Export a <code>RefreshableBabyMenuWidget</code> with <code>viewRefreshIntervalMs</code> and <code>refreshView</code>. Do not add background polling or a recursive timer.</p>
         <p>The host-owned <code>refreshView</code> call is the startup refresh on the first visible menu show after app launch and on every later popover reopen. Do not launch a second mount-time request from the component or store.</p>
         <p>Before implementation, inspect only metadata from real auth, the installed CLI's sanitized behavior, and the real billing response. Before reporting done, verify fresh, expired-refresh, stale-cache, no-cache, authentication, connectivity, and parse outcomes through the actual server action and renderer. Never print secrets while testing.</p>
@@ -205,7 +218,8 @@ type GrokQuotaResult =
         <p>While a refresh request is in flight, retain the currently rendered successful windows and keep them visibly displayed until the request settles. Show an updating indicator alongside those windows, but never replace them with a blank, unavailable, or loading-only state during CLI, auth reread, billing, or parse work. If the request then fails, continue showing those same windows through the stale-success result and its warning.</p>
         <p>For stale success, the widget must keep rendering the cached windows and show that the values are stale, including the original refresh time and an outcome-specific warning. Examples include "Showing cached quota - Grok CLI could not refresh the session", "Showing cached quota - Grok billing is temporarily unreachable", "Showing cached quota - official Grok billing reports no quota percentage", and "Showing cached quota - Grok billing response changed".</p>
         <p>For no-cache failure, provide distinct actionable copy: sign in only for <code>auth_required</code>; report the precise local auth source problem for <code>auth_source_missing</code>, <code>auth_source_unreadable</code>, <code>auth_source_malformed</code>, or <code>auth_source_incompatible</code>; say that refreshed credentials were rejected and offer retry for <code>credential_rejected</code>; install or repair the official CLI for <code>cli_not_found</code> or <code>cli_launch_failed</code>; check connectivity for <code>connectivity</code>; wait until <code>retryAt</code> for <code>rate_limited</code>; retry later for <code>quota_service</code>; explain that the official source reports no percentage for <code>quota_unreported</code>; and update the widget for <code>parse_incompatible</code>.</p>
-        <p>The visible manual refresh control must call the same refresh function used by <code>refreshView</code>, retain the current successful snapshot while pending, and disable itself while that shared request is pending. Repeated presses must not create overlapping billing or CLI work.</p>
+        <p>The visible manual refresh control must call the same refresh function used by <code>refreshView</code>, retain the current trusted successful snapshot while pending, and disable itself while that shared request is pending. Repeated presses must not create overlapping billing or CLI work.</p>
+        <p>Every completed startup, interval, and manual acquisition must visibly settle. Return a fresh safe <code>checkedAt</code> timestamp for the shared acquisition and render a last checked time in success, stale, and no-cache failure states so a completed no-change check is distinguishable from a dead control.</p>
         <p>Keep a retry control for all failure and stale states. Do not display diagnostics intended only for safe support metadata unless the UI has an explicit details treatment.</p>
       </section>
 
@@ -268,7 +282,8 @@ type GrokQuotaResult =
           <li>The extension obtains official subscription usage through <code>_x.ai/billing</code> or the matching credits endpoint, verifies the normalized percentage and reset agree, and never requires <code>quota-axi</code> or another quota helper.</li>
           <li>An expired refreshable session invokes <code>grok models</code>, rereads auth, and makes at most one post-refresh billing pass.</li>
           <li>An initial all-candidate <code>401</code>/<code>403</code> result invokes one shared official refresh and one retry pass without recursion or duplicate processes.</li>
-          <li>Startup, interval, and manual refresh share one whole-acquisition single-flight, and the manual control is disabled while it is pending.</li>
+          <li>Startup, interval, and manual refresh share one whole-acquisition single-flight, the manual control is disabled while it is pending, and every completion visibly updates the safe last-checked state.</li>
+          <li>Only schema version <code>1</code> rows with exact official percentage, reset, and optional credit provenance may render as last-good; every legacy or unknown row is rejected and deleted.</li>
           <li>Executable discovery works with a constrained GUI launch environment and preserves the inherited child environment.</li>
           <li>Last-good quota remains visible while refresh is in flight and remains visible as stale for refresh, CLI, connectivity, rate-limit, quota-service, and parser failures.</li>
           <li>No-cache outcomes preserve accurate structured kinds, and only official CLI evidence can produce <code>auth_required</code>.</li>

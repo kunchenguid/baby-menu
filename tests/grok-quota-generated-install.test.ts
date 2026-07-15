@@ -12,23 +12,43 @@ type QuotaFailure = {
   diagnostic?: string;
 };
 
+type QuotaWindow = {
+  id: string;
+  label: string;
+  kind?: "credits";
+  percentUsed: number;
+  percentRemaining: number;
+  resetAt?: string;
+  provenance: {
+    percentageField: string;
+    resetField?: string;
+  };
+};
+
+type QuotaSnapshot = {
+  schemaVersion: number;
+  source: "api";
+  windows: QuotaWindow[];
+  credits?: { remaining: number; unit: "credits"; sourceField: string };
+  refreshedAt: string;
+  stale: boolean;
+};
+
 type QuotaResult =
   | {
       ok: true;
-      data: {
-        windows: Array<{ percentUsed: number; percentRemaining?: number; resetAt?: string }>;
-        refreshedAt: string;
-        stale: boolean;
-      };
+      checkedAt: string;
+      data: QuotaSnapshot;
       warning?: QuotaFailure;
     }
-  | { ok: false; failure: QuotaFailure };
+  | { ok: false; checkedAt: string; failure: QuotaFailure };
 
 type InstalledFixture = {
   rootDir: string;
   grokHome: string;
   authAfterPath: string;
   cliCountPath: string;
+  database: ExtensionDatabase;
   registry: ServerActionRegistry;
 };
 
@@ -170,11 +190,65 @@ describe("clean generated Grok quota installation", () => {
       cacheDir: join(rootDir, "cache", "server-actions"),
       db: database,
     });
-    return { rootDir, grokHome, authAfterPath, cliCountPath, registry };
+    return { rootDir, grokHome, authAfterPath, cliCountPath, database, registry };
   }
 
   async function invoke(installed: InstalledFixture): Promise<QuotaResult> {
     return (await installed.registry.invoke("grok-quota", "getQuota")) as QuotaResult;
+  }
+
+  function seedCache(installed: InstalledFixture, value: unknown): void {
+    installed.database.exec(`CREATE TABLE IF NOT EXISTS grok_quota_cache (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`);
+    installed.database.run(
+      `INSERT INTO grok_quota_cache (key, value, updated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      ["grok-quota", JSON.stringify(value), 1],
+    );
+  }
+
+  function cachedText(installed: InstalledFixture): string | undefined {
+    return installed.database.get<{ value: string }>(
+      "SELECT value FROM grok_quota_cache WHERE key = ?",
+      ["grok-quota"],
+    )?.value;
+  }
+
+  function cachedValue(installed: InstalledFixture): unknown {
+    const value = cachedText(installed);
+    return value ? JSON.parse(value) : undefined;
+  }
+
+  function trustedSnapshot(): QuotaSnapshot {
+    return {
+      schemaVersion: 1,
+      source: "api",
+      windows: [
+        {
+          id: "credits",
+          label: "credits",
+          kind: "credits",
+          percentUsed: 18.25,
+          percentRemaining: 81.75,
+          resetAt: "2026-07-20T00:00:00Z",
+          provenance: {
+            percentageField: "config.creditUsagePercent",
+            resetField: "config.currentPeriod.end",
+          },
+        },
+      ],
+      credits: {
+        remaining: 4.5,
+        unit: "credits",
+        sourceField: "config.prepaidBalance.val",
+      },
+      refreshedAt: "2026-07-15T01:02:03.456Z",
+      stale: false,
+    };
   }
 
   it("refreshes an expired session through GROK_HOME under a trimmed GUI PATH", async () => {
@@ -259,7 +333,40 @@ describe("clean generated Grok quota installation", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.windows[0]?.resetAt).toBe("2026-07-20T00:00:00Z");
+    expect(result.data.windows[0]).toMatchObject({
+      resetAt: "2026-07-20T00:00:00Z",
+      provenance: { resetField: "config.currentPeriod.end" },
+    });
+  });
+
+  it("records billingPeriodEnd only as reset compatibility provenance", async () => {
+    const installed = await install();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            config: {
+              creditUsagePercent: 12.5,
+              billingPeriodEnd: "2026-08-01T00:00:00Z",
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.windows[0]).toMatchObject({
+      resetAt: "2026-08-01T00:00:00Z",
+      provenance: {
+        percentageField: "config.creditUsagePercent",
+        resetField: "config.billingPeriodEnd",
+      },
+    });
   });
 
   it("never turns monetary monthly spend into a quota percentage", async () => {
@@ -274,6 +381,185 @@ describe("clean generated Grok quota installation", () => {
       kind: "quota_unreported",
       message: "Official Grok billing did not report a quota percentage",
     });
+  });
+
+  it.each([
+    ["quota-unreported", () => noReportedQuotaResponse(), "quota_unreported"],
+    ["connectivity", () => Promise.reject(new Error("offline")), "connectivity"],
+    ["parser", () => new Response(JSON.stringify({ config: {} }), { status: 200 }), "parse_incompatible"],
+    ["rate limit", () => new Response("", { status: 429 }), "rate_limited"],
+    ["service", () => new Response("", { status: 503 }), "quota_service"],
+  ])("rejects and clears the fabricated legacy row during %s failure", async (_label, response, kind) => {
+    const installed = await install();
+    seedCache(installed, {
+      source: "api",
+      windows: [
+        {
+          id: "credits",
+          label: "credits",
+          kind: "credits",
+          percentUsed: 99,
+          percentRemaining: 1,
+          resetAt: "2026-07-01T00:00:00.000Z",
+        },
+        {
+          id: "product:grokbuild",
+          label: "GrokBuild",
+          kind: "credits",
+          percentUsed: 99,
+          percentRemaining: 1,
+          resetAt: "2026-07-01T00:00:00.000Z",
+        },
+      ],
+      credits: { remaining: 0, unit: "credits" },
+      refreshedAt: "2026-07-15T00:00:00.000Z",
+      stale: false,
+    });
+    vi.stubGlobal("fetch", vi.fn(response));
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.kind).toBe(kind);
+    expect(result).not.toHaveProperty("data");
+    expect(cachedValue(installed)).toBeUndefined();
+  });
+
+  it("rejects and clears the fabricated legacy row during an official CLI failure", async () => {
+    const installed = await install();
+    seedCache(installed, {
+      source: "api",
+      windows: [{ id: "credits", label: "credits", percentUsed: 99, percentRemaining: 1 }],
+      credits: { remaining: 0, unit: "credits" },
+      refreshedAt: "2026-07-15T00:00:00.000Z",
+      stale: false,
+    });
+    await writeAuth(join(installed.grokHome, "auth.json"), { key: "fake-expired", expired: true });
+    await writeCli(installed, "fail");
+    vi.stubGlobal("fetch", vi.fn());
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.kind).toBe("cli_launch_failed");
+    expect(cachedValue(installed)).toBeUndefined();
+  });
+
+  it.each([
+    ["unversioned", { ...trustedSnapshot(), schemaVersion: undefined }],
+    ["unknown version", { ...trustedSnapshot(), schemaVersion: 0 }],
+    ["future version", { ...trustedSnapshot(), schemaVersion: 2 }],
+    [
+      "missing percentage provenance",
+      {
+        ...trustedSnapshot(),
+        windows: trustedSnapshot().windows.map(({ provenance: _provenance, ...window }) => window),
+      },
+    ],
+    [
+      "percentage field mismatch",
+      {
+        ...trustedSnapshot(),
+        windows: trustedSnapshot().windows.map((window) => ({
+          ...window,
+          provenance: { ...window.provenance, percentageField: "config.productUsage[0].usagePercent" },
+        })),
+      },
+    ],
+    [
+      "missing reset provenance",
+      {
+        ...trustedSnapshot(),
+        windows: trustedSnapshot().windows.map((window) => ({
+          ...window,
+          provenance: { percentageField: window.provenance.percentageField },
+        })),
+      },
+    ],
+    [
+      "unknown reset provenance",
+      {
+        ...trustedSnapshot(),
+        windows: trustedSnapshot().windows.map((window) => ({
+          ...window,
+          provenance: { ...window.provenance, resetField: "config.monthlyLimit.end" },
+        })),
+      },
+    ],
+    [
+      "reset field without reset value",
+      {
+        ...trustedSnapshot(),
+        windows: trustedSnapshot().windows.map(({ resetAt: _resetAt, ...window }) => window),
+      },
+    ],
+    [
+      "missing credits provenance",
+      {
+        ...trustedSnapshot(),
+        credits: { remaining: 4.5, unit: "credits" },
+      },
+    ],
+  ])("fails closed for a %s cache row", async (_label, cacheValue) => {
+    const installed = await install();
+    seedCache(installed, cacheValue);
+    vi.stubGlobal("fetch", vi.fn(async () => noReportedQuotaResponse()));
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.kind).toBe("quota_unreported");
+    expect(cachedValue(installed)).toBeUndefined();
+  });
+
+  it("preserves a trusted current-schema row exactly through a structured failure", async () => {
+    const installed = await install();
+    const trusted = trustedSnapshot();
+    const trustedText = JSON.stringify(trusted);
+    seedCache(installed, trusted);
+    vi.stubGlobal("fetch", vi.fn(async () => noReportedQuotaResponse()));
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toEqual({ ...trusted, stale: true, status: "quota-unreported" });
+    expect(result.warning?.kind).toBe("quota_unreported");
+    expect(cachedValue(installed)).toEqual(trusted);
+    expect(cachedText(installed)).toBe(trustedText);
+  });
+
+  it("writes the current schema and exact official field provenance only after a valid parse", async () => {
+    const installed = await install();
+    vi.stubGlobal("fetch", vi.fn(async () => billingResponse(18.25)));
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toMatchObject({
+      schemaVersion: 1,
+      windows: [
+        {
+          percentUsed: 18.25,
+          percentRemaining: 81.75,
+          provenance: {
+            percentageField: "config.creditUsagePercent",
+            resetField: "config.currentPeriod.end",
+          },
+        },
+        {
+          provenance: {
+            percentageField: "config.productUsage[0].usagePercent",
+            resetField: "config.currentPeriod.end",
+          },
+        },
+      ],
+    });
+    expect(cachedValue(installed)).toEqual(result.data);
   });
 
   it("classifies the official known-period response without a percentage as unreported quota", async () => {

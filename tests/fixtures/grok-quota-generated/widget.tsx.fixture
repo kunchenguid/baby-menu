@@ -8,6 +8,10 @@ type QuotaWindow = {
   percentUsed: number;
   percentRemaining?: number;
   resetAt?: string;
+  provenance: {
+    percentageField: string;
+    resetField?: string;
+  };
 };
 
 type QuotaFailure = {
@@ -18,10 +22,17 @@ type QuotaFailure = {
 type QuotaResult =
   | {
       ok: true;
-      data: { windows: QuotaWindow[]; refreshedAt: string; stale: boolean };
+      checkedAt: string;
+      data: {
+        schemaVersion: number;
+        windows: QuotaWindow[];
+        credits?: { remaining?: number; unit?: string; sourceField: string };
+        refreshedAt: string;
+        stale: boolean;
+      };
       warning?: QuotaFailure;
     }
-  | { ok: false; failure?: QuotaFailure; error?: string };
+  | { ok: false; checkedAt: string; failure?: QuotaFailure; error?: string };
 
 type ViewState = {
   refreshing: boolean;
@@ -61,6 +72,7 @@ async function refreshQuota(): Promise<void> {
         completedRefreshes: state.completedRefreshes + 1,
         result: {
           ok: false,
+          checkedAt: new Date().toISOString(),
           failure: {
             kind: "bridge_failure",
             message: error instanceof Error ? error.message : "Grok quota request failed",
@@ -80,6 +92,12 @@ function resetCopy(resetAt: string | undefined): string | null {
   if (Number.isNaN(reset)) return null;
   const hours = Math.max(0, Math.ceil((reset - Date.now()) / 3_600_000));
   return `reset ${hours}h`;
+}
+
+function checkedCopy(checkedAt: string): string {
+  const checked = Date.parse(checkedAt);
+  if (Number.isNaN(checked)) return "last checked";
+  return `last checked ${new Date(checked).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
 function GrokQuotaE2EView() {
@@ -103,9 +121,17 @@ function GrokQuotaE2EView() {
   if (!view.result.ok) {
     const failure = view.result.failure;
     return (
-      <div className="flex flex-col gap-3" data-grok-e2e="failure" data-failure-kind={failure?.kind ?? "unknown"}>
+      <div
+        className="flex flex-col gap-3"
+        data-grok-e2e="failure"
+        data-checked-at={view.result.checkedAt}
+        data-failure-kind={failure?.kind ?? "unknown"}
+        data-stale="false"
+        data-warning-kind="none"
+      >
         <div className="text-sm text-ink-strong">{failure?.message ?? view.result.error ?? "Grok quota unavailable"}</div>
         <div className="text-xxs uppercase tracking-caps text-ink-label">{failure?.kind ?? "unknown"}</div>
+        <div className="text-xxs uppercase tracking-caps text-ink-label">{checkedCopy(view.result.checkedAt)}</div>
         <div className="text-xxs uppercase tracking-caps text-ink-label">checked {view.completedRefreshes}</div>
         {refreshButton}
       </div>
@@ -114,13 +140,23 @@ function GrokQuotaE2EView() {
 
   const primary = view.result.data.windows.find((window) => window.id === "credits") ?? view.result.data.windows[0];
   const remaining = primary?.percentRemaining ?? (primary ? Math.max(0, 100 - primary.percentUsed) : undefined);
+  const credits = view.result.data.credits?.remaining;
   return (
-    <div className="flex flex-col gap-3" data-grok-e2e="success" data-stale={String(view.result.data.stale)}>
+    <div
+      className="flex flex-col gap-3"
+      data-cache-schema={String(view.result.data.schemaVersion)}
+      data-checked-at={view.result.checkedAt}
+      data-grok-e2e="success"
+      data-stale={String(view.result.data.stale)}
+      data-warning-kind={view.result.warning?.kind ?? "none"}
+    >
       <div className="text-sm text-ink-strong">{remaining === undefined ? "--" : remaining}% left</div>
       {primary ? <div className="text-xxs uppercase tracking-caps text-ink-label">{resetCopy(primary.resetAt)}</div> : null}
+      {credits !== undefined ? <div className="text-xxs uppercase tracking-caps text-ink-label">{credits} credits</div> : null}
       {view.result.warning ? (
         <div className="text-xxs uppercase tracking-caps text-signal-warn">{view.result.warning.kind}</div>
       ) : null}
+      <div className="text-xxs uppercase tracking-caps text-ink-label">{checkedCopy(view.result.checkedAt)}</div>
       <div className="text-xxs uppercase tracking-caps text-ink-label">checked {view.completedRefreshes}</div>
       {refreshButton}
     </div>

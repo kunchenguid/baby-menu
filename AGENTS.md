@@ -13,7 +13,7 @@ Embedded agents launched from baby-menu should work from the active extension wo
 - `pnpm dist:mac` - runs `package:mac` and creates `release/Baby-Menu-<version>-universal.dmg` from the dev bundle.
 - `pnpm test` - run all Vitest tests.
 - `pnpm test:e2e` - run only `tests/e2e-*.test.ts` (these include real `acpx/runtime` coverage against `acp-mock` plus bundled adapter coverage against fake local CLIs).
-- `pnpm test:e2e:grok-popover` - run the unattended macOS Grok production-wiring check described in `docs/grok-quota-e2e.md`; it uses the real popover and official Grok billing source without exposing or intentionally refreshing auth.
+- `pnpm test:e2e:grok-popover` - run the unattended macOS Grok production-wiring check described in `docs/grok-quota-e2e.md`; it uses the real popover and official Grok billing source, permits only the official client's normal credential refresh, and never exposes auth or raw provider data.
 - `pnpm typecheck` / `pnpm lint` - both run `tsc --noEmit` against `tsconfig.json`.
 - Single test: `pnpm vitest run tests/<name>.test.ts` (or `pnpm vitest run -t "<name pattern>"`).
 

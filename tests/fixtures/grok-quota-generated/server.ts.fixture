@@ -5,6 +5,7 @@ import { delimiter, join } from "node:path";
 const BILLING_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits";
 const EXTENSION_ID = "grok-quota";
 const CACHE_TABLE = "grok_quota_cache";
+const CURRENT_CACHE_SCHEMA_VERSION = 1;
 const API_TIMEOUT_MS = 15_000;
 const CLI_TIMEOUT_MS = Number(process.env.GROK_QUOTA_TEST_CLI_TIMEOUT_MS) || 20_000;
 const CLI_OUTPUT_LIMIT = 128 * 1024;
@@ -22,7 +23,7 @@ class QuotaFailure extends Error {
 function clampPercent(value) {
     if (!Number.isFinite(value))
         return 0;
-    return Math.min(100, Math.max(0, Math.round(value)));
+    return Math.min(100, Math.max(0, value));
 }
 function readJsonFile(file) {
     if (!existsSync(file))
@@ -226,33 +227,68 @@ function normalizeBilling(raw) {
     const config = raw.config;
     if (!config || typeof config !== "object" || Array.isArray(config))
         return undefined;
-    const resetAt = validIso(config.currentPeriod?.end) ?? validIso(config.billingPeriodEnd);
+    const currentPeriodReset = validIso(config.currentPeriod?.end);
+    const billingPeriodReset = validIso(config.billingPeriodEnd);
+    const resetAt = currentPeriodReset ?? billingPeriodReset;
+    const resetField = currentPeriodReset
+        ? "config.currentPeriod.end"
+        : billingPeriodReset
+            ? "config.billingPeriodEnd"
+            : undefined;
     const windows = [];
     const creditPercent = numericValue(config.creditUsagePercent);
     if (creditPercent !== undefined) {
         const used = clampPercent(creditPercent);
-        windows.push({ id: "credits", label: "credits", kind: "credits", percentUsed: used, percentRemaining: 100 - used, resetAt });
+        windows.push({
+            id: "credits",
+            label: "credits",
+            kind: "credits",
+            percentUsed: used,
+            percentRemaining: 100 - used,
+            resetAt,
+            provenance: {
+                percentageField: "config.creditUsagePercent",
+                resetField,
+            },
+        });
     }
     const productUsage = Array.isArray(config.productUsage) ? config.productUsage : [];
-    for (const entry of productUsage) {
+    productUsage.forEach((entry, index) => {
         if (!entry || typeof entry !== "object" || Array.isArray(entry))
-            continue;
+            return;
         const product = entry.product;
         const usagePercent = numericValue(entry.usagePercent);
         if (typeof product !== "string" || !product || usagePercent === undefined)
-            continue;
+            return;
+        const productId = slugifyProduct(product);
+        if (!productId)
+            return;
         const used = clampPercent(usagePercent);
-        windows.push({ id: `product:${slugifyProduct(product)}`, label: product, kind: "credits", percentUsed: used, percentRemaining: 100 - used, resetAt });
-    }
+        windows.push({
+            id: `product:${productId}`,
+            label: product,
+            kind: "credits",
+            percentUsed: used,
+            percentRemaining: 100 - used,
+            resetAt,
+            provenance: {
+                percentageField: `config.productUsage[${index}].usagePercent`,
+                resetField,
+            },
+        });
+    });
     if (windows.length === 0)
         return undefined;
     const prepaidBalance = nestedNumericValue(config.prepaidBalance);
     const plan = typeof config.subscription_tier === "string" ? config.subscription_tier : undefined;
     return {
+        schemaVersion: CURRENT_CACHE_SCHEMA_VERSION,
         source: "api",
         plan,
         windows,
-        credits: prepaidBalance === undefined ? undefined : { remaining: prepaidBalance, unit: "credits" },
+        credits: prepaidBalance === undefined
+            ? undefined
+            : { remaining: prepaidBalance, unit: "credits", sourceField: "config.prepaidBalance.val" },
         refreshedAt: new Date().toISOString(),
         stale: false,
     };
@@ -311,10 +347,66 @@ function ensureCache(context) {
       updated_at INTEGER NOT NULL
     )`);
 }
+function isPercentageFieldForWindow(id, value) {
+    if (id === "credits")
+        return value === "config.creditUsagePercent";
+    return /^config\.productUsage\[(0|[1-9]\d*)\]\.usagePercent$/.test(value);
+}
 function isSupportedWindow(window) {
-    return typeof window.id === "string" &&
-        (window.id === "credits" || window.id.startsWith("product:")) &&
-        typeof window.percentUsed === "number";
+    if (!window || typeof window !== "object" || Array.isArray(window))
+        return false;
+    if (typeof window.id !== "string" ||
+        (window.id !== "credits" && !/^product:[a-z0-9]+$/.test(window.id)) ||
+        typeof window.label !== "string" ||
+        !window.label ||
+        (window.kind !== undefined && window.kind !== "credits") ||
+        typeof window.percentUsed !== "number" ||
+        !Number.isFinite(window.percentUsed) ||
+        window.percentUsed < 0 ||
+        window.percentUsed > 100 ||
+        typeof window.percentRemaining !== "number" ||
+        !Number.isFinite(window.percentRemaining) ||
+        window.percentRemaining !== 100 - window.percentUsed ||
+        !window.provenance ||
+        typeof window.provenance !== "object" ||
+        Array.isArray(window.provenance) ||
+        typeof window.provenance.percentageField !== "string" ||
+        !isPercentageFieldForWindow(window.id, window.provenance.percentageField)) {
+        return false;
+    }
+    const resetField = window.provenance.resetField;
+    if (window.resetAt === undefined)
+        return resetField === undefined;
+    return validIso(window.resetAt) !== undefined &&
+        (resetField === "config.currentPeriod.end" || resetField === "config.billingPeriodEnd");
+}
+function isSupportedCredits(credits) {
+    if (credits === undefined)
+        return true;
+    return credits &&
+        typeof credits === "object" &&
+        !Array.isArray(credits) &&
+        typeof credits.remaining === "number" &&
+        Number.isFinite(credits.remaining) &&
+        credits.unit === "credits" &&
+        credits.sourceField === "config.prepaidBalance.val";
+}
+function isTrustedSnapshot(snapshot) {
+    return snapshot &&
+        typeof snapshot === "object" &&
+        !Array.isArray(snapshot) &&
+        snapshot.schemaVersion === CURRENT_CACHE_SCHEMA_VERSION &&
+        snapshot.source === "api" &&
+        (snapshot.plan === undefined || typeof snapshot.plan === "string") &&
+        Array.isArray(snapshot.windows) &&
+        snapshot.windows.length > 0 &&
+        snapshot.windows.every(isSupportedWindow) &&
+        isSupportedCredits(snapshot.credits) &&
+        validIso(snapshot.refreshedAt) !== undefined &&
+        snapshot.stale === false;
+}
+function deleteCachedSnapshot(context) {
+    context.db.run(`DELETE FROM ${CACHE_TABLE} WHERE key = ?`, [EXTENSION_ID]);
 }
 function readCachedSnapshot(context, status) {
     const row = context.db.get(`SELECT value FROM ${CACHE_TABLE} WHERE key = ?`, [EXTENSION_ID]);
@@ -322,19 +414,23 @@ function readCachedSnapshot(context, status) {
         return undefined;
     try {
         const snapshot = JSON.parse(row.value);
-        const windows = Array.isArray(snapshot.windows) ? snapshot.windows.filter(isSupportedWindow) : [];
-        if (windows.length === 0)
+        if (!isTrustedSnapshot(snapshot)) {
+            deleteCachedSnapshot(context);
             return undefined;
-        return { source: "api", plan: snapshot.plan, windows, credits: snapshot.credits, refreshedAt: snapshot.refreshedAt, stale: true, status };
+        }
+        return { ...snapshot, stale: true, status };
     }
     catch {
+        deleteCachedSnapshot(context);
         return undefined;
     }
 }
 function writeCachedSnapshot(context, snapshot) {
+    if (!isTrustedSnapshot(snapshot))
+        throw new QuotaFailure("parse_incompatible", "Grok billing response did not produce a trusted cache snapshot");
     context.db.run(`INSERT INTO ${CACHE_TABLE} (key, value, updated_at)
      VALUES (?, ?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`, [EXTENSION_ID, JSON.stringify({ ...snapshot, stale: false, status: undefined }), Date.now()]);
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`, [EXTENSION_ID, JSON.stringify(snapshot), Date.now()]);
 }
 function staleStatus(kind) {
     return {
@@ -371,7 +467,7 @@ async function getQuotaInternal(context) {
             try {
                 const snapshot = await fetchBilling(candidate.key);
                 writeCachedSnapshot(context, snapshot);
-                return { ok: true, data: snapshot };
+                return { ok: true, checkedAt: new Date().toISOString(), data: snapshot };
             }
             catch (error) {
                 if (error instanceof QuotaFailure && error.kind === "credential_rejected") {
@@ -390,7 +486,7 @@ async function getQuotaInternal(context) {
                 try {
                     const snapshot = await fetchBilling(candidate.key);
                     writeCachedSnapshot(context, snapshot);
-                    return { ok: true, data: snapshot };
+                    return { ok: true, checkedAt: new Date().toISOString(), data: snapshot };
                 }
                 catch (error) {
                     if (!(error instanceof QuotaFailure) || error.kind !== "credential_rejected")
@@ -407,9 +503,10 @@ async function getQuotaInternal(context) {
         const failure = error instanceof QuotaFailure ? error : new QuotaFailure("quota_service", "Grok quota is unavailable");
         sourcesTried.push("cache");
         const cached = readCachedSnapshot(context, staleStatus(failure.kind));
+        const checkedAt = new Date().toISOString();
         if (cached)
-            return { ok: true, data: cached, warning: { kind: failure.kind, message: failure.message, sourcesTried, diagnostic: failure.diagnostic } };
-        return { ok: false, error: failure.message, sourceTried: sourcesTried, failure: { kind: failure.kind, message: failure.message, sourcesTried, diagnostic: failure.diagnostic } };
+            return { ok: true, checkedAt, data: cached, warning: { kind: failure.kind, message: failure.message, sourcesTried, diagnostic: failure.diagnostic } };
+        return { ok: false, checkedAt, error: failure.message, sourceTried: sourcesTried, failure: { kind: failure.kind, message: failure.message, sourcesTried, diagnostic: failure.diagnostic } };
     }
 }
 export const actions = {

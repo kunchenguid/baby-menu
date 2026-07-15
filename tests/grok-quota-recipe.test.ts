@@ -93,6 +93,29 @@ describe("Grok quota recipe", () => {
     expect(html).toContain("must keep rendering the cached windows");
   });
 
+  it("defines a versioned cache trust boundary with exact official field provenance", async () => {
+    const html = await readRecipe();
+
+    expect(html).toContain("schemaVersion: 1");
+    expect(html).toContain('percentageField: "config.creditUsagePercent" | `config.productUsage[${number}].usagePercent`');
+    expect(html).toContain('resetField?: "config.currentPeriod.end" | "config.billingPeriodEnd"');
+    expect(html).toContain('sourceField: "config.prepaidBalance.val"');
+    expect(html).toContain("Legacy, unversioned, unknown-version, future-version, malformed, or provenance-free cache rows are untrusted");
+    expect(html).toContain("delete the rejected row instead of rewriting, inferring, or promoting it");
+    expect(html).toContain("only a fully valid official-percentage success may write schema version <code>1</code>");
+    expect(html).toContain("An official <code>quota_unreported</code> result with only an untrusted cache row is a no-cache failure");
+    expect(html).toContain("no old percentage, reset, or credit amount");
+  });
+
+  it("requires every refresh path to visibly settle with a fresh safe check timestamp", async () => {
+    const html = await readRecipe();
+
+    expect(html).toContain("checkedAt: string");
+    expect(html).toContain("Every completed startup, interval, and manual acquisition must visibly settle");
+    expect(html).toContain("last checked time");
+    expect(html).toContain("must not keep or reattach an untrusted prior client-side snapshot");
+  });
+
   it("keeps last-good windows visible while refresh is in flight", async () => {
     const html = await readRecipe();
 
