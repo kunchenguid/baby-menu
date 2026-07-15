@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -226,6 +226,29 @@ describe("clean generated Grok quota installation", () => {
     });
   }
 
+  async function configureFakeRefresh(
+    installed: InstalledFixture,
+    entries: Record<string, AuthEntry>,
+    behavior: "refresh" | "fail" | "timeout" = "refresh",
+  ): Promise<string> {
+    const executable = join(installed.grokHome, "bin", "grok");
+    const refreshedAuth = join(installed.rootDir, "refreshed-auth.json");
+    const countPath = join(installed.rootDir, "cli-count.txt");
+    await writeAuthEntries(refreshedAuth, entries);
+    await writeFile(countPath, "");
+    const script = behavior === "refresh"
+      ? '#!/bin/sh\nprintf x >> "$GROK_TEST_CLI_COUNT"\ncp "$GROK_TEST_AUTH_AFTER" "$GROK_HOME/auth.json"\n'
+      : behavior === "timeout"
+        ? '#!/bin/sh\nprintf x >> "$GROK_TEST_CLI_COUNT"\ntrap "" TERM\nwhile :; do :; done\n'
+        : '#!/bin/sh\nprintf x >> "$GROK_TEST_CLI_COUNT"\nexit 7\n';
+    await writeFile(executable, script);
+    await chmod(executable, 0o755);
+    process.env.GROK_CLI_PATH = executable;
+    process.env.GROK_TEST_AUTH_AFTER = refreshedAuth;
+    process.env.GROK_TEST_CLI_COUNT = countPath;
+    return countPath;
+  }
+
   async function install(): Promise<InstalledFixture> {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-grok-generated-"));
     tempDirs.push(rootDir);
@@ -401,33 +424,110 @@ describe("clean generated Grok quota installation", () => {
     expect(compiledIds).toHaveLength(1);
   });
 
-  it("does not refresh or retry an expired or rejected credential", async () => {
+  it("refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer", async () => {
     const installed = await install();
-    const fetchMock = vi.fn(async () => new Response("", { status: 401 }));
+    await writeAuth(join(installed.grokHome, "auth.json"), { key: "fake-expired", expired: true });
+    const countPath = await configureFakeRefresh(installed, {
+      "https://auth.x.ai::fixture-client": {
+        key: "fake-refreshed",
+        auth_mode: "oidc",
+        user_id: "fixture-user",
+        team_id: "fixture-team",
+        expires_at: "2099-01-01T00:00:00Z",
+      },
+    });
+    const fetchMock = vi.fn<typeof fetch>(async () => consumerQuotaResponse());
     vi.stubGlobal("fetch", fetchMock);
 
-    const rejected = await invoke(installed);
+    const result = await invoke(installed);
 
-    expect(rejected.ok).toBe(false);
-    if (rejected.ok) return;
-    expect(rejected.failure.kind).toBe("credential_rejected");
+    expect(result.ok).toBe(true);
+    expect(await readFile(countPath, "utf8")).toBe("x");
     expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    await writeAuth(join(installed.grokHome, "auth.json"), { key: "fake-expired", expired: true });
-    fetchMock.mockClear();
-    const expired = await invoke(installed);
-    expect(expired.ok).toBe(false);
-    if (expired.ok) return;
-    expect(expired.failure.kind).toBe("auth_expired");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect((fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>).Authorization).toBe("Bearer fake-refreshed");
   });
 
-  it("contains no CLI refresh, browser-cookie, proxy, or client-mode runtime path", async () => {
+  it.each([
+    ["HTTP 401", () => new Response("", { status: 401 })],
+    ["gRPC unauthenticated", () => new Response(responseBody(grpcFrame(
+      new TextEncoder().encode("grpc-status: 16\r\ngrpc-message: expired\r\n"),
+      0x80,
+    )), { status: 200 })],
+    ["credential-classified gRPC permission failure", () => new Response(responseBody(grpcFrame(
+      new TextEncoder().encode("grpc-status: 7\r\ngrpc-message: OAuth2%20access%20token%20could%20not%20be%20validated%3A%20bad-credentials\r\n"),
+      0x80,
+    )), { status: 200 })],
+  ])("refreshes after one %s, rereads auth, and retries gRPC exactly once", async (_label, rejectedResponse) => {
+    const installed = await install();
+    const countPath = await configureFakeRefresh(installed, {
+      "https://auth.x.ai::fixture-client": {
+        key: "fake-refreshed",
+        auth_mode: "oidc",
+        user_id: "fixture-user",
+        team_id: "fixture-team",
+        expires_at: "2099-01-01T00:00:00Z",
+      },
+    });
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(rejectedResponse())
+      .mockResolvedValueOnce(consumerQuotaResponse({ percentUsed: 31 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect((fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>).Authorization).toBe("Bearer fake-current");
+    expect((fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string>).Authorization).toBe("Bearer fake-refreshed");
+    expect(await readFile(countPath, "utf8")).toBe("x");
+  });
+
+  it("never runs the conditional refresh for a healthy successful bearer", async () => {
+    const installed = await install();
+    const countPath = await configureFakeRefresh(installed, {
+      "https://auth.x.ai::fixture-client": {
+        key: "unused-refreshed",
+        auth_mode: "oidc",
+        user_id: "fixture-user",
+        team_id: "fixture-team",
+        expires_at: "2099-01-01T00:00:00Z",
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => consumerQuotaResponse()));
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(true);
+    expect(await readFile(countPath, "utf8")).toBe("");
+  });
+
+  it("does not refresh a healthy bearer after HTTP 403", async () => {
+    const installed = await install();
+    const countPath = await configureFakeRefresh(installed, {
+      "https://auth.x.ai::fixture-client": {
+        key: "unused-refreshed",
+        auth_mode: "oidc",
+        user_id: "fixture-user",
+        team_id: "fixture-team",
+        expires_at: "2099-01-01T00:00:00Z",
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response("", { status: 403 })));
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.kind).toBe("credential_rejected");
+    expect(await readFile(countPath, "utf8")).toBe("");
+  });
+
+  it("contains no direct OAuth, browser-cookie, proxy, or client-mode runtime path", async () => {
     const source = await readFile(fixtureUrl, "utf8");
 
-    expect(source).not.toContain("node:child_process");
-    expect(source).not.toContain("spawn(");
-    expect(source).not.toContain('["models"]');
+    expect(source).toContain('spawn(executable, ["models"]');
+    expect(source).not.toContain("refresh_token");
     expect(source).not.toContain("cli-chat-proxy.grok.com");
     expect(source).not.toContain("x-grok-client-mode");
     expect(source).not.toContain("Cookie");
@@ -500,6 +600,83 @@ describe("clean generated Grok quota installation", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("refuses a refreshed principal change before a gRPC retry", async () => {
+    const installed = await install();
+    const countPath = await configureFakeRefresh(installed, {
+      "https://auth.x.ai::fixture-client": {
+        key: "fake-other-principal",
+        auth_mode: "oidc",
+        user_id: "other-user",
+        team_id: "other-team",
+        expires_at: "2099-01-01T00:00:00Z",
+      },
+    });
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response("", { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.kind).toBe("auth_principal_changed");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await readFile(countPath, "utf8")).toBe("x");
+  });
+
+  it("preserves same-principal last-good cache when conditional official refresh fails", async () => {
+    const installed = await install();
+    const trusted = trustedSnapshot();
+    const stored = JSON.stringify(trusted);
+    seedCache(installed, trusted);
+    const countPath = await configureFakeRefresh(installed, {
+      "https://auth.x.ai::fixture-client": {
+        key: "unused",
+        auth_mode: "oidc",
+        user_id: "fixture-user",
+        team_id: "fixture-team",
+        expires_at: "2099-01-01T00:00:00Z",
+      },
+    }, "fail");
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response("", { status: 401 })));
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toMatchObject({ stale: true, refreshedAt: trusted.refreshedAt });
+    expect(result.warning).toMatchObject({
+      kind: "cli_launch_failed",
+      sourcesTried: ["local-auth", "consumer-quota-api", "grok-cli-refresh", "cache"],
+    });
+    expect(cachedText(installed)).toBe(stored);
+    expect(await readFile(countPath, "utf8")).toBe("x");
+  });
+
+  it("bounds the official refresh process and never calls gRPC after timeout", async () => {
+    const installed = await install();
+    process.env.GROK_QUOTA_TEST_CLI_TIMEOUT_MS = "80";
+    await writeAuth(join(installed.grokHome, "auth.json"), { key: "fake-expired", expired: true });
+    const countPath = await configureFakeRefresh(installed, {
+      "https://auth.x.ai::fixture-client": {
+        key: "unused",
+        auth_mode: "oidc",
+        user_id: "fixture-user",
+        team_id: "fixture-team",
+        expires_at: "2099-01-01T00:00:00Z",
+      },
+    }, "timeout");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure).toMatchObject({ kind: "cli_launch_failed", diagnostic: "timeout" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(countPath).toContain(installed.rootDir);
+  });
+
   it("uses currentPeriod.end and never the monetary billing period reset", async () => {
     const installed = await install();
     vi.stubGlobal(
@@ -557,11 +734,9 @@ describe("clean generated Grok quota installation", () => {
   });
 
   it.each([
-    [16, "token expired", "credential_rejected"],
-    [7, "OAuth2 access token could not be validated: bad-credentials", "credential_rejected"],
     [9, "No personal team", "team_scope_unsupported"],
     [7, "permission denied", "quota_service"],
-  ])("classifies gRPC status %i without retrying or exposing the message", async (status, message, kind) => {
+  ])("classifies non-credential gRPC status %i without refreshing, retrying, or exposing the message", async (status, message, kind) => {
     const installed = await install();
     const trailer = grpcFrame(new TextEncoder().encode(
       `grpc-status: ${status}\r\ngrpc-message: ${encodeURIComponent(message)}\r\n`,
@@ -602,7 +777,7 @@ describe("clean generated Grok quota installation", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects compressed frames and gRPC header errors before protobuf parsing", async () => {
+  it("rejects compressed frames and non-credential gRPC header errors before protobuf parsing", async () => {
     const installed = await install();
     const compressed = responseBody(grpcFrame(message(1, new Uint8Array()), 0x01));
     const fetchMock = vi
@@ -610,7 +785,7 @@ describe("clean generated Grok quota installation", () => {
       .mockResolvedValueOnce(new Response(compressed, { status: 200 }))
       .mockResolvedValueOnce(new Response("", {
         status: 200,
-        headers: { "grpc-status": "16", "grpc-message": "hidden" },
+        headers: { "grpc-status": "9", "grpc-message": "No%20personal%20team" },
       }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -622,8 +797,8 @@ describe("clean generated Grok quota installation", () => {
     const headerResult = await invoke(installed);
     expect(headerResult.ok).toBe(false);
     if (headerResult.ok) return;
-    expect(headerResult.failure.kind).toBe("credential_rejected");
-    expect(JSON.stringify(headerResult)).not.toContain("hidden");
+    expect(headerResult.failure.kind).toBe("team_scope_unsupported");
+    expect(JSON.stringify(headerResult)).not.toContain("personal team");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

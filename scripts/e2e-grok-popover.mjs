@@ -2,7 +2,7 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cp, mkdtemp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdtemp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,6 +25,8 @@ const devLogPath = process.env.BABY_MENU_GROK_E2E_LOG || join(tmpdir(), "baby-me
 let devProcess;
 let cdp;
 let tempRoot;
+let fakeGrokCliPath;
+let fakeGrokCliCountPath;
 
 function fail(message) {
   throw new Error(message);
@@ -452,6 +454,11 @@ async function prepareExtensionWorkspace() {
   await mkdir(join(rootDir, ".cache", "baby-menu"), { recursive: true });
   await mkdir(join(rootDir, "extensions-dev"), { recursive: true });
   tempRoot = await mkdtemp(join(rootDir, "extensions-dev", "grok-popover-e2e-"));
+  fakeGrokCliPath = join(tempRoot, "grok-refresh-sentinel");
+  fakeGrokCliCountPath = join(tempRoot, "grok-refresh-count.txt");
+  await writeFile(fakeGrokCliCountPath, "");
+  await writeFile(fakeGrokCliPath, '#!/bin/sh\nprintf x >> "$BABY_MENU_GROK_E2E_CLI_COUNT"\nexit 7\n');
+  await chmod(fakeGrokCliPath, 0o755);
   const extensionsDir = join(tempRoot, "extensions");
   const extensionDir = join(extensionsDir, "grok-quota-e2e");
   await mkdir(extensionDir, { recursive: true });
@@ -494,6 +501,8 @@ async function startApp(extensionsDir) {
       BABY_MENU_REMOTE_DEBUGGING_PORT: String(port),
       BABY_MENU_TELEMETRY: "0",
       GROK_HOME: grokHome,
+      GROK_CLI_PATH: fakeGrokCliPath,
+      BABY_MENU_GROK_E2E_CLI_COUNT: fakeGrokCliCountPath,
     },
     stdio: ["ignore", log, log],
   });
@@ -858,6 +867,9 @@ async function main() {
   }
   const manualCacheStatus = readSanitizedCacheStatus(manualOfficial.accountBinding);
   assertCacheMigration(manualCacheStatus, manualOfficial);
+  if (await readFile(fakeGrokCliCountPath, "utf8")) {
+    fail("healthy exact-source E2E unexpectedly launched the conditional refresh command");
+  }
 
   await captureScreenshot();
 
@@ -880,7 +892,8 @@ async function main() {
     renderedState: manualView.state,
     renderedFailureKind: manualView.failureKind,
     cacheStatus: "schema-v2-exact-source-principal-bound",
-    credentialRefreshAllowed: false,
+    healthyCliPreflightObserved: false,
+    conditionalOfficialRefreshCoveredByFixtures: true,
     browserCookieImportAllowed: false,
     screenshot: screenshotPath,
     devLog: devLogPath,

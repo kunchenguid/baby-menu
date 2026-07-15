@@ -16,8 +16,8 @@
         <h2>Capability</h2>
         <p>Show the official consumer Grok usage pool, product breakdown, reset, and Extra Usage Credits through the exact consumer Usage-page operation.</p>
         <p>The sole quota source is <code>grok_api_v2.GrokBuildBilling.GetGrokCreditsConfig</code> at <code>https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig</code>.</p>
-        <p>Use the provider-owned <code>~/.grok/auth.json</code> bearer without writing or refreshing it.</p>
-        <p>Do not execute the Grok CLI, import browser cookies, call the CLI billing proxy, call ACP billing, or calculate quota from money.</p>
+        <p>Use the provider-owned <code>~/.grok/auth.json</code> bearer and let only the official client refresh an expired or rejected session.</p>
+        <p>Do not run a healthy-session CLI preflight, import browser cookies, call the CLI billing proxy, call ACP billing, implement OAuth, or calculate quota from money.</p>
         <p>This recipe is self-contained and requires no external implementation guide.</p>
       </section>
 
@@ -29,7 +29,8 @@
           </thead>
           <tbody>
             <tr><td>1</td><td>Exact consumer gRPC-web operation</td><td>Fresh official percentages, period, reset, products, and prepaid balance.</td></tr>
-            <tr><td>2</td><td>Principal-bound schema version 2 cache</td><td>Same-account last-good data for eligible transient failures only.</td></tr>
+            <tr><td>2</td><td>Conditional official client refresh</td><td>Only after local expiry or one credential-classified consumer response, followed by auth reread and one retry.</td></tr>
+            <tr><td>3</td><td>Principal-bound schema version 2 cache</td><td>Same-account last-good data for eligible transient failures only.</td></tr>
           </tbody>
         </table>
         <p>The CLI billing proxy and monetary fields are never parser fallbacks.</p>
@@ -45,15 +46,30 @@
           <li>Prefer a current entry whose scope begins with <code>https://auth.x.ai::</code>.</li>
           <li>Use a current <code>https://accounts.x.ai/sign-in</code> or compatible sign-in entry only when no current OIDC entry exists.</li>
           <li>Ignore unrelated and API-key-shaped scopes even when their expiry is later.</li>
-          <li>Return <code>auth_expired</code> when supported entries exist but none is current.</li>
+          <li>Select an expired OIDC or legacy entry only to drive one conditional official-client refresh when no current supported entry exists.</li>
           <li>Return <code>auth_scope_ambiguous</code> before network access when current entries in the winning class bind to different or unknown principals.</li>
         </ol>
         <p>Build an internal SHA-256 account binding from non-secret principal type, user id, and team id fields.</p>
         <p>Never return the account binding, raw ids, email, scope string, auth contents, or bearer to the renderer or diagnostics.</p>
         <p>If no stable account binding can be formed, fresh data may render, but persistent last-good data must not be written or reused.</p>
         <p>Classify auth sources exactly: a missing resolved file is <code>auth_source_missing</code>; a permission, I/O, or other read failure is <code>auth_source_unreadable</code>; invalid JSON is <code>auth_source_malformed</code>; and no usable credential is <code>auth_source_incompatible</code>.</p>
-        <p>Never execute <code>grok models</code>, exchange a refresh token, run an official CLI capability probe, or mutate provider-owned auth.</p>
+        <p>Do not run a CLI capability probe for missing, unreadable, malformed, incompatible, ambiguous, or healthy auth.</p>
         <p>Do not classify these local source outcomes as <code>parse_incompatible</code> or sign-in-required.</p>
+      </section>
+
+      <section class="card border border-base-300 bg-base-100 p-6 shadow-sm">
+        <h2>Conditional Official-client Refresh</h2>
+        <p>The installed official client documents <code>grok models</code> as "List available models and exit," so it is a bounded non-prompt capability that exercises the client's own auth manager.</p>
+        <p>Invoke it only when the deterministically selected bearer is locally expired or when one exact-source request returns HTTP 401, gRPC 16, or a narrowly recognized credential-like gRPC 7 message.</p>
+        <p>HTTP 403 remains a rejected credential or permission outcome but does not trigger refresh.</p>
+        <p>Never invoke it before every acquisition, after permission or team-scope failures, or after the one post-refresh retry.</p>
+        <p>Spawn the discovered executable with argument array <code>["models"]</code>, <code>shell: false</code>, ignored stdin, the complete inherited environment, a 20-second timeout, and 128 KiB bounded stdout and stderr held only in memory.</p>
+        <p>Discover <code>$GROK_CLI_PATH</code>, <code>$GROK_HOME/bin/grok</code>, current <code>PATH</code>, home-local Grok locations, then Homebrew locations without a shell.</p>
+        <p>After exit zero, reread the same resolved auth source, apply deterministic OIDC-over-legacy selection again, and require the new stable account binding to equal the pre-refresh binding.</p>
+        <p>Return <code>auth_principal_changed</code> without a gRPC retry when the principal changes, and return <code>auth_expired</code> when official refresh leaves the selected bearer expired.</p>
+        <p>A successful continuity check permits exactly one new <code>GetGrokCreditsConfig</code> request with the reread bearer.</p>
+        <p>Never read, post, or exchange a refresh token directly, and never infer success from CLI output.</p>
+        <p>An immutable <code>$GROK_AUTH_JSON</code> override cannot be refreshed by the client and must fail explicitly when expired.</p>
       </section>
 
       <section class="card border border-base-300 bg-base-100 p-6 shadow-sm">
@@ -146,11 +162,14 @@ type QuotaFailure = {
     | "auth_required"
     | "auth_expired"
     | "auth_scope_ambiguous"
+    | "auth_principal_changed"
     | "auth_source_missing"
     | "auth_source_unreadable"
     | "auth_source_malformed"
     | "auth_source_incompatible"
     | "credential_rejected"
+    | "cli_not_found"
+    | "cli_launch_failed"
     | "connectivity"
     | "rate_limited"
     | "quota_service"
@@ -160,7 +179,7 @@ type QuotaFailure = {
     | "quota_unreported"
     | "parse_incompatible";
   message: string;
-  sourcesTried: Array&lt;"local-auth" | "consumer-quota-api" | "cache"&gt;;
+  sourcesTried: Array&lt;"local-auth" | "consumer-quota-api" | "grok-cli-refresh" | "cache"&gt;;
   httpStatus?: number;
   grpcStatus?: number;
   retryAt?: string;
@@ -180,7 +199,7 @@ type GrokQuotaResult =
         <p>Unversioned, schema version <code>1</code>, future-version, malformed, wrong-source, wrong-operation, provenance-free, and wrong-principal rows are untrusted.</p>
         <p>Delete the rejected row instead of rewriting, inferring, or promoting it.</p>
         <p>Only a successful exact-source response may write schema version <code>2</code>.</p>
-        <p>On an eligible transient failure, return a same-principal trusted row as stale without changing the stored bytes.</p>
+        <p>On an eligible transport, service, or conditional refresh failure, return a same-principal trusted row as stale without changing the stored bytes.</p>
         <p>Auth ambiguity, auth expiry, principal change, unsupported team scope, and an unbound identity must not render another principal's cache.</p>
         <p>Single-flight the entire <code>getQuota</code> acquisition so startup, interval, and manual calls share one request and one cache write.</p>
         <p>Server action response shape is the <code>GrokQuotaResult</code> union above.</p>
@@ -221,8 +240,9 @@ type GrokQuotaResult =
       <section class="card border border-base-300 bg-base-100 p-6 shadow-sm">
         <h2>Security Constraints</h2>
         <ul>
-          <li>Use the exact read-only bearer request and no browser cookies.</li>
-          <li>Never launch a provider process or mutate provider-owned credentials.</li>
+          <li>Use the exact bearer request and no browser cookies.</li>
+          <li>Launch only the documented conditional <code>grok models</code> capability and let that official client own credential mutation.</li>
+          <li>Never implement OAuth or pass a credential through process arguments or newly created environment variables.</li>
           <li>Never log, return, cache separately, or commit tokens, refresh tokens, emails, ids, scopes, headers, raw protobuf, or provider bodies.</li>
           <li>Never expose the internal account binding to the renderer.</li>
           <li>Never use another local identity as a fallback after rejection.</li>
@@ -246,8 +266,10 @@ type GrokQuotaResult =
       <section class="card border border-base-300 bg-base-100 p-6 shadow-sm">
         <h2>Acceptance Criteria</h2>
         <ul>
-          <li>The server sends the exact gRPC-web POST, headers, and five-byte body with no client-mode header, cookie, proxy, ACP, or CLI path.</li>
-          <li>OIDC selection, legacy fallback, expiry, ambiguity, and unbound identity behavior are deterministic and read-only.</li>
+          <li>The server sends the exact gRPC-web POST, headers, and five-byte body with no client-mode header, cookie, proxy, or ACP path.</li>
+          <li>OIDC selection, legacy fallback, expiry, ambiguity, and unbound identity behavior are deterministic.</li>
+          <li>Local expiry and one credential-classified response run one bounded fake-CLI-tested official refresh, reread auth, verify principal continuity, and issue exactly one gRPC retry.</li>
+          <li>A healthy successful bearer never launches the CLI, and deterministic tests never execute a real Grok binary.</li>
           <li>The bounded typed decoder covers framed and raw payloads, global and product percentages, current period, prepaid balance, proto3 zero, trailers, malformed data, and the response cap.</li>
           <li>Exact used values remain unrounded in state and cache, remaining is derived, and rounding occurs only in visible copy.</li>
           <li>Schema version <code>1</code> never renders, and schema version <code>2</code> cache reuse requires the same account binding.</li>

@@ -86,6 +86,9 @@ describe("unattended Grok popover E2E runner", () => {
     expect(script).toContain("after.started !== before.started + 1");
     expect(script).toContain("after.resolved !== before.resolved + 1");
     expect(script).toContain('entry.text === "checking" && entry.disabled === true');
+    expect(script).toContain("grok-refresh-sentinel");
+    expect(script).toContain("healthy exact-source E2E unexpectedly launched the conditional refresh command");
+    expect(script).toContain("healthyCliPreflightObserved: false");
     expect(script).not.toContain("System Events");
     expect(script).not.toContain("AXPress");
   });
@@ -163,7 +166,8 @@ describe("unattended Grok popover E2E runner", () => {
     expect(docs).toContain("exact consumer `GetGrokCreditsConfig` gRPC-web operation");
     expect(docs).toContain("CodexBar");
     expect(docs).toContain("installed-widget source mode");
-    expect(docs).toContain("never refreshes or mutates credentials");
+    expect(docs).toContain("documented non-prompt `grok models` capability");
+    expect(docs).toContain("temporary fake executable");
     expect(docs).toContain("schema/provenance status");
     expect(docs).toContain("identity/scope equality");
     expect(docs).toContain("never imports browser cookies");

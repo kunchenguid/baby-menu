@@ -6,9 +6,11 @@ Run the unattended macOS check with:
 pnpm test:e2e:grok-popover
 ```
 
-The command requires a current supported OIDC or legacy sign-in entry in the provider-owned Grok auth file.
-It uses the bearer read-only and never refreshes or mutates credentials.
-It does not run `grok login`, execute the Grok CLI, change account configuration, print credential values, import browser credentials, or retain raw provider output.
+The command requires a supported OIDC or legacy sign-in entry in the provider-owned Grok auth file and an installed official Grok CLI for conditional refresh.
+The generated server invokes the documented non-prompt `grok models` capability only after local expiry or one credential-classified exact-source response, then rereads auth, verifies principal continuity, and retries once.
+It does not run `grok login`, perform a healthy-session CLI preflight, implement OAuth, change account configuration, print credential values, import browser credentials, or retain raw provider output.
+The deterministic expired-token, 401, gRPC credential, reread, principal-continuity, timeout, and stale-cache tests use only a temporary fake executable and synthetic auth.
+The live same-window parity run does not deliberately expire credentials or force a refresh, and it verifies that auth bytes and modification time remain unchanged when the healthy bearer succeeds.
 
 The command starts the current source app with a temporary extension workspace under `extensions-dev/`, keeps the real Electron popover open, and connects to its renderer over a loopback-only Chrome DevTools port.
 `BABY_MENU_OPEN_POPOVER_ON_START=1` opens the same `BrowserWindow` through the tray controller's real bounds path, so no accessibility click or human interaction is required.
@@ -28,7 +30,7 @@ The runner reads back only schema/provenance status and an identity/scope equali
 The independent `consumerOracle` calls the exact consumer `GetGrokCreditsConfig` gRPC-web operation used by the Grok Usage page and CodexBar's web strategy.
 It uses the same deterministic OIDC-over-legacy principal rules as the runtime but has its own bounded frame and typed protobuf parser.
 It applies a 15-second deadline, a 64 KiB response limit, exact gRPC-web headers, and the five-byte empty request frame.
-It never imports browser cookies.
+It never imports browser cookies and never refreshes credentials itself.
 
 The oracle and widget run in the same refresh window.
 The runner compares operation, schema, source version, identity/scope equality, period type, exact global used and remaining percentages, product ids and percentages, reset, field provenance, credits, and final display rounding.

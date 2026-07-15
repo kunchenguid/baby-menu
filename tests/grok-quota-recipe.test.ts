@@ -31,11 +31,12 @@ describe("Grok quota recipe", () => {
     expect(html).toContain("00 00 00 00 00");
   });
 
-  it("forbids every regressed, mutating, monetary, or cookie fallback", async () => {
+  it("forbids every regressed, direct-OAuth, monetary, or cookie fallback", async () => {
     const html = await readRecipe();
 
     expect(html).toContain("Do not send <code>x-grok-client-mode: billing</code>");
-    expect(html).toContain("Never execute <code>grok models</code>");
+    expect(html).toContain("Do not run a healthy-session CLI preflight");
+    expect(html).toContain("Never read, post, or exchange a refresh token directly");
     expect(html).toContain("no browser cookies");
     expect(html).toContain("must not be written or reused");
     expect(html).toContain("Never divide <code>config.used.val</code> by <code>config.monthlyLimit.val</code>");
@@ -43,7 +44,7 @@ describe("Grok quota recipe", () => {
     expect(html).toContain("<code>_x.ai/billing</code>");
   });
 
-  it("requires deterministic read-only OIDC principal selection", async () => {
+  it("requires deterministic OIDC principal selection", async () => {
     const html = await readRecipe();
 
     expect(html).toContain("<code>https://auth.x.ai::</code>");
@@ -54,6 +55,23 @@ describe("Grok quota recipe", () => {
     expect(html).toContain("before network access");
     expect(html).toContain("internal SHA-256 account binding");
     expect(html).toContain("Never return the account binding");
+  });
+
+  it("defines one conditional official-client refresh with reread and principal continuity", async () => {
+    const html = await readRecipe();
+
+    expect(html).toContain('documents <code>grok models</code> as "List available models and exit');
+    expect(html).toContain("only when the deterministically selected bearer is locally expired");
+    expect(html).toContain("HTTP 401, gRPC 16");
+    expect(html).toContain("HTTP 403 remains a rejected credential or permission outcome but does not trigger refresh");
+    expect(html).toContain("Never invoke it before every acquisition");
+    expect(html).toContain('<code>["models"]</code>');
+    expect(html).toContain("20-second timeout");
+    expect(html).toContain("128 KiB bounded stdout and stderr");
+    expect(html).toContain("reread the same resolved auth source");
+    expect(html).toContain("new stable account binding to equal the pre-refresh binding");
+    expect(html).toContain("exactly one new <code>GetGrokCreditsConfig</code> request");
+    expect(html).toContain("<code>auth_principal_changed</code>");
   });
 
   it("defines the whole-request timeout, response cap, status validation, and narrow retry", async () => {
@@ -99,7 +117,10 @@ describe("Grok quota recipe", () => {
     for (const kind of [
       "auth_expired",
       "auth_scope_ambiguous",
+      "auth_principal_changed",
       "credential_rejected",
+      "cli_not_found",
+      "cli_launch_failed",
       "connectivity",
       "rate_limited",
       "quota_service",

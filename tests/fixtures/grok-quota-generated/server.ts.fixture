@@ -1,7 +1,8 @@
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 
 const CONSUMER_QUOTA_URL = "https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig";
 const CONSUMER_OPERATION = "grok_api_v2.GrokBuildBilling.GetGrokCreditsConfig";
@@ -11,6 +12,8 @@ const EXTENSION_ID = "grok-quota";
 const CACHE_TABLE = "grok_quota_cache";
 const CURRENT_CACHE_SCHEMA_VERSION = 2;
 const REQUEST_TIMEOUT_MS = Number(process.env.GROK_QUOTA_TEST_TIMEOUT_MS) || 15_000;
+const CLI_TIMEOUT_MS = Number(process.env.GROK_QUOTA_TEST_CLI_TIMEOUT_MS) || 20_000;
+const CLI_OUTPUT_LIMIT_BYTES = 128 * 1024;
 const RESPONSE_LIMIT_BYTES = 64 * 1024;
 const EMPTY_GRPC_REQUEST = Uint8Array.from([0, 0, 0, 0, 0]);
 const PRODUCT_NAMES = {
@@ -22,7 +25,16 @@ const PRODUCT_NAMES = {
     5: { id: "grok-imagine", label: "Imagine" },
     6: { id: "grok-voice", label: "Voice" },
 };
-const STALE_ELIGIBLE_FAILURES = new Set(["connectivity", "rate_limited", "quota_service"]);
+const STALE_ELIGIBLE_FAILURES = new Set([
+    "auth_required",
+    "auth_expired",
+    "credential_rejected",
+    "cli_not_found",
+    "cli_launch_failed",
+    "connectivity",
+    "rate_limited",
+    "quota_service",
+]);
 
 let quotaInFlight;
 
@@ -122,17 +134,132 @@ function selectAuthCandidate() {
     }
     const currentOidc = supported.filter((candidate) => candidate.kind === "oidc" && !candidate.expired);
     const currentLegacy = supported.filter((candidate) => candidate.kind === "legacy" && !candidate.expired);
-    const winning = currentOidc.length > 0 ? currentOidc : currentLegacy;
-    if (winning.length === 0) {
-        if (supported.some((candidate) => candidate.expired))
-            throw new QuotaFailure("auth_expired", "Grok sign-in has expired; run grok login");
+    const expiredOidc = supported.filter((candidate) => candidate.kind === "oidc" && candidate.expired);
+    const expiredLegacy = supported.filter((candidate) => candidate.kind === "legacy" && candidate.expired);
+    const winning = currentOidc.length > 0
+        ? currentOidc
+        : currentLegacy.length > 0
+            ? currentLegacy
+            : expiredOidc.length > 0
+                ? expiredOidc
+                : expiredLegacy;
+    if (winning.length === 0)
         throw new QuotaFailure("auth_source_incompatible", "Grok auth did not contain a supported consumer session");
-    }
     const bindings = new Set(winning.map((candidate) => candidate.accountBinding ?? "unbound"));
     if (winning.length > 1 && (bindings.size > 1 || bindings.has("unbound")))
         throw new QuotaFailure("auth_scope_ambiguous", "Multiple Grok sessions bind to different or unknown principals");
     winning.sort((left, right) => left.scopeKey.localeCompare(right.scopeKey));
     return winning[0];
+}
+
+function isExecutable(file) {
+    try {
+        accessSync(file, constants.X_OK);
+        return statSync(file).isFile();
+    }
+    catch {
+        return false;
+    }
+}
+
+function resolveGrokExecutable() {
+    const candidates = [];
+    if (process.env.GROK_CLI_PATH)
+        candidates.push(process.env.GROK_CLI_PATH);
+    if (process.env.GROK_HOME)
+        candidates.push(join(process.env.GROK_HOME, "bin", "grok"));
+    for (const directory of (process.env.PATH || "").split(delimiter)) {
+        if (directory)
+            candidates.push(join(directory, "grok"));
+    }
+    candidates.push(join(homedir(), ".local", "bin", "grok"));
+    candidates.push(join(homedir(), ".grok", "bin", "grok"));
+    candidates.push("/opt/homebrew/bin/grok", "/usr/local/bin/grok");
+    return [...new Set(candidates)].find(isExecutable);
+}
+
+function safeAuthRequiredMarker(text) {
+    const normalized = text.toLowerCase();
+    return normalized.includes("authentication required") ||
+        normalized.includes("not authenticated") ||
+        normalized.includes("sign in to grok") ||
+        normalized.includes("run `grok login`");
+}
+
+async function runOfficialRefresh() {
+    const executable = resolveGrokExecutable();
+    if (!executable)
+        throw new QuotaFailure("cli_not_found", "Grok CLI was not found for conditional session refresh");
+    await new Promise((resolve, reject) => {
+        const child = spawn(executable, ["models"], {
+            env: { ...process.env, NO_COLOR: "1", TERM: "dumb" },
+            shell: false,
+            stdio: ["ignore", "pipe", "pipe"],
+        });
+        let stdout = Buffer.alloc(0);
+        let stderr = Buffer.alloc(0);
+        let settled = false;
+        let timeoutFailure;
+        let forceKillTimer;
+        const appendBounded = (current, chunk) => Buffer.concat([current, chunk])
+            .subarray(0, CLI_OUTPUT_LIMIT_BYTES);
+        child.stdout?.on("data", (chunk) => {
+            stdout = appendBounded(stdout, Buffer.from(chunk));
+        });
+        child.stderr?.on("data", (chunk) => {
+            stderr = appendBounded(stderr, Buffer.from(chunk));
+        });
+        const finish = (failure) => {
+            if (settled)
+                return;
+            settled = true;
+            clearTimeout(timer);
+            if (forceKillTimer)
+                clearTimeout(forceKillTimer);
+            failure ? reject(failure) : resolve();
+        };
+        const timer = setTimeout(() => {
+            timeoutFailure = new QuotaFailure("cli_launch_failed", "Grok CLI refresh timed out", { diagnostic: "timeout" });
+            child.kill("SIGTERM");
+            forceKillTimer = setTimeout(() => child.kill("SIGKILL"), 1_000);
+        }, CLI_TIMEOUT_MS);
+        child.once("error", (error) => {
+            const code = typeof error.code === "string" ? error.code : "launch";
+            finish(new QuotaFailure("cli_launch_failed", "Grok CLI could not be launched", { diagnostic: `code:${code}` }));
+        });
+        child.once("close", (code) => {
+            if (timeoutFailure) {
+                finish(timeoutFailure);
+                return;
+            }
+            if (code === 0) {
+                finish();
+                return;
+            }
+            const output = `${stdout.toString("utf8")}\n${stderr.toString("utf8")}`;
+            const authRequired = safeAuthRequiredMarker(output);
+            finish(new QuotaFailure(
+                authRequired ? "auth_required" : "cli_launch_failed",
+                authRequired ? "Grok sign-in is required" : "Grok CLI could not refresh the session",
+                { diagnostic: `exit:${typeof code === "number" ? code : "signal"}` },
+            ));
+        });
+    });
+}
+
+async function refreshAndReselect(previous, sourcesTried) {
+    if (!previous.accountBinding)
+        throw new QuotaFailure("auth_scope_ambiguous", "Grok session cannot be refreshed without a stable principal binding");
+    if (process.env.GROK_AUTH_JSON)
+        throw new QuotaFailure("auth_expired", "Inline Grok auth is expired and cannot be refreshed by the official client");
+    sourcesTried.push("grok-cli-refresh");
+    await runOfficialRefresh();
+    const refreshed = selectAuthCandidate();
+    if (!refreshed.accountBinding || refreshed.accountBinding !== previous.accountBinding)
+        throw new QuotaFailure("auth_principal_changed", "Grok principal changed during official session refresh");
+    if (refreshed.expired)
+        throw new QuotaFailure("auth_expired", "Grok sign-in remains expired after official session refresh");
+    return refreshed;
 }
 
 function readVarint(bytes, start) {
@@ -287,7 +414,10 @@ function grpcFailure(status, message) {
         (normalized.includes("access token") && (normalized.includes("invalid") || normalized.includes("expired")))
     ));
     if (credentialFailure)
-        return new QuotaFailure("credential_rejected", "Grok consumer quota credentials were rejected", { grpcStatus: status });
+        return new QuotaFailure("credential_rejected", "Grok consumer quota credentials were rejected", {
+            grpcStatus: status,
+            officialRefreshEligible: true,
+        });
     if (status === 9 && normalized.includes("no personal team"))
         return new QuotaFailure("team_scope_unsupported", "Grok consumer quota does not support this team billing scope", { grpcStatus: status });
     if (status === 8)
@@ -309,6 +439,17 @@ function parseGrpcStatus(value) {
     if (!/^(?:[0-9]|1[0-6])$/.test(value))
         throw new QuotaFailure("parse_incompatible", "Grok consumer quota response contained invalid gRPC status metadata");
     return Number(value);
+}
+
+function decodeGrpcMessage(value) {
+    if (!value)
+        return "";
+    try {
+        return decodeURIComponent(value);
+    }
+    catch {
+        return value;
+    }
 }
 
 function normalizeConsumerPayload(payload, accountBinding) {
@@ -452,7 +593,10 @@ async function fetchConsumerQuotaOnce(candidate, signal) {
         });
     }
     if (response.status === 401 || response.status === 403)
-        throw new QuotaFailure("credential_rejected", "Grok consumer quota credentials were rejected", { httpStatus: response.status });
+        throw new QuotaFailure("credential_rejected", "Grok consumer quota credentials were rejected", {
+            httpStatus: response.status,
+            officialRefreshEligible: response.status === 401,
+        });
     if (response.status === 404)
         throw new QuotaFailure("official_quota_source_unavailable", "The official Grok consumer quota source is unavailable for this client", { httpStatus: 404 });
     if (response.status === 429)
@@ -466,7 +610,7 @@ async function fetchConsumerQuotaOnce(candidate, signal) {
     }
     const headerStatus = parseGrpcStatus(response.headers.get("grpc-status"));
     if (headerStatus !== 0)
-        throw grpcFailure(headerStatus, response.headers.get("grpc-message"));
+        throw grpcFailure(headerStatus, decodeGrpcMessage(response.headers.get("grpc-message")));
     let responseBytes;
     try {
         responseBytes = await readBoundedBody(response);
@@ -648,8 +792,23 @@ async function getQuotaInternal(context) {
     ensureCache(context);
     try {
         candidate = selectAuthCandidate();
+        let refreshAttempted = false;
+        if (candidate.expired) {
+            refreshAttempted = true;
+            candidate = await refreshAndReselect(candidate, sourcesTried);
+        }
         sourcesTried.push("consumer-quota-api");
-        const snapshot = await fetchConsumerQuota(candidate);
+        let snapshot;
+        try {
+            snapshot = await fetchConsumerQuota(candidate);
+        }
+        catch (error) {
+            if (!(error instanceof QuotaFailure) || !error.officialRefreshEligible || refreshAttempted)
+                throw error;
+            refreshAttempted = true;
+            candidate = await refreshAndReselect(candidate, sourcesTried);
+            snapshot = await fetchConsumerQuota(candidate);
+        }
         writeCachedSnapshot(context, snapshot);
         return {
             ok: true,
