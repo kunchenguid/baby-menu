@@ -46,6 +46,31 @@ export function observeGrokPopover(document) {
     return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
   }
 
+  function hasTerminalEvidence(root) {
+    if (root.getAttribute("data-grok-e2e") !== "waiting") return true;
+    const completedText = root.getAttribute("data-grok-completed-acquisitions");
+    if (completedText !== null && completedText !== "" && completedText !== "0") return true;
+    if (root.getAttribute("data-grok-stale") === "true") return true;
+    if (![null, "", "none"].includes(root.getAttribute("data-grok-warning-kind"))) return true;
+    if (![null, "", "none"].includes(root.getAttribute("data-grok-failure-kind"))) return true;
+    const completedValueAttributes = [
+      "data-grok-checked-at",
+      "data-grok-cache-schema",
+      "data-grok-source",
+      "data-grok-source-version",
+      "data-grok-operation",
+      "data-grok-period",
+      "data-grok-percent-used",
+      "data-grok-percent-remaining",
+      "data-grok-percentage-field",
+      "data-grok-reset-at",
+      "data-grok-reset-field",
+    ];
+    if (completedValueAttributes.some((name) => Boolean(root.getAttribute(name)))) return true;
+    const products = root.getAttribute("data-grok-products");
+    return products !== null && products !== "" && products !== "[]";
+  }
+
   function readRoot(root) {
     if (!attributeNames.every((name) => root.hasAttribute(name))) return null;
     const state = root.getAttribute("data-grok-e2e");
@@ -183,11 +208,11 @@ export function observeGrokPopover(document) {
     };
   }
 
-  if (roots.some((root) => root.getAttribute("data-grok-e2e") !== "waiting")) {
+  if (roots.some(hasTerminalEvidence)) {
     const missing = attributeNames.filter((name) => !roots.some((root) => root.hasAttribute(name)));
     return {
       observabilityMode: "invalid",
-      observabilityError: `terminal data-grok-e2e root does not satisfy the stable root contract${missing.length ? `; missing ${missing.join(", ")}` : "; invalid values"}`,
+      observabilityError: `data-grok-e2e root with terminal evidence does not satisfy the stable root contract${missing.length ? `; missing ${missing.join(", ")}` : "; invalid values"}`,
       state: "contract-invalid",
       text: "",
       failureKind: null,

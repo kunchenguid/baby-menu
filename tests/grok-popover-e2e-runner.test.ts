@@ -224,7 +224,13 @@ describe("unattended Grok popover E2E runner", () => {
 
     const initialView = waitingDom("0").window.eval(grokPopoverObservationExpression()) as GrokPopoverObservation;
     expect(initialView).toMatchObject({ state: "waiting", completed: 0, terminal: false });
-    expect(waitingDom("1").window.eval(grokPopoverObservationExpression())).toBeNull();
+    const invalidView = waitingDom("1").window.eval(grokPopoverObservationExpression()) as GrokPopoverObservation;
+    expect(invalidView).toMatchObject({
+      observabilityMode: "invalid",
+      state: "contract-invalid",
+      terminal: true,
+    });
+    expect(invalidView.observabilityError).toContain("root with terminal evidence");
   });
 
   it("rejects an unsupported terminal partial root without polling to an ambiguous timeout", () => {
@@ -238,7 +244,7 @@ describe("unattended Grok popover E2E runner", () => {
       state: "contract-invalid",
       terminal: true,
     });
-    expect(view.observabilityError).toContain("terminal data-grok-e2e root does not satisfy the stable root contract");
+    expect(view.observabilityError).toContain("root with terminal evidence does not satisfy the stable root contract");
   });
 
   it("opens the real popover and drives startup and manual refresh without accessibility input", async () => {
