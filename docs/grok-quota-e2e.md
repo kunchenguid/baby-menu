@@ -17,14 +17,16 @@ The normal `WidgetHost`, preload capability bridge, server-action registry, exte
 
 The default generated-install mode uses the committed generated extension contract.
 Set `BABY_MENU_GROK_E2E_INSTALLED_SOURCE=1` for installed-widget source mode.
-That mode copies `~/.baby-menu/extensions/grok-quota` into the temporary workspace, rewrites only its copied extension id and cache table to test-owned names, and leaves the installed source and live cache untouched.
+That mode copies `~/.baby-menu/extensions/grok-quota` into the temporary workspace, rewrites its copied extension id and cache table to test-owned names, and leaves the installed source and live cache untouched.
 Set `BABY_MENU_GROK_E2E_INSTALLED_SOURCE_DIR` only when the authoritative installed source is at another path.
+
+Both modes wrap the copied server action with test-only lifecycle instrumentation.
 
 Before Electron starts, the runner seeds its isolated cache table with the legacy fabricated `1%`, expired-reset, zero-credit shape.
 The startup acquisition must either replace it with schema version `1` and exact official percentage/reset provenance or reject and remove it when Grok reports `quota_unreported`.
 The runner reads back only sanitized schema/provenance status, never cached values or raw provider data.
 
-The fixture asks the installed official Grok ACP agent for `_x.ai/billing`, then compares the rendered extension state against that normalized result.
+The runner asks the installed official Grok ACP agent for `_x.ai/billing`, then compares the rendered extension state against that normalized result.
 A reported official percentage must match the rendered remaining percentage, reset, credit balance, fresh state, and absence of warnings.
 A known official period without a percentage must render `quota_unreported` without stale state, warning-backed last-good data, an old percentage, a reset, or a credit amount.
 
