@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.19](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.18...baby-menu-v0.1.19) (2026-07-15)
+
+
+### Bug Fixes
+
+* **extensions:** align Grok quota with consumer usage ([#77](https://github.com/kunchenguid/baby-menu/issues/77)) ([0e0346e](https://github.com/kunchenguid/baby-menu/commit/0e0346e1ab75b863dddf2d04f4529eb5a73f0255))
+* **recipes:** align Grok quota refresh with official billing ([#75](https://github.com/kunchenguid/baby-menu/issues/75)) ([bbcd4fb](https://github.com/kunchenguid/baby-menu/commit/bbcd4fb879f459d7b9c7501991995848d8296f1c))
+* **recipes:** harden Grok quota refresh behavior ([#74](https://github.com/kunchenguid/baby-menu/issues/74)) ([aec0f53](https://github.com/kunchenguid/baby-menu/commit/aec0f53674e4cfed1790541a4a83304f7e432cc4))
+* **recipes:** make quota recipes self-contained ([#71](https://github.com/kunchenguid/baby-menu/issues/71)) ([ca37002](https://github.com/kunchenguid/baby-menu/commit/ca370020cf31fc9498afa9fc3281e6399040644b))
+* **recipes:** stabilize Grok popover observability ([#78](https://github.com/kunchenguid/baby-menu/issues/78)) ([fd1fe10](https://github.com/kunchenguid/baby-menu/commit/fd1fe10f645d5d0978a3df3c8efcb9a3d869583a))
+* reject untrusted Grok quota caches ([#76](https://github.com/kunchenguid/baby-menu/issues/76)) ([40e6562](https://github.com/kunchenguid/baby-menu/commit/40e6562615b199d028d4b2e1ef87e86cc372bf9e))
+* surface terminal agent failures without false no-change results ([#79](https://github.com/kunchenguid/baby-menu/issues/79)) ([0723fe2](https://github.com/kunchenguid/baby-menu/commit/0723fe2cb81ce38e3d8875c129719529e997822f))
+
 ## [0.1.18](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.17...baby-menu-v0.1.18) (2026-07-09)
 
 
