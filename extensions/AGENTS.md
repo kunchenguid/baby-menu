@@ -54,7 +54,7 @@ When you need current details about a dependency, CLI, local credential layout, 
 
 Common recipes live in `recipes/*.html` inside this extension workspace.
 Bundled quota recipes currently cover Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
-Cursor, GitHub Copilot, and Grok quota recipes avoid `quota-axi` or similar helper CLIs; follow each recipe's provider-owned state and API contract, including a product-native client when it owns authoritative credential refresh.
+Cursor, GitHub Copilot, and Grok quota recipes avoid `quota-axi` or similar helper CLIs; follow each recipe as the authoritative provider-owned state, API, and credential-refresh contract.
 Read the matching recipe before implementing a widget that's relevant.
 Recipes are self-contained specs for the embedded agent and should be treated as technical reference.
 

@@ -45,7 +45,7 @@ Startup, interval, and manual calls use the same bounded widget and server-actio
 
 A screenshot named `baby-menu-grok-popover-e2e.png` is written to the system temporary directory by default.
 Set `BABY_MENU_GROK_E2E_SCREENSHOT` to choose another output path.
-The JSON summary contains only equality booleans, refresh completion flags, source mode, and sanitized schema/provenance status.
+The JSON summary contains only equality booleans, refresh completion flags, source mode, sanitized rendered and cache status, read-only-policy flags, and artifact paths.
 
 The runner terminates its dev process, removes the temporary workspace and compiled E2E modules, and drops only its dedicated `grok_quota_e2e_cache` and `grok_quota_e2e_lifecycle` tables.
 It does not package an app, modify the installed production bundle, modify the live installed widget, modify the live widget cache, or leave a macOS application bundle for LaunchServices to register.
