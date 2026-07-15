@@ -214,6 +214,25 @@ describe("clean generated Grok quota installation", () => {
     expect(await readFile(installed.cliCountPath, "utf8")).toBe("x");
   });
 
+  it("does not refresh twice when a preflight-refreshed credential is rejected", async () => {
+    const installed = await install();
+    await writeAuth(join(installed.grokHome, "auth.json"), { key: "fake-expired", expired: true });
+    await writeCli(installed, "refresh");
+    const fetchMock = vi.fn(async () => new Response("", { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await invoke(installed);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure).toMatchObject({
+      kind: "credential_rejected",
+      sourcesTried: ["local-auth", "grok-cli-refresh", "billing-api", "cache"],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await readFile(installed.cliCountPath, "utf8")).toBe("x");
+  });
+
   it("uses the official usage period reset instead of the monetary billing-period reset", async () => {
     const installed = await install();
     vi.stubGlobal(

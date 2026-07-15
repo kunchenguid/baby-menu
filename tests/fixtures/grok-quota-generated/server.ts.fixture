@@ -351,11 +351,13 @@ function staleStatus(kind) {
 }
 async function getQuotaInternal(context) {
     const sourcesTried = ["local-auth"];
+    let refreshAttempted = false;
     ensureCache(context);
     try {
         let candidates = collectAuthCandidates(readAuthData());
         const selectedSessionExpired = candidates.length > 0 && candidates[0].isSession && candidates[0].expired;
         if (candidates.length === 0 || selectedSessionExpired) {
+            refreshAttempted = true;
             sourcesTried.push("grok-cli-refresh");
             await runOfficialRefresh();
             candidates = collectAuthCandidates(readAuthData());
@@ -379,7 +381,8 @@ async function getQuotaInternal(context) {
                 throw error;
             }
         }
-        if (rejected) {
+        if (rejected && !refreshAttempted) {
+            refreshAttempted = true;
             sourcesTried.push("grok-cli-refresh");
             await runOfficialRefresh();
             const refreshedCandidates = collectAuthCandidates(readAuthData()).filter((candidate) => !candidate.expired);
@@ -396,6 +399,8 @@ async function getQuotaInternal(context) {
             }
             throw new QuotaFailure("credential_rejected", "Grok refreshed credentials were rejected");
         }
+        if (rejected)
+            throw new QuotaFailure("credential_rejected", "Grok refreshed credentials were rejected");
         throw new QuotaFailure("auth_source_incompatible", "Grok auth did not contain a usable credential");
     }
     catch (error) {
