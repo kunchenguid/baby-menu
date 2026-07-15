@@ -6,10 +6,11 @@ Run the unattended macOS check with:
 pnpm test:e2e:grok-popover
 ```
 
-The command requires a supported OIDC or legacy sign-in entry in the provider-owned Grok auth file and an installed official Grok CLI for conditional refresh.
-The generated server invokes the documented non-prompt `grok models` capability only after local expiry or one credential-classified exact-source response, then rereads auth, verifies principal continuity, and retries once.
+The command requires a current supported OIDC or legacy sign-in entry in the provider-owned Grok auth file.
+The live run injects a temporary sentinel executable and fails if the generated server attempts any healthy-session CLI preflight or credential refresh.
+The generated server's production contract invokes the documented non-prompt `grok models` capability only after local expiry or one credential-classified exact-source response, then rereads auth, verifies principal continuity, and retries once.
 It does not run `grok login`, perform a healthy-session CLI preflight, implement OAuth, change account configuration, print credential values, import browser credentials, or retain raw provider output.
-The deterministic expired-token, 401, gRPC credential, reread, principal-continuity, timeout, and stale-cache tests use only a temporary fake executable and synthetic auth.
+Separate deterministic expired-token, 401, gRPC credential, reread, principal-continuity, timeout, and stale-cache regression tests use only temporary fake executables and synthetic auth.
 The live same-window parity run does not deliberately expire credentials or force a refresh, and it verifies that auth bytes and modification time remain unchanged when the healthy bearer succeeds.
 
 The command starts the current source app with a temporary extension workspace under `extensions-dev/`, keeps the real Electron popover open, and connects to its renderer over a loopback-only Chrome DevTools port.
