@@ -1,6 +1,6 @@
 import { builtinModules } from "node:module";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
@@ -61,7 +61,11 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
     entryFile,
   });
   const hash = contentHash(graph, extensionDir, options.kind);
-  const outputDir = join(options.cacheRoot, options.extensionId, hash);
+  const cacheRoot = resolve(options.cacheRoot);
+  const extensionCacheDir = resolve(cacheRoot, options.extensionId);
+  assertInsideCache(cacheRoot, extensionCacheDir, options.extensionId);
+  await assertSafeCacheParent(extensionCacheDir);
+  const outputDir = join(extensionCacheDir, hash);
   const outputPath = compiledOutputPath(outputDir, extensionDir, entryFile);
   const sourceFiles = graph.map((module) => module.filePath);
   const sourceSignature = graph.map((module) => module.signature).join("|");
@@ -82,6 +86,7 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
   const cacheMatches = await Promise.all(
     outputs.map(async ({ outputPath, output }) => {
       try {
+        if (!(await isSafeCachedOutput(outputDir, outputPath))) return false;
         return (await readFile(outputPath, "utf8")) === output;
       } catch {
         return false;
@@ -90,6 +95,7 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
   );
 
   if (cacheMatches.some((matches) => !matches)) {
+    await rm(outputDir, { recursive: true, force: true });
     await Promise.all(
       outputs.map(async ({ outputPath, output }) => {
         await mkdir(dirname(outputPath), { recursive: true });
@@ -106,6 +112,49 @@ export async function compileExtensionModule(options: CompileExtensionModuleOpti
     sourceFiles,
     sourceSignature,
   };
+}
+
+async function assertSafeCacheParent(extensionCacheDir: string): Promise<void> {
+  try {
+    const details = await lstat(extensionCacheDir);
+    if (!details.isDirectory() || details.isSymbolicLink()) {
+      throw new Error(`Extension cache path is not a safe directory: ${extensionCacheDir}`);
+    }
+  } catch (error) {
+    if (!isMissingPathError(error)) throw error;
+    await mkdir(extensionCacheDir, { recursive: true });
+    const details = await lstat(extensionCacheDir);
+    if (!details.isDirectory() || details.isSymbolicLink()) {
+      throw new Error(`Extension cache path is not a safe directory: ${extensionCacheDir}`);
+    }
+  }
+}
+
+async function isSafeCachedOutput(outputDir: string, outputPath: string): Promise<boolean> {
+  const relativePath = relative(outputDir, outputPath);
+  const parts = relativePath.split(/[\\/]/).filter(Boolean);
+  let currentPath = outputDir;
+  for (const [index, part] of parts.entries()) {
+    const details = await lstat(currentPath);
+    if (!details.isDirectory() || details.isSymbolicLink()) return false;
+    currentPath = join(currentPath, part);
+    if (index === parts.length - 1) {
+      const outputDetails = await lstat(currentPath);
+      return outputDetails.isFile() && !outputDetails.isSymbolicLink();
+    }
+  }
+  return false;
+}
+
+function assertInsideCache(cacheRoot: string, candidate: string, extensionId: string): void {
+  const relativePath = relative(cacheRoot, candidate);
+  if (relativePath === "" || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    throw new Error(`Extension cache path escapes cache root for ${extensionId}`);
+  }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 export async function rewriteExtensionModuleImports(options: {

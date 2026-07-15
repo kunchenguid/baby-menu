@@ -24,7 +24,7 @@ function fail(message) {
   throw new Error(message);
 }
 
-async function authMetadata() {
+async function authPreflight() {
   const details = await stat(authPath);
   let parsed;
   try {
@@ -36,13 +36,25 @@ async function authMetadata() {
     .map((entry) => entry && typeof entry === "object" && typeof entry.expires_at === "string" ? Date.parse(entry.expires_at) : Number.NaN)
     .filter(Number.isFinite);
   const safelyCurrent = expiries.some((expiry) => expiry - Date.now() >= 30 * 60_000);
-  return { size: details.size, mtimeMs: details.mtimeMs, mode: details.mode & 0o777, safelyCurrent };
+  return { metadata: authFileMetadata(details), safelyCurrent };
 }
 
-function cleanE2EDatabase() {
-  spawnSync("/usr/bin/sqlite3", [databasePath, "DROP TABLE IF EXISTS grok_quota_e2e_cache;"], {
-    stdio: "ignore",
+function authFileMetadata(details) {
+  return { size: details.size, mtimeMs: details.mtimeMs, mode: details.mode & 0o777 };
+}
+
+async function cleanE2EDatabase() {
+  try {
+    await stat(databasePath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return;
+    throw error;
+  }
+  const result = spawnSync("/usr/bin/sqlite3", [databasePath, "DROP TABLE IF EXISTS grok_quota_e2e_cache;"], {
+    encoding: "utf8",
   });
+  if (result.error) throw result.error;
+  if (result.status !== 0) fail(`failed to clean Grok E2E database: ${result.stderr.trim() || `sqlite3 exited ${result.status}`}`);
 }
 
 async function officialBilling() {
@@ -285,23 +297,52 @@ async function captureScreenshot() {
 
 async function cleanup() {
   cdp?.socket.close();
-  if (devProcess?.pid) {
-    try {
-      process.kill(-devProcess.pid, "SIGTERM");
-    } catch {}
-  }
-  cleanE2EDatabase();
+  await stopDevProcess();
+  await cleanE2EDatabase();
   await rm(join(rootDir, ".cache", "baby-menu", "server-actions", "grok-quota-e2e"), { recursive: true, force: true });
   if (tempRoot) await rm(tempRoot, { recursive: true, force: true });
 }
 
+async function stopDevProcess() {
+  const pid = devProcess?.pid;
+  if (!pid) return;
+  signalProcessGroup(pid, "SIGTERM");
+  if (!(await waitForProcessGroupExit(pid, 10_000))) {
+    signalProcessGroup(pid, "SIGKILL");
+    if (!(await waitForProcessGroupExit(pid, 5_000))) fail("Baby Menu dev process group did not exit during cleanup");
+  }
+  devProcess = undefined;
+}
+
+function signalProcessGroup(pid, signal) {
+  try {
+    process.kill(-pid, signal);
+  } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+  }
+}
+
+async function waitForProcessGroupExit(pid, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(-pid, 0);
+    } catch (error) {
+      if (error?.code === "ESRCH") return true;
+      throw error;
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+  }
+  return false;
+}
+
 async function main() {
   if (process.platform !== "darwin") fail("Grok popover E2E requires macOS");
-  const beforeAuth = await authMetadata();
+  const beforeAuth = await authPreflight();
   if (!beforeAuth.safelyCurrent) fail("Grok auth is not safely current; refusing a read-only E2E that could refresh it");
   const official = await officialBilling();
   const extensionsDir = await prepareExtensionWorkspace();
-  cleanE2EDatabase();
+  await cleanE2EDatabase();
   await startApp(extensionsDir);
 
   const startupView = await waitForCompletedRefresh(1);
@@ -316,8 +357,8 @@ async function main() {
   }
 
   await captureScreenshot();
-  const afterAuth = await authMetadata();
-  if (JSON.stringify(afterAuth) !== JSON.stringify(beforeAuth)) fail("Grok auth metadata changed during read-only E2E");
+  const afterAuthMetadata = authFileMetadata(await stat(authPath));
+  if (JSON.stringify(afterAuthMetadata) !== JSON.stringify(beforeAuth.metadata)) fail("Grok auth metadata changed during read-only E2E");
 
   console.log(JSON.stringify({
     ok: true,

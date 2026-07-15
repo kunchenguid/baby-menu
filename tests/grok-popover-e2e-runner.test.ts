@@ -31,7 +31,17 @@ describe("unattended Grok popover E2E runner", () => {
     expect(script).toContain("rendered a fabricated quota or reset");
     expect(script).toContain("refusing a read-only E2E that could refresh it");
     expect(script).toContain("Grok auth metadata changed during read-only E2E");
+    expect(script).toContain("JSON.stringify(afterAuthMetadata) !== JSON.stringify(beforeAuth.metadata)");
     expect(script).not.toMatch(/console\.log\([^\n]*(?:authPath|message\.result|config)/);
+  });
+
+  it("waits for the app process group and requires successful database cleanup", async () => {
+    const script = await readFile(scriptUrl, "utf8");
+
+    expect(script).toContain("await stopDevProcess()");
+    expect(script).toContain("await waitForProcessGroupExit(pid, 10_000)");
+    expect(script).toContain('signalProcessGroup(pid, "SIGKILL")');
+    expect(script).toContain('if (result.status !== 0) fail(`failed to clean Grok E2E database:');
   });
 
   it("documents the repeatable command and cleanup contract", async () => {

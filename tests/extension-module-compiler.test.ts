@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -165,6 +165,33 @@ describe("extension module compiler", () => {
     expect(second.hash).toBe(first.hash);
     await expect(readFile(second.outputPath, "utf8")).resolves.toContain('status: () => "source"');
     await expect(readFile(second.outputPath, "utf8")).resolves.not.toContain("stale-live-patch");
+  });
+
+  it("repairs a symlinked cached output without modifying its target", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-compiler-"));
+    tempDirs.push(rootDir);
+    const extensionDir = join(rootDir, "extensions", "repaired-link");
+    const entryFile = join(extensionDir, "server.ts");
+    const victimPath = join(rootDir, "victim.mjs");
+    await mkdir(extensionDir, { recursive: true });
+    await writeFile(entryFile, `export const actions = { status: () => "source" };\n`);
+    await writeFile(victimPath, "must remain unchanged\n");
+
+    const options = {
+      kind: "server" as const,
+      extensionId: "repaired-link",
+      extensionDir,
+      entryFile,
+      cacheRoot: join(rootDir, "cache", "server-actions"),
+    };
+    const first = await compileExtensionModule(options);
+    await rm(first.outputPath);
+    await symlink(victimPath, first.outputPath);
+
+    await compileExtensionModule(options);
+
+    await expect(readFile(victimPath, "utf8")).resolves.toBe("must remain unchanged\n");
+    await expect(readFile(first.outputPath, "utf8")).resolves.toContain('status: () => "source"');
   });
 
   it("compiles TypeScript server actions with local imports into importable ESM", async () => {
