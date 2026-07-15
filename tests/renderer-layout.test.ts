@@ -44,4 +44,11 @@ describe("renderer layout styles", () => {
     expect(css).not.toMatch(/\.app-shell\s*\{[^}]*100vh/s);
   });
 
+  it("wraps actionable failure guidance within the popover", async () => {
+    const css = await readFile(stylesPath, "utf8");
+
+    expect(css).toMatch(/\.sessionbar\.error \.sb-msg\s*\{[^}]*white-space:\s*normal/s);
+    expect(css).toMatch(/\.sessionbar\.error \.sb-msg\s*\{[^}]*overflow-wrap:\s*anywhere/s);
+  });
+
 });

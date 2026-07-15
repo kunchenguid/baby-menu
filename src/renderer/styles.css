@@ -368,6 +368,11 @@ button:disabled,
   white-space: nowrap;
 }
 
+.sessionbar.error .sb-msg {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .sessionbar .sb-hint {
   color: var(--ink-soft);
   font-size: 10px;
