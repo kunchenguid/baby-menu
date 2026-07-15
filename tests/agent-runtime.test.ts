@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -673,6 +673,53 @@ describe("agent runtime telemetry", () => {
     expect(telemetry.events).toContainEqual({
       name: "agent_turn",
       fields: { agent: "custom", status: "error" },
+    });
+  });
+
+  it("records a failed diagnostic when agent startup throws", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-startup-log-"));
+    const extensionsDir = join(rootDir, "extensions-dev");
+    const runtime = new BabyMenuAgentRuntime(rootDir, {
+      agentName: "codex",
+      paths: {
+        extensionsDir,
+        agentStateDir: join(rootDir, ".cache", "acp-sessions"),
+        snapshotDir: join(rootDir, ".cache", "snapshots"),
+      },
+    });
+    const internals = runtime as unknown as SendInternals;
+    internals.ensureAgentRuntimeCwd = vi.fn(async () => extensionsDir);
+    internals.beginChangeSession = vi.fn(async () => ({
+      startedClean: true,
+      canSave: true,
+      canRollback: true,
+      snapshot: (message?: string) => ({ startedClean: true, canSave: true, canRollback: true, head: "HEAD", message }),
+      hasChanges: vi.fn(async () => false),
+      save: vi.fn(async () => ({ ok: true })),
+      rollback: vi.fn(async () => ({ ok: true })),
+    }));
+    internals.ensureRuntime = vi.fn(async () => {
+      throw new AgentTurnFailedError({
+        message: "Codex authentication failed. Sign in and try again.",
+        code: "AUTHENTICATION",
+        detailCode: "ACP_START_FAILED",
+      });
+    });
+
+    await expect(runtime.send("add a widget")).rejects.toThrow("Codex authentication failed");
+
+    const logDir = join(rootDir, ".cache", "baby-menu", "agent-turns");
+    const logFiles = await readdir(logDir);
+    expect(logFiles).toHaveLength(1);
+    const log = JSON.parse(await readFile(join(logDir, logFiles[0]!), "utf8"));
+    expect(log).toMatchObject({
+      agentName: "codex",
+      status: "failed",
+      error: {
+        message: "Codex authentication failed. Sign in and try again.",
+        code: "AUTHENTICATION",
+        detailCode: "ACP_START_FAILED",
+      },
     });
   });
 });

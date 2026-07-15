@@ -3,13 +3,16 @@ import { Button } from "../../ui";
 import { useAgentRuntime, type AgentRun, type AgentSessionNotice } from "./useAgentRuntime";
 
 export function AgentChat() {
-  const { run, session, send, keep, undo, dismissNotice } = useAgentRuntime();
+  const { run, session, pendingChange, notice, send, keep, undo, dismissNotice } = useAgentRuntime();
 
   if (run) return <RunStrip run={run} />;
 
   return (
     <>
       <SessionBar session={session} onKeep={keep} onUndo={undo} onDismiss={dismissNotice} />
+      {notice && pendingChange ? (
+        <SessionBar session={pendingChange} onKeep={keep} onUndo={undo} onDismiss={dismissNotice} />
+      ) : null}
       <Composer onSend={send} />
     </>
   );

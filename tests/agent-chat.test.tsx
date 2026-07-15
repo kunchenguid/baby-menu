@@ -163,6 +163,32 @@ describe("AgentChat", () => {
     expect(screen.queryByText("the agent did not edit anything")).toBeNull();
   });
 
+  it("keeps partial failed changes reviewable alongside the failure reason", async () => {
+    installBabyMenuAgentMock({
+      session: {
+        startedClean: true,
+        canSave: true,
+        canRollback: true,
+        head: null,
+        dirty: true,
+        changes: [{ type: "extension", extensionId: "battery", kind: "updated" }],
+      },
+    });
+    window.babyMenu!.agent.send = vi.fn(async () => {
+      throw new Error("Codex authentication failed. Sign in and try again.");
+    });
+    render(<AgentChat />);
+
+    const composer = screen.getByPlaceholderText("talk to the baby");
+    fireEvent.change(composer, { target: { value: "update the battery widget" } });
+    fireEvent.submit(composer.closest("form")!);
+
+    expect(await screen.findByText("Codex authentication failed. Sign in and try again.")).toBeTruthy();
+    expect(screen.getByText("Updated the battery extension")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Keep" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
+  });
+
   it("labels the Keep prompt from the diff, not the agent prose (updated extension)", async () => {
     installBabyMenuAgentMock();
     // The agent claims it "added" something, but the diff says an existing

@@ -116,7 +116,9 @@ export function useAgentRuntime() {
       setPendingChange(nextChange.kind === "pending" ? nextChange : null);
       setNotice(nextChange.kind === "pending" ? null : nextChange);
     } catch (error) {
-      setPendingChange(null);
+      const snapshot = await window.babyMenu?.git.status().catch(() => null);
+      const recoveredChange = snapshot ? sessionNoticeForSnapshot(snapshot) : null;
+      setPendingChange(recoveredChange?.kind === "pending" ? recoveredChange : null);
       setNotice({
         kind: "error",
         summary: "Agent unavailable",
@@ -162,6 +164,8 @@ export function useAgentRuntime() {
   return {
     run,
     session: notice ?? pendingChange,
+    pendingChange,
+    notice,
     send,
     keep,
     undo,
@@ -251,4 +255,3 @@ function failureReason(error: unknown): string | null {
     .trim();
   return message || null;
 }
-

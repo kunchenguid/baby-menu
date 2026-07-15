@@ -494,8 +494,15 @@ export class BabyMenuAgentRuntime {
     let runtime: AcpxRuntime | null = null;
     let handle: AcpRuntimeHandle | null = null;
     let turnLog: AgentTurnLogRecorder | null = null;
+    const requestId = randomUUID();
 
     try {
+      turnLog = await AgentTurnLogRecorder.start({
+        rootDir: this.rootDir,
+        agentName: this.agentName,
+        requestId,
+        prompt,
+      });
       runtime = await this.ensureRuntime(agentCwd);
       handle = await withAgentTimeout(
         runtime.ensureSession({
@@ -514,13 +521,6 @@ export class BabyMenuAgentRuntime {
       );
       this.handle = handle;
 
-      const requestId = randomUUID();
-      turnLog = await AgentTurnLogRecorder.start({
-        rootDir: this.rootDir,
-        agentName: this.agentName,
-        requestId,
-        prompt,
-      });
       const turn = runtime.startTurn({
         handle,
         text: this.buildPrompt(prompt),
