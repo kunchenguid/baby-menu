@@ -1,5 +1,8 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { captureGrokAuthIntegrity, grokAuthIntegrityEqual } from "../scripts/grok-auth-integrity.mjs";
 import { refreshLifecycleStatus } from "../scripts/grok-popover-lifecycle.mjs";
 
 const scriptUrl = new URL("../scripts/e2e-grok-popover.mjs", import.meta.url);
@@ -8,6 +11,27 @@ const widgetFixtureUrl = new URL("./fixtures/grok-quota-generated/widget.tsx.fix
 const packageUrl = new URL("../package.json", import.meta.url);
 
 describe("unattended Grok popover E2E runner", () => {
+  it("compares provider auth bytes and modification time without exposing either", async () => {
+    const root = await mkdtemp(join(tmpdir(), "baby-menu-grok-auth-integrity-"));
+    const authPath = join(root, "auth.json");
+    try {
+      await writeFile(authPath, "original");
+      const original = await captureGrokAuthIntegrity({ grokHome: root, authPath });
+
+      expect(await grokAuthIntegrityEqual(original)).toBe(true);
+      await writeFile(authPath, "changed");
+      expect(await grokAuthIntegrityEqual(original)).toBe(false);
+
+      await writeFile(authPath, "original");
+      const restored = await captureGrokAuthIntegrity({ grokHome: root, authPath });
+      const changedTime = new Date(Date.now() + 60_000);
+      await utimes(authPath, changedTime, changedTime);
+      expect(await grokAuthIntegrityEqual(restored)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("treats delayed startup waiting as intermediate until the action and renderer settle", () => {
     const waitingView = { state: "waiting", terminal: false, completed: 0 };
 
@@ -89,6 +113,7 @@ describe("unattended Grok popover E2E runner", () => {
     expect(script).toContain("grok-refresh-sentinel");
     expect(script).toContain("healthy exact-source E2E unexpectedly launched the conditional refresh command");
     expect(script).toContain("healthyCliPreflightObserved: false");
+    expect(script).toContain("healthyAuthUnchanged");
     expect(script).not.toContain("System Events");
     expect(script).not.toContain("AXPress");
   });

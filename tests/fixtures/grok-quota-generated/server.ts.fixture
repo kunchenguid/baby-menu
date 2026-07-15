@@ -13,6 +13,7 @@ const CACHE_TABLE = "grok_quota_cache";
 const CURRENT_CACHE_SCHEMA_VERSION = 2;
 const REQUEST_TIMEOUT_MS = Number(process.env.GROK_QUOTA_TEST_TIMEOUT_MS) || 15_000;
 const CLI_TIMEOUT_MS = Number(process.env.GROK_QUOTA_TEST_CLI_TIMEOUT_MS) || 20_000;
+const CLI_TERMINATION_GRACE_MS = Number(process.env.GROK_QUOTA_TEST_CLI_TERMINATION_GRACE_MS) || 1_000;
 const CLI_OUTPUT_LIMIT_BYTES = 128 * 1024;
 const RESPONSE_LIMIT_BYTES = 64 * 1024;
 const EMPTY_GRPC_REQUEST = Uint8Array.from([0, 0, 0, 0, 0]);
@@ -192,6 +193,7 @@ async function runOfficialRefresh() {
         throw new QuotaFailure("cli_not_found", "Grok CLI was not found for conditional session refresh");
     await new Promise((resolve, reject) => {
         const child = spawn(executable, ["models"], {
+            detached: process.platform !== "win32",
             env: { ...process.env, NO_COLOR: "1", TERM: "dumb" },
             shell: false,
             stdio: ["ignore", "pipe", "pipe"],
@@ -201,6 +203,18 @@ async function runOfficialRefresh() {
         let settled = false;
         let timeoutFailure;
         let forceKillTimer;
+        const signalChild = (signal) => {
+            try {
+                if (child.pid && process.platform !== "win32")
+                    process.kill(-child.pid, signal);
+                else
+                    child.kill(signal);
+            }
+            catch (error) {
+                if (error?.code !== "ESRCH")
+                    throw error;
+            }
+        };
         const appendBounded = (current, chunk) => Buffer.concat([current, chunk])
             .subarray(0, CLI_OUTPUT_LIMIT_BYTES);
         child.stdout?.on("data", (chunk) => {
@@ -216,19 +230,27 @@ async function runOfficialRefresh() {
             clearTimeout(timer);
             if (forceKillTimer)
                 clearTimeout(forceKillTimer);
+            if (timeoutFailure) {
+                child.stdout?.destroy();
+                child.stderr?.destroy();
+            }
             failure ? reject(failure) : resolve();
         };
         const timer = setTimeout(() => {
             timeoutFailure = new QuotaFailure("cli_launch_failed", "Grok CLI refresh timed out", { diagnostic: "timeout" });
-            child.kill("SIGTERM");
-            forceKillTimer = setTimeout(() => child.kill("SIGKILL"), 1_000);
+            signalChild("SIGTERM");
+            forceKillTimer = setTimeout(() => {
+                signalChild("SIGKILL");
+                finish(timeoutFailure);
+            }, CLI_TERMINATION_GRACE_MS);
         }, CLI_TIMEOUT_MS);
         child.once("error", (error) => {
             const code = typeof error.code === "string" ? error.code : "launch";
-            finish(new QuotaFailure("cli_launch_failed", "Grok CLI could not be launched", { diagnostic: `code:${code}` }));
+            finish(timeoutFailure || new QuotaFailure("cli_launch_failed", "Grok CLI could not be launched", { diagnostic: `code:${code}` }));
         });
         child.once("close", (code) => {
             if (timeoutFailure) {
+                signalChild("SIGKILL");
                 finish(timeoutFailure);
                 return;
             }
@@ -633,16 +655,17 @@ async function fetchConsumerQuotaOnce(candidate, signal) {
     return normalizeConsumerPayload(decoded.dataFrames[0], candidate.accountBinding);
 }
 
-async function fetchConsumerQuota(candidate) {
+async function fetchConsumerQuota(candidate, transportMode = "retry-transient") {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const maxAttempts = transportMode === "single-attempt" ? 1 : 2;
     try {
-        for (let attempt = 0; attempt < 2; attempt += 1) {
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
             try {
                 return await fetchConsumerQuotaOnce(candidate, controller.signal);
             }
             catch (error) {
-                if (!(error instanceof QuotaFailure) || !error.retryable || attempt > 0 || controller.signal.aborted)
+                if (!(error instanceof QuotaFailure) || !error.retryable || attempt + 1 >= maxAttempts || controller.signal.aborted)
                     throw error;
             }
         }
@@ -807,7 +830,7 @@ async function getQuotaInternal(context) {
                 throw error;
             refreshAttempted = true;
             candidate = await refreshAndReselect(candidate, sourcesTried);
-            snapshot = await fetchConsumerQuota(candidate);
+            snapshot = await fetchConsumerQuota(candidate, "single-attempt");
         }
         writeCachedSnapshot(context, snapshot);
         return {

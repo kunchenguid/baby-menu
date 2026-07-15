@@ -6,6 +6,7 @@ import { chmod, cp, mkdtemp, mkdir, readFile, readdir, rename, rm, stat, writeFi
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { captureGrokAuthIntegrity, grokAuthIntegrityEqual, resolveGrokAuthPath } from "./grok-auth-integrity.mjs";
 import { refreshLifecycleStatus } from "./grok-popover-lifecycle.mjs";
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -275,7 +276,7 @@ async function selectOracleAuth() {
   if (process.env.GROK_AUTH_JSON) {
     root = JSON.parse(process.env.GROK_AUTH_JSON);
   } else {
-    const authPath = process.env.GROK_AUTH_PATH || join(grokHome, "auth.json");
+    const authPath = resolveGrokAuthPath({ grokHome, authPath: process.env.GROK_AUTH_PATH });
     root = JSON.parse(await readFile(authPath, "utf8"));
   }
   if (!root || typeof root !== "object" || Array.isArray(root)) fail("consumerOracle auth source is incompatible");
@@ -822,6 +823,11 @@ function assertCacheMigration(status, official) {
 
 async function main() {
   if (process.platform !== "darwin") fail("Grok popover E2E requires macOS");
+  const healthyAuthBefore = await captureGrokAuthIntegrity({
+    grokHome,
+    authPath: process.env.GROK_AUTH_PATH,
+    inlineAuthJson: process.env.GROK_AUTH_JSON,
+  });
   const startupOfficial = await consumerOracle();
   const extensionsDir = await prepareExtensionWorkspace();
   await cleanE2EDatabase();
@@ -870,6 +876,8 @@ async function main() {
   if (await readFile(fakeGrokCliCountPath, "utf8")) {
     fail("healthy exact-source E2E unexpectedly launched the conditional refresh command");
   }
+  const healthyAuthUnchanged = await grokAuthIntegrityEqual(healthyAuthBefore);
+  if (!healthyAuthUnchanged) fail("healthy exact-source E2E modified provider auth");
 
   await captureScreenshot();
 
@@ -893,6 +901,7 @@ async function main() {
     renderedFailureKind: manualView.failureKind,
     cacheStatus: "schema-v2-exact-source-principal-bound",
     healthyCliPreflightObserved: false,
+    healthyAuthUnchanged,
     conditionalOfficialRefreshCoveredByFixtures: true,
     browserCookieImportAllowed: false,
     screenshot: screenshotPath,

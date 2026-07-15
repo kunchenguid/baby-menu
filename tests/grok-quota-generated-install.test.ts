@@ -191,7 +191,9 @@ describe("clean generated Grok quota installation", () => {
       "GROK_CLI_PATH",
       "GROK_TEST_AUTH_AFTER",
       "GROK_TEST_CLI_COUNT",
+      "GROK_TEST_DESCENDANT_PID",
       "GROK_QUOTA_TEST_CLI_TIMEOUT_MS",
+      "GROK_QUOTA_TEST_CLI_TERMINATION_GRACE_MS",
       "GROK_QUOTA_TEST_TIMEOUT_MS",
     ]) {
       if (originalEnv[key] === undefined) delete process.env[key];
@@ -229,7 +231,7 @@ describe("clean generated Grok quota installation", () => {
   async function configureFakeRefresh(
     installed: InstalledFixture,
     entries: Record<string, AuthEntry>,
-    behavior: "refresh" | "fail" | "timeout" = "refresh",
+    behavior: "refresh" | "fail" | "timeout" | "inherited-stdio-timeout" = "refresh",
   ): Promise<string> {
     const executable = join(installed.grokHome, "bin", "grok");
     const refreshedAuth = join(installed.rootDir, "refreshed-auth.json");
@@ -240,12 +242,15 @@ describe("clean generated Grok quota installation", () => {
       ? '#!/bin/sh\nprintf x >> "$GROK_TEST_CLI_COUNT"\ncp "$GROK_TEST_AUTH_AFTER" "$GROK_HOME/auth.json"\n'
       : behavior === "timeout"
         ? '#!/bin/sh\nprintf x >> "$GROK_TEST_CLI_COUNT"\ntrap "" TERM\nwhile :; do :; done\n'
+        : behavior === "inherited-stdio-timeout"
+          ? '#!/bin/sh\nprintf x >> "$GROK_TEST_CLI_COUNT"\ntrap "" TERM\n(trap "" TERM; while :; do sleep 1; done) &\nchild_pid=$!\nprintf "%s" "$child_pid" > "$GROK_TEST_DESCENDANT_PID"\nwait "$child_pid"\n'
         : '#!/bin/sh\nprintf x >> "$GROK_TEST_CLI_COUNT"\nexit 7\n';
     await writeFile(executable, script);
     await chmod(executable, 0o755);
     process.env.GROK_CLI_PATH = executable;
     process.env.GROK_TEST_AUTH_AFTER = refreshedAuth;
     process.env.GROK_TEST_CLI_COUNT = countPath;
+    process.env.GROK_TEST_DESCENDANT_PID = join(installed.rootDir, "cli-descendant-pid.txt");
     return countPath;
   }
 
@@ -483,6 +488,45 @@ describe("clean generated Grok quota installation", () => {
     expect(await readFile(countPath, "utf8")).toBe("x");
   });
 
+  it("uses one post-refresh transport attempt while ordinary transient acquisition retains one retry", async () => {
+    const installed = await install();
+    const countPath = await configureFakeRefresh(installed, {
+      "https://auth.x.ai::fixture-client": {
+        key: "fake-refreshed",
+        auth_mode: "oidc",
+        user_id: "fixture-user",
+        team_id: "fixture-team",
+        expires_at: "2099-01-01T00:00:00Z",
+      },
+    });
+    const postRefreshFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response("", { status: 401 }))
+      .mockResolvedValueOnce(new Response("", { status: 503 }))
+      .mockResolvedValueOnce(consumerQuotaResponse());
+    vi.stubGlobal("fetch", postRefreshFetch);
+
+    const postRefreshResult = await invoke(installed);
+
+    expect(postRefreshResult.ok).toBe(false);
+    if (postRefreshResult.ok) return;
+    expect(postRefreshResult.failure.kind).toBe("quota_service");
+    expect(postRefreshFetch).toHaveBeenCalledTimes(2);
+    expect(await readFile(countPath, "utf8")).toBe("x");
+
+    const ordinaryInstalled = await install();
+    const ordinaryFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response("", { status: 503 }))
+      .mockResolvedValueOnce(consumerQuotaResponse());
+    vi.stubGlobal("fetch", ordinaryFetch);
+
+    const ordinaryResult = await invoke(ordinaryInstalled);
+
+    expect(ordinaryResult.ok).toBe(true);
+    expect(ordinaryFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("never runs the conditional refresh for a healthy successful bearer", async () => {
     const installed = await install();
     const countPath = await configureFakeRefresh(installed, {
@@ -652,9 +696,10 @@ describe("clean generated Grok quota installation", () => {
     expect(await readFile(countPath, "utf8")).toBe("x");
   });
 
-  it("bounds the official refresh process and never calls gRPC after timeout", async () => {
+  it("bounds refresh termination when a descendant keeps inherited stdio open", async () => {
     const installed = await install();
-    process.env.GROK_QUOTA_TEST_CLI_TIMEOUT_MS = "80";
+    process.env.GROK_QUOTA_TEST_CLI_TIMEOUT_MS = "500";
+    process.env.GROK_QUOTA_TEST_CLI_TERMINATION_GRACE_MS = "100";
     await writeAuth(join(installed.grokHome, "auth.json"), { key: "fake-expired", expired: true });
     const countPath = await configureFakeRefresh(installed, {
       "https://auth.x.ai::fixture-client": {
@@ -664,7 +709,7 @@ describe("clean generated Grok quota installation", () => {
         team_id: "fixture-team",
         expires_at: "2099-01-01T00:00:00Z",
       },
-    }, "timeout");
+    }, "inherited-stdio-timeout");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -674,7 +719,19 @@ describe("clean generated Grok quota installation", () => {
     if (result.ok) return;
     expect(result.failure).toMatchObject({ kind: "cli_launch_failed", diagnostic: "timeout" });
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(countPath).toContain(installed.rootDir);
+    expect(await readFile(countPath, "utf8")).toBe("x");
+    const descendantPidPath = process.env.GROK_TEST_DESCENDANT_PID;
+    expect(descendantPidPath).toBeTruthy();
+    if (!descendantPidPath) return;
+    const descendantPid = Number(await readFile(descendantPidPath, "utf8"));
+    await expect.poll(() => {
+      try {
+        process.kill(descendantPid, 0);
+        return false;
+      } catch (error) {
+        return (error as NodeJS.ErrnoException).code === "ESRCH";
+      }
+    }).toBe(true);
   });
 
   it("uses currentPeriod.end and never the monetary billing period reset", async () => {
