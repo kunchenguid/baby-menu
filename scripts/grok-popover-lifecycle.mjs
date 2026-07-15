@@ -19,7 +19,7 @@ export function refreshLifecycleStatus({ expected, lifecycle, view, previousChec
       return { settled: false, stage: "renderer-previous-result" };
     }
   }
-  if (view.completed > 0 && view.completed !== expected) {
+  if (view.completed !== expected) {
     return {
       settled: false,
       stage: view.completed < expected ? "renderer-previous-result" : "renderer-unexpected-extra-result",

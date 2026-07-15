@@ -112,7 +112,7 @@ export function observeGrokPopover(document) {
       if (checkedAt || cacheSchema || source || sourceVersion || observedOperation || periodType || percentUsed ||
           percentRemaining || percentageField || resetAt || resetField || products.length > 0 ||
           stale !== "false" || warningKind !== "none" || failureKind !== "none" || completed !== 0) return null;
-    } else if (!isExactIso(checkedAt)) {
+    } else if (completed === 0 || !isExactIso(checkedAt)) {
       return null;
     } else if (state === "failure") {
       if (failureKind === "none" || stale !== "false" || warningKind !== "none" || cacheSchema || source ||
@@ -180,8 +180,12 @@ export function observeGrokPopover(document) {
     const node = region?.querySelector(`[data-grok-${name}]`);
     return [name, node && !roots.includes(node) ? node.getAttribute(`data-grok-${name}`) : null];
   }));
-  if (region && button && aliasNames.every((name) => aliases[name] !== null)) {
-    const lower = text.toLowerCase();
+  const lower = text.toLowerCase();
+  const visibleCompleted = Number([...String(text).matchAll(/checked (\d+)/ig)].at(-1)?.[1] || 0);
+  const visiblySettled = Boolean(button) && !button.disabled &&
+    button.textContent?.trim().toLowerCase() !== "checking" && !lower.includes("reading");
+  const hasAllAliases = aliasNames.every((name) => aliases[name] !== null);
+  if (region && button && hasAllAliases && (visibleCompleted > 0 || !visiblySettled)) {
     const failure = lower.includes("quota unreported");
     const stale = lower.includes("stale");
     return {
@@ -203,12 +207,12 @@ export function observeGrokPopover(document) {
       resetAt: aliases["reset-at"],
       resetField: aliases["reset-field"],
       products: aliases.products,
-      completed: Number([...String(text).matchAll(/checked (\d+)/ig)].at(-1)?.[1] || 0),
-      terminal: !button.disabled && button.textContent?.trim().toLowerCase() !== "checking" && !lower.includes("reading"),
+      completed: visibleCompleted,
+      terminal: visiblySettled,
     };
   }
 
-  if (roots.some(hasTerminalEvidence)) {
+  if (roots.some(hasTerminalEvidence) || (visiblySettled && (visibleCompleted > 0 || hasAllAliases))) {
     const missing = attributeNames.filter((name) => !roots.some((root) => root.hasAttribute(name)));
     return {
       observabilityMode: "invalid",

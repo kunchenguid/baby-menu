@@ -85,13 +85,13 @@ describe("unattended Grok popover E2E runner", () => {
       lifecycle,
       view: { state: "success", terminal: true, completed: 0, checkedAt: "2026-07-14T20:00:01.000Z" },
       previousCheckedAt: "2026-07-14T20:00:00.000Z",
-    })).toEqual({ settled: true, stage: "renderer-settled" });
+    })).toEqual({ settled: false, stage: "renderer-previous-result" });
     expect(refreshLifecycleStatus({
       expected: 1,
       lifecycle: { started: 1, resolved: 1, rejected: 0 },
       view: { state: "success", terminal: true, completed: 0, checkedAt: "2026-07-14T20:00:00.000Z" },
       previousCheckedAt: null,
-    })).toEqual({ settled: true, stage: "renderer-settled" });
+    })).toEqual({ settled: false, stage: "renderer-previous-result" });
   });
 
   it("reproduces the PR 48 mixed root and prefixed-descendant mismatch", async () => {
@@ -245,6 +245,57 @@ describe("unattended Grok popover E2E runner", () => {
       terminal: true,
     });
     expect(view.observabilityError).toContain("root with terminal evidence does not satisfy the stable root contract");
+  });
+
+  it("rejects visible settled evidence on an incomplete waiting root", () => {
+    const dom = new JSDOM(`
+      <section aria-label="menu widgets">
+        <div data-grok-e2e="waiting">
+          <span data-grok-checked-at="2026-07-14T20:00:00.000Z">last checked 1:00 PM</span>
+          <p>checked 1</p>
+          <button type="button">refresh</button>
+        </div>
+      </section>
+    `, { runScripts: "outside-only" });
+    const view = dom.window.eval(grokPopoverObservationExpression()) as GrokPopoverObservation;
+
+    expect(view).toMatchObject({
+      observabilityMode: "invalid",
+      state: "contract-invalid",
+      terminal: true,
+    });
+  });
+
+  it("rejects terminal root states without a completed acquisition", () => {
+    const html = `
+      <div
+        data-grok-e2e="failure"
+        data-grok-checked-at="2026-07-14T20:00:00.000Z"
+        data-grok-stale="false"
+        data-grok-warning-kind="none"
+        data-grok-failure-kind="connectivity"
+        data-grok-cache-schema=""
+        data-grok-source=""
+        data-grok-source-version=""
+        data-grok-operation=""
+        data-grok-period=""
+        data-grok-percent-used=""
+        data-grok-percent-remaining=""
+        data-grok-percentage-field=""
+        data-grok-reset-at=""
+        data-grok-reset-field=""
+        data-grok-products="[]"
+        data-grok-completed-acquisitions="0"
+      ></div>
+    `;
+    const dom = new JSDOM(html, { runScripts: "outside-only" });
+    const view = dom.window.eval(grokPopoverObservationExpression()) as GrokPopoverObservation;
+
+    expect(view).toMatchObject({
+      observabilityMode: "invalid",
+      state: "contract-invalid",
+      terminal: true,
+    });
   });
 
   it("opens the real popover and drives startup and manual refresh without accessibility input", async () => {

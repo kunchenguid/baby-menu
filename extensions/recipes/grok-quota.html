@@ -235,7 +235,7 @@ type GrokQuotaResult =
             <tr><td><code>data-grok-reset-at</code></td><td>The exact safe ISO 8601 reset from <code>config.currentPeriod.end</code>, or empty when that official field is absent.</td></tr>
             <tr><td><code>data-grok-reset-field</code></td><td><code>config.currentPeriod.end</code> when <code>data-grok-reset-at</code> is present, otherwise empty.</td></tr>
             <tr><td><code>data-grok-products</code></td><td>A JSON array of only normalized <code>{ id, percentUsed }</code> product values from the same response, preserving exact unrounded finite percentages; use <code>[]</code> outside success.</td></tr>
-            <tr><td><code>data-grok-completed-acquisitions</code></td><td>A base-10 non-negative integer counting settled renderer acquisitions, incremented once for each startup, interval, or manual completion and unchanged while a shared request is pending.</td></tr>
+            <tr><td><code>data-grok-completed-acquisitions</code></td><td>A base-10 non-negative integer counting settled renderer acquisitions, exactly <code>0</code> for <code>waiting</code> and at least <code>1</code> for <code>success</code> or <code>failure</code>, incremented once for each startup, interval, or manual completion and unchanged while a shared request is pending.</td></tr>
           </tbody>
         </table>
         <p>Every listed attribute must exist directly on the same <code>data-grok-e2e</code> root in every state; use the documented empty values rather than omitting attributes or moving aliases into descendants.</p>
