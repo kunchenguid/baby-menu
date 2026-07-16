@@ -172,10 +172,7 @@ export function observeGrokPopover(document, attributeNames = GROK_OBSERVABILITY
     // Authoritative installed root (dotfiles-private PR 48 merge): one data-grok-e2e root
     // owns unprefixed PR 77 parity values, optional data-grok-* aliases on the same root,
     // and data-grok-completed-refreshes. It does not use the future complete-root attribute set.
-    return root.hasAttribute("data-grok-completed-refreshes") ||
-      (root.hasAttribute("data-checked-at") &&
-        (root.hasAttribute("data-operation") || root.hasAttribute("data-grok-operation") ||
-          root.getAttribute("data-grok-e2e") === "waiting"));
+    return root.hasAttribute("data-grok-completed-refreshes");
   }
 
   function readInstalledRoot(root) {
@@ -201,12 +198,11 @@ export function observeGrokPopover(document, attributeNames = GROK_OBSERVABILITY
     const productsText = attr(root, "data-products", "data-grok-products");
     const refreshing = root.getAttribute("data-grok-refreshing") === "true";
 
-    let completed = parseCompleted(root.getAttribute("data-grok-completed-refreshes"));
-    if (completed === null) {
-      completed = Number([...String(root.textContent || "").matchAll(/checked (\d+)/ig)].at(-1)?.[1] || 0);
-    }
+    const completed = parseCompleted(root.getAttribute("data-grok-completed-refreshes"));
+    if (completed === null) return null;
 
     if (state === "waiting") {
+      if (hasTerminalEvidence(root)) return null;
       if (completed !== 0) return null;
       return {
         observabilityMode: "installed-root",
@@ -233,7 +229,12 @@ export function observeGrokPopover(document, attributeNames = GROK_OBSERVABILITY
     }
 
     if (completed < 1 || !checkedAt || !isExactIso(checkedAt)) return null;
-    if (state === "success" && (!observedOperation || !source || !sourceVersion || !cacheSchema)) return null;
+    if (state === "success" &&
+      (!root.hasAttribute("data-operation") || !root.hasAttribute("data-source") ||
+        !root.hasAttribute("data-source-version") || !root.hasAttribute("data-cache-schema") ||
+        !observedOperation || !source || !sourceVersion || !cacheSchema)) {
+      return null;
+    }
     if (state === "failure" && (!failureKind || failureKind === "none")) return null;
 
     return {

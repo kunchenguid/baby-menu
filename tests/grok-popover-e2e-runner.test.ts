@@ -300,6 +300,35 @@ describe("unattended Grok popover E2E runner", () => {
       completed: 1,
       terminal: false,
     });
+    expect(observeHtml(installedPr48RootHtml({ state: "waiting" }))).toMatchObject({
+      observabilityMode: "installed-root",
+      state: "waiting",
+      completed: 0,
+      terminal: false,
+    });
+  });
+
+  it.each([
+    {
+      name: "missing installed completion attribute",
+      html: installedPr48RootHtml().replace(/data-grok-completed-refreshes="\d+"/, ""),
+    },
+    {
+      name: "waiting installed root with terminal warning",
+      html: installedPr48RootHtml({ state: "waiting" }).replace('data-warning-kind="none"', 'data-warning-kind="connectivity"'),
+    },
+    {
+      name: "waiting installed root with terminal checked timestamp",
+      html: installedPr48RootHtml({ state: "waiting" }).replace('data-checked-at=""', 'data-checked-at="2026-07-14T20:00:00.000Z"'),
+    },
+  ] as const)("rejects unsupported installed-root shape: $name", ({ html }) => {
+    const view = observeHtml(html);
+    expect(view).toMatchObject({
+      observabilityMode: "invalid",
+      state: "contract-invalid",
+      terminal: true,
+    });
+    expect(view?.observabilityError).toContain("root with terminal evidence");
   });
 
   it.each([
