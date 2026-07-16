@@ -1,0 +1,81 @@
+{
+  "ok": true,
+  "cases": [
+    {
+      "name": "exact installed PR 48 root",
+      "view": {
+        "observabilityMode": "installed-root",
+        "state": "success",
+        "text": "22% used checked 1",
+        "failureKind": null,
+        "checkedAt": "2026-07-14T20:00:00.000Z",
+        "stale": "false",
+        "warningKind": "none",
+        "cacheSchema": "2",
+        "operation": "grok_api_v2.GrokBuildBilling.GetGrokCreditsConfig",
+        "source": "grok-credits-grpc-web",
+        "sourceVersion": "1",
+        "periodType": "weekly",
+        "percentUsed": "22",
+        "percentRemaining": "78",
+        "percentageField": "config.creditUsagePercent",
+        "resetAt": "2026-07-21T20:00:00.000Z",
+        "resetField": "config.currentPeriod.end",
+        "products": "[{\"id\":\"product:grok-build\",\"percentUsed\":14}]",
+        "completed": 1,
+        "terminal": true
+      }
+    },
+    {
+      "name": "future complete root contract",
+      "view": {
+        "observabilityMode": "root-contract",
+        "state": "success",
+        "text": "22% used",
+        "failureKind": "none",
+        "checkedAt": "2026-07-14T20:00:00.000Z",
+        "stale": "false",
+        "warningKind": "none",
+        "cacheSchema": "2",
+        "operation": "grok_api_v2.GrokBuildBilling.GetGrokCreditsConfig",
+        "source": "grok-credits-grpc-web",
+        "sourceVersion": "1",
+        "periodType": "weekly",
+        "percentUsed": "22",
+        "percentRemaining": "78",
+        "percentageField": "config.creditUsagePercent",
+        "resetAt": "2026-07-21T20:00:00.000Z",
+        "resetField": "config.currentPeriod.end",
+        "products": "[{\"id\":\"product:grok-build\",\"percentUsed\":14}]",
+        "completed": 1,
+        "terminal": true
+      }
+    },
+    {
+      "name": "removed descendant fallback shape",
+      "view": {
+        "observabilityMode": "invalid",
+        "observabilityError": "data-grok-e2e root with terminal evidence does not satisfy the stable root contract; missing data-grok-checked-at, data-grok-stale, data-grok-warning-kind, data-grok-failure-kind, data-grok-cache-schema, data-grok-source, data-grok-source-version, data-grok-operation, data-grok-period, data-grok-percent-used, data-grok-percent-remaining, data-grok-percentage-field, data-grok-reset-at, data-grok-reset-field, data-grok-products, data-grok-completed-acquisitions",
+        "state": "contract-invalid",
+        "text": "",
+        "failureKind": null,
+        "checkedAt": null,
+        "stale": null,
+        "warningKind": null,
+        "cacheSchema": null,
+        "operation": null,
+        "source": null,
+        "sourceVersion": null,
+        "periodType": null,
+        "percentUsed": null,
+        "percentRemaining": null,
+        "percentageField": null,
+        "resetAt": null,
+        "resetField": null,
+        "products": null,
+        "completed": 0,
+        "terminal": true
+      }
+    }
+  ]
+}
