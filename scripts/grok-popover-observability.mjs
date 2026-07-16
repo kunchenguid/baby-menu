@@ -233,10 +233,17 @@ export function observeGrokPopover(document, attributeNames = GROK_OBSERVABILITY
     if (state === "success" &&
       (!root.hasAttribute("data-operation") || !root.hasAttribute("data-source") ||
         !root.hasAttribute("data-source-version") || !root.hasAttribute("data-cache-schema") ||
-        !observedOperation || !source || !sourceVersion || !cacheSchema)) {
+        !observedOperation || !source || !sourceVersion || !cacheSchema ||
+        stale !== "false" || warningKind !== "none" || failureKind !== "")) {
       return null;
     }
-    if (state === "failure" && (!failureKind || failureKind === "none")) return null;
+    if (state === "failure" &&
+      (!failureKind || failureKind === "none" || stale !== "false" || warningKind !== "none" ||
+        cacheSchema || source || sourceVersion || observedOperation || periodType || percentUsed ||
+        percentRemaining || percentageField || resetAt || resetField ||
+        (productsText !== null && productsText !== "" && productsText !== "[]"))) {
+      return null;
+    }
 
     return {
       observabilityMode: "installed-root",
