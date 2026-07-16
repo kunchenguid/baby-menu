@@ -35,6 +35,7 @@ export function observeGrokPopover(document, attributeNames = GROK_OBSERVABILITY
     "data-grok-reset-at",
     "data-grok-reset-field",
   ];
+  const installedValueAttributes = completeValueAttributes.map((name) => name.replace("data-grok-", "data-"));
   const roots = [...document.querySelectorAll("[data-grok-e2e]")];
 
   function isExactIso(value) {
@@ -84,7 +85,7 @@ export function observeGrokPopover(document, attributeNames = GROK_OBSERVABILITY
     if (![null, "", "none"].includes(root.getAttribute("data-grok-failure-kind"))) return true;
     if (![null, "", "none"].includes(root.getAttribute("data-failure-kind"))) return true;
     if (completeValueAttributes.some((name) => Boolean(root.getAttribute(name)))) return true;
-    if (Boolean(root.getAttribute("data-checked-at")) || Boolean(root.getAttribute("data-cache-schema"))) return true;
+    if (installedValueAttributes.some((name) => Boolean(root.getAttribute(name)))) return true;
     const products = root.getAttribute("data-grok-products") ?? root.getAttribute("data-products");
     return products !== null && products !== "" && products !== "[]";
   }

@@ -321,6 +321,22 @@ describe("unattended Grok popover E2E runner", () => {
       name: "waiting installed root with terminal checked timestamp",
       html: installedPr48RootHtml({ state: "waiting" }).replace('data-checked-at=""', 'data-checked-at="2026-07-14T20:00:00.000Z"'),
     },
+    {
+      name: "waiting installed root with terminal operation",
+      html: installedPr48RootHtml({ state: "waiting" }).replace('data-failure-kind=""', 'data-failure-kind="" data-operation="grok_api_v2.GrokBuildBilling.GetGrokCreditsConfig"'),
+    },
+    {
+      name: "waiting installed root with terminal source",
+      html: installedPr48RootHtml({ state: "waiting" }).replace('data-failure-kind=""', 'data-failure-kind="" data-source="grok-credits-grpc-web"'),
+    },
+    {
+      name: "waiting installed root with terminal percentage",
+      html: installedPr48RootHtml({ state: "waiting" }).replace('data-failure-kind=""', 'data-failure-kind="" data-percent-used="22"'),
+    },
+    {
+      name: "waiting installed root with terminal reset",
+      html: installedPr48RootHtml({ state: "waiting" }).replace('data-failure-kind=""', 'data-failure-kind="" data-reset-at="2026-07-21T20:00:00.000Z"'),
+    },
   ] as const)("rejects unsupported installed-root shape: $name", ({ html }) => {
     const view = observeHtml(html);
     expect(view).toMatchObject({
