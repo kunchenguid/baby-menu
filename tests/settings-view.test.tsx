@@ -88,7 +88,7 @@ describe("settings view", () => {
     render(<App />);
 
     // Menu view: composer present, no settings controls.
-    expect(screen.getByPlaceholderText("talk to the baby")).toBeTruthy();
+    expect(screen.getByPlaceholderText("ask MANA anything")).toBeTruthy();
     expect(screen.queryByText("launch at system start")).toBeNull();
 
     // Open settings.
@@ -98,7 +98,7 @@ describe("settings view", () => {
     expect(toggle).toBeTruthy();
     // Settings is an overlay: the agent composer stays mounted underneath (so its
     // state survives), but the covered default view is made inert.
-    expect(screen.getByPlaceholderText("talk to the baby")).toBeTruthy();
+    expect(screen.getByPlaceholderText("ask MANA anything")).toBeTruthy();
     expect(document.querySelector(".app-view")?.hasAttribute("inert")).toBe(true);
 
     // Toggle the setting.
@@ -107,7 +107,7 @@ describe("settings view", () => {
 
     // Return to the menu.
     fireEvent.click(screen.getByRole("button", { name: "close settings" }));
-    expect(await screen.findByPlaceholderText("talk to the baby")).toBeTruthy();
+    expect(await screen.findByPlaceholderText("ask MANA anything")).toBeTruthy();
     expect(screen.queryByText("launch at system start")).toBeNull();
   });
 

@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("extension layout", () => {
-  it("keeps the hello world widget in the repo-level extensions directory", async () => {
+  it("keeps the MANA starter widget in the repo-level extensions directory", async () => {
     const dir = resolve(import.meta.dirname, "../extensions/hello-world");
     const widget = await readFile(resolve(dir, "widget.tsx"), "utf8");
     // The widget entry exports the descriptor and renders the view from
@@ -20,8 +20,8 @@ describe("extension layout", () => {
 
     // The starter components exemplify the design system via token utilities.
     expect(components).toContain("export function HelloWorldView");
-    expect(components).toContain("hello world");
-    expect(components).toContain("tell baby menu what you would like it to become");
+    expect(components).toContain("MANA");
+    expect(components).toContain("Tell MANA what you want to make happen.");
     expect(components).toContain("text-3xl");
     expect(components).toContain("text-signal-live");
     expect(components).toContain("examples");

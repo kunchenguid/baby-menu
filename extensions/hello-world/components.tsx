@@ -57,9 +57,9 @@ export function HelloWorldView() {
   return (
     <div className="flex flex-col gap-7 pb-2 pt-1.5">
       <div className="flex flex-col gap-3">
-        <span className="text-3xl font-light tracking-value text-ink-strong">hello world</span>
+        <span className="text-3xl font-light tracking-value text-ink-strong">MANA</span>
         <div className="flex flex-col gap-1">
-          <p className="text-md text-ink-strong">tell baby menu what you would like it to become</p>
+          <p className="text-md text-ink-strong">Tell MANA what you want to make happen.</p>
         </div>
       </div>
       <div className="flex flex-col gap-3">

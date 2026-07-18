@@ -74,7 +74,7 @@ describe("WidgetHost", () => {
     render(<WidgetHost runtimeImporter={async () => ({ cpuWidget })} runtimeRefreshIntervalMs={0} />);
 
     expect(await screen.findByText("42c")).toBeTruthy();
-    expect(screen.queryByText("hello world")).toBeNull();
+    expect(screen.queryByText("MANA")).toBeNull();
   });
 
   it("shows hello-world when no runtime widgets are discovered", async () => {
@@ -82,6 +82,6 @@ describe("WidgetHost", () => {
 
     render(<WidgetHost runtimeImporter={async () => ({})} runtimeRefreshIntervalMs={0} />);
 
-    expect(await screen.findByText("hello world")).toBeTruthy();
+    expect(await screen.findByText("MANA")).toBeTruthy();
   });
 });

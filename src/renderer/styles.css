@@ -114,10 +114,6 @@ button:disabled,
   text-transform: uppercase;
 }
 
-.pop-head .sep {
-  color: var(--signal-live);
-}
-
 /* The scroll region. The window auto-extends to fit content (app-shell grows to
    its 720px max), so this only scrolls once the window is actually maxed out -
    the header and composer stay pinned via flex: 0 0 auto. */

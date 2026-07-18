@@ -91,11 +91,12 @@ describe("Monochrome Lab renderer", () => {
 
     render(<App />);
 
-    expect(screen.getByRole("main", { name: "baby_menu tray popover" })).toBeTruthy();
+    expect(screen.getByRole("main", { name: "MANA command center" })).toBeTruthy();
     expect(
-      screen.getByText((_, element) => element?.classList.contains("mark") === true && element.textContent === "baby_menu"),
+      screen.getByText((_, element) => element?.classList.contains("mark") === true && element.textContent === "MANA"),
     ).toBeTruthy();
-    expect(screen.getByPlaceholderText("talk to the baby")).toBeTruthy();
+    expect(screen.getByPlaceholderText("ask MANA anything")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "quit MANA" })).toBeTruthy();
     expect(screen.queryByLabelText("Agent chat")).toBeNull();
     expect(screen.queryByText("dev-mode menu bar")).toBeNull();
     expect(screen.queryByText("live repo")).toBeNull();
@@ -119,7 +120,7 @@ describe("Monochrome Lab renderer", () => {
 
     render(<App />);
 
-    fireEvent.change(screen.getByPlaceholderText("talk to the baby"), {
+    fireEvent.change(screen.getByPlaceholderText("ask MANA anything"), {
       target: { value: "add a cpu temperature widget" },
     });
     fireEvent.click(screen.getByRole("button", { name: "send" }));
@@ -159,14 +160,14 @@ describe("Monochrome Lab renderer", () => {
 
     render(<App />);
 
-    fireEvent.change(screen.getByPlaceholderText("talk to the baby"), {
+    fireEvent.change(screen.getByPlaceholderText("ask MANA anything"), {
       target: { value: "add a battery widget" },
     });
     fireEvent.click(screen.getByRole("button", { name: "send" }));
 
     await screen.findByText("Added the cpu-temp extension");
 
-    fireEvent.change(screen.getByPlaceholderText("talk to the baby"), {
+    fireEvent.change(screen.getByPlaceholderText("ask MANA anything"), {
       target: { value: "add weather" },
     });
     fireEvent.click(screen.getByRole("button", { name: "send" }));

@@ -37,16 +37,14 @@ export function App() {
   }
 
   return (
-    <main ref={shellRef} className="app-shell" aria-label="baby_menu tray popover">
+    <main ref={shellRef} className="app-shell" aria-label="MANA command center">
       {/* The default view stays mounted underneath settings so its React state
           (agent chat, widgets) survives opening and closing settings. It is made
           inert while covered so focus and pointer events cannot reach behind the
           overlay. */}
       <div className="app-view" inert={settingsOpen}>
         <header className="pop-head">
-          <span className="mark">
-            baby<span className="sep">_</span>menu
-          </span>
+          <span className="mark">MANA</span>
           <div className="flex items-center gap-1">
             <UpdateIndicator />
             <Tooltip content="Reload layout">
@@ -65,12 +63,12 @@ export function App() {
                 <Settings className="size-4" />
               </Button>
             </Tooltip>
-            <Tooltip content="Quit baby menu">
+            <Tooltip content="Quit MANA">
               <Button
                 variant="ghost"
                 size="sm"
                 className="w-7 px-0 hover:text-signal-danger"
-                aria-label="quit baby_menu"
+                aria-label="quit MANA"
                 onClick={quitApp}
               >
                 <Power className="size-4" />
