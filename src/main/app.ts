@@ -11,7 +11,7 @@ import {
   resolveWslDistro,
   wslCommandExists,
 } from "./agent-runtime-mode";
-import { BabyMenuAgentRuntime, commandExists } from "./agent-runtime";
+import { BabyMenuAgentRuntime, commandExists, resolveDefaultAgentName } from "./agent-runtime";
 import { resolveBabyMenuRuntimePaths } from "./app-paths";
 import { seedExtensionWorkspace } from "./extension-seeder";
 import { registerIpcHandlers } from "./ipc";
@@ -207,11 +207,32 @@ export async function startBabyMenuApp(): Promise<void> {
     const raw = agentCatalog.overrides;
     if (Object.keys(raw).length === 0) return undefined;
     if (!isWslMode(currentPreferences)) return raw;
-    return applyWslModeToOverrides(raw, agentCatalog.catalog, resolveWslDistro(currentPreferences));
+    return applyWslModeToOverrides(raw, agentCatalog.catalog, resolveWslDistro(currentPreferences), {
+      // Pure-ACP wraps embed an explicit cd so Grok/customs land in the workspace
+      // even when ACP tools ignore process cwd inheritance.
+      hostCwd: paths.extensionsDir,
+    });
   }
 
-  async function pushRuntimeOverrides(): Promise<void> {
-    await agentRuntime.setRegistryOverrides(runtimeOverridesFromCatalog());
+  async function pushRuntimeOverrides(options: { discardPersistentState?: boolean } = {}): Promise<void> {
+    await agentRuntime.setRegistryOverrides(runtimeOverridesFromCatalog(), options);
+  }
+
+  async function applyAgentRuntimePreferenceChange(
+    next: BabyMenuPreferences,
+  ): Promise<void> {
+    agentRuntime.assertCanChangeAgentRuntimeLaunch();
+    currentPreferences = next;
+    applyAgentRuntimeModeEnv(currentPreferences);
+    await pushRuntimeOverrides({ discardPersistentState: true });
+    // When the user never picked an agent, re-probe with the new mode so we do
+    // not stick on a host-only Claude while Grok is the only CLI in WSL.
+    if (!currentPreferences.agentName) {
+      const detected = resolveDefaultAgentName({ commandExists: probeCommand });
+      if (detected && detected !== agentRuntime.currentAgent) {
+        await agentRuntime.setAgent(detected);
+      }
+    }
   }
 
   // Built-in claude/codex agents are driven by the bundled clean-room ACP
@@ -239,6 +260,7 @@ export async function startBabyMenuApp(): Promise<void> {
   agentRuntime = new BabyMenuAgentRuntime(paths.appDataRoot, {
     agentName: persistedPreferences.agentName,
     registryOverrides: runtimeOverridesFromCatalog(),
+    commandExists: probeCommand,
     telemetry,
     paths: {
       extensionsDir: paths.extensionsDir,
@@ -297,17 +319,18 @@ export async function startBabyMenuApp(): Promise<void> {
       return buildSettings();
     },
     async setAgentRuntimeMode(mode: BabyMenuAgentRuntimeMode) {
+      if (mode !== "host" && mode !== "wsl") {
+        throw new Error('Agent runtime mode must be "host" or "wsl".');
+      }
       // Non-Windows hosts cannot enable WSL mode; keep preference host-only.
       const nextMode: BabyMenuAgentRuntimeMode = process.platform === "win32" ? mode : "host";
-      currentPreferences = await preferences.setAgentRuntimeMode(nextMode);
-      applyAgentRuntimeModeEnv(currentPreferences);
-      await pushRuntimeOverrides();
+      const next = await preferences.setAgentRuntimeMode(nextMode);
+      await applyAgentRuntimePreferenceChange(next);
       return buildSettings();
     },
     async setWslDistro(distro: string) {
-      currentPreferences = await preferences.setWslDistro(distro);
-      applyAgentRuntimeModeEnv(currentPreferences);
-      await pushRuntimeOverrides();
+      const next = await preferences.setWslDistro(distro);
+      await applyAgentRuntimePreferenceChange(next);
       return buildSettings();
     },
   };

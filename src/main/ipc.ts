@@ -194,6 +194,9 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle("baby-menu:settings:set-agent-runtime-mode", async (_event, mode: BabyMenuAgentRuntimeMode) => {
+    if (mode !== "host" && mode !== "wsl") {
+      throw new Error('Agent runtime mode must be "host" or "wsl".');
+    }
     return settings.setAgentRuntimeMode(mode);
   });
 

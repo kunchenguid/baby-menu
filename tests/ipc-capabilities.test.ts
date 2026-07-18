@@ -300,4 +300,37 @@ describe("capabilities IPC", () => {
     await expect(handlers.get("baby-menu:settings:remove-agent")?.({}, "gemini")).resolves.toEqual(result);
     expect(settings.removeAgent).toHaveBeenCalledWith("gemini");
   });
+
+  it("forwards WSL runtime mode and distro settings channels", async () => {
+    const { registerIpcHandlers } = await import("../src/main/ipc");
+    const agentRuntime = { send: vi.fn(), save: vi.fn(), rollback: vi.fn(), currentSessionSnapshot: vi.fn(), currentTurn: vi.fn() };
+    const wslResult = {
+      openAtLogin: false,
+      agentName: "claude",
+      agents: [],
+      agentRuntimeMode: "wsl" as const,
+      wslDistro: "Debian",
+      wslModeSupported: true,
+    };
+    const settings = {
+      get: vi.fn(async () => wslResult),
+      setOpenAtLogin: vi.fn(async () => wslResult),
+      setAgent: vi.fn(async () => wslResult),
+      addAgent: vi.fn(async () => wslResult),
+      updateAgent: vi.fn(async () => wslResult),
+      removeAgent: vi.fn(async () => wslResult),
+      setAgentRuntimeMode: vi.fn(async () => wslResult),
+      setWslDistro: vi.fn(async () => wslResult),
+    };
+
+    registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, settings);
+
+    await expect(handlers.get("baby-menu:settings:set-agent-runtime-mode")?.({}, "wsl")).resolves.toEqual(wslResult);
+    expect(settings.setAgentRuntimeMode).toHaveBeenCalledWith("wsl");
+
+    await expect(handlers.get("baby-menu:settings:set-wsl-distro")?.({}, "Debian")).resolves.toEqual(wslResult);
+    expect(settings.setWslDistro).toHaveBeenCalledWith("Debian");
+
+    await expect(handlers.get("baby-menu:settings:set-agent-runtime-mode")?.({}, "docker")).rejects.toThrow(/host.*wsl/i);
+  });
 });

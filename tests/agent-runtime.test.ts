@@ -100,6 +100,39 @@ describe("agent runtime defaults", () => {
     ).toBe("claude");
   });
 
+  it("selects Grok when only grok is on PATH (still probes despite launchCommand)", () => {
+    expect(
+      resolveDefaultAgentName({
+        env: {},
+        commandExists: available(["grok"]),
+      }),
+    ).toBe("grok");
+  });
+
+  it("returns null when no CLI is present and fallback is disabled", () => {
+    expect(
+      resolveDefaultAgentName({
+        env: {},
+        commandExists: available([]),
+        allowFallbackWhenMissing: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("treats custom launchCommand-only agents as available without a host probe", () => {
+    expect(
+      resolveDefaultAgentName({
+        env: {},
+        commandExists: available([]),
+        allowFallbackWhenMissing: false,
+        catalog: [
+          { name: "claude", label: "Claude", command: "claude", adapter: "claude" },
+          { name: "pi", label: "Pi", command: "pi", launchCommand: "npx pi-acp" },
+        ],
+      }),
+    ).toBe("pi");
+  });
+
   it("uses a bounded default request timeout", () => {
     expect(resolveAgentTimeoutMs({})).toBe(300_000);
   });
@@ -419,7 +452,7 @@ describe("agent runtime switching", () => {
     expect(internals.registryOverrides).toBeUndefined();
   });
 
-  it("setRegistryOverrides closes an active runtime without discarding persistent state", async () => {
+  it("setRegistryOverrides closes an active runtime without discarding persistent state by default", async () => {
     const { runtime, internals } = buildRuntime();
     const close = vi.fn(async () => undefined);
     internals.runtime = { close };
@@ -434,6 +467,21 @@ describe("agent runtime switching", () => {
     });
     expect(internals.runtime).toBeNull();
     expect(internals.handle).toBeNull();
+  });
+
+  it("setRegistryOverrides can discard persistent session state (WSL mode flip)", async () => {
+    const { runtime, internals } = buildRuntime();
+    const close = vi.fn(async () => undefined);
+    internals.runtime = { close };
+    internals.handle = { sessionKey: "baby-menu-agent-chat" };
+
+    await runtime.setRegistryOverrides({ claude: "wsl -d Ubuntu -- …" }, { discardPersistentState: true });
+
+    expect(close).toHaveBeenCalledWith({
+      handle: { sessionKey: "baby-menu-agent-chat" },
+      reason: "registry-overrides-change",
+      discardPersistentState: true,
+    });
   });
 
   it("setRegistryOverrides waits to close the runtime until a pending change session is resolved", async () => {

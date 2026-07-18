@@ -301,22 +301,31 @@ describe("settings view", () => {
     const toggle = await screen.findByRole("switch", { name: "run agents via WSL" });
     fireEvent.click(toggle);
     await waitFor(() => expect(api.settings.setAgentRuntimeMode).toHaveBeenCalledWith("wsl"));
-
-    // Simulate host returning WSL enabled so the distro field mounts.
-    (api.settings.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      openAtLogin: false,
-      agentName: "claude",
-      agents: [{ name: "claude", label: "Claude Code", available: true }],
-      agentRuntimeMode: "wsl",
-      wslDistro: "Ubuntu",
-      wslModeSupported: true,
-    });
-    // Re-open settings state by calling setAgentRuntimeMode path already applied local state;
-    // applySettings from toggle should have set mode from the mock which returns { agentRuntimeMode }.
+    // setAgentRuntimeMode mock updates current mode; distro field mounts.
     await waitFor(() => expect(screen.getByLabelText("WSL distro")).toBeTruthy());
     fireEvent.change(screen.getByLabelText("WSL distro"), { target: { value: "Debian" } });
     fireEvent.blur(screen.getByLabelText("WSL distro"));
     await waitFor(() => expect(api.settings.setWslDistro).toHaveBeenCalledWith("Debian"));
+
+    // Toggle off unmounts the distro field.
+    fireEvent.click(toggle);
+    await waitFor(() => expect(api.settings.setAgentRuntimeMode).toHaveBeenCalledWith("host"));
+    await waitFor(() => expect(screen.queryByLabelText("WSL distro")).toBeNull());
+  });
+
+  it("surfaces WSL mode errors without leaving optimistic state", async () => {
+    const api = installBabyMenuApi({ wslModeSupported: true, agentRuntimeMode: "host", wslDistro: "Ubuntu" });
+    api.settings.setAgentRuntimeMode = vi.fn(async () => {
+      throw new Error("Save or Rollback the current agent changes before changing agent runtime mode.");
+    });
+    await openSettings();
+
+    fireEvent.click(await screen.findByRole("switch", { name: "run agents via WSL" }));
+    expect(
+      await screen.findByText(/Save or Rollback the current agent changes before changing agent runtime mode/i),
+    ).toBeTruthy();
+    // Mode stays host; distro field not shown.
+    expect(screen.queryByLabelText("WSL distro")).toBeNull();
   });
 
   it("rediscovers extension settings sections when the popover reopens", async () => {

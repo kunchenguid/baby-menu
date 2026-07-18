@@ -14,7 +14,12 @@ import {
   Switch,
   cn,
 } from "../../ui";
-import type { BabyMenuAgentOption, BabyMenuSettings, BabyMenuSettingsSection } from "../../shared/contracts";
+import type {
+  BabyMenuAgentOption,
+  BabyMenuAgentRuntimeMode,
+  BabyMenuSettings,
+  BabyMenuSettingsSection,
+} from "../../shared/contracts";
 import { importRuntimeModule, type RuntimeModuleImporter } from "../extension-modules";
 import { loadRuntimeSettingsSections } from "./settings-sections";
 
@@ -31,9 +36,10 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
   const [agents, setAgents] = useState<BabyMenuAgentOption[]>([]);
   const [agentName, setAgentName] = useState("");
   const [agentSwitchDisabledReason, setAgentSwitchDisabledReason] = useState<string | undefined>();
-  const [agentRuntimeMode, setAgentRuntimeMode] = useState<"host" | "wsl">("host");
+  const [agentRuntimeMode, setAgentRuntimeMode] = useState<BabyMenuAgentRuntimeMode>("host");
   const [wslDistro, setWslDistro] = useState("Ubuntu");
   const [wslModeSupported, setWslModeSupported] = useState(false);
+  const [wslError, setWslError] = useState<string | null>(null);
   const [pendingAgent, setPendingAgent] = useState<BabyMenuAgentOption | null>(null);
   const [agentForm, setAgentForm] = useState<AgentFormState | null>(null);
   const [agentFormError, setAgentFormError] = useState<string | null>(null);
@@ -65,23 +71,47 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
     setOpenAtLogin(result.openAtLogin);
   }
 
-  function applySettings(result: BabyMenuSettings) {
+  function applySettings(result: BabyMenuSettings, options: { clearWslError?: boolean } = {}) {
     setAgentName(result.agentName);
     setAgents(result.agents);
     setAgentSwitchDisabledReason(result.agentSwitchDisabledReason);
     setAgentRuntimeMode(result.agentRuntimeMode ?? "host");
     setWslDistro(result.wslDistro ?? "Ubuntu");
     setWslModeSupported(result.wslModeSupported ?? false);
+    if (options.clearWslError !== false) setWslError(null);
   }
 
   async function toggleWslMode(next: boolean) {
     if (!window.babyMenu?.settings) return;
-    applySettings(await window.babyMenu.settings.setAgentRuntimeMode(next ? "wsl" : "host"));
+    setWslError(null);
+    try {
+      applySettings(await window.babyMenu.settings.setAgentRuntimeMode(next ? "wsl" : "host"));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not change agent runtime mode.";
+      try {
+        // Restore server truth without clearing the error we are about to show.
+        applySettings(await window.babyMenu.settings.get(), { clearWslError: false });
+      } catch {
+        // Keep local state if refetch also fails.
+      }
+      setWslError(message);
+    }
   }
 
   async function commitWslDistro(next: string) {
     if (!window.babyMenu?.settings) return;
-    applySettings(await window.babyMenu.settings.setWslDistro(next));
+    setWslError(null);
+    try {
+      applySettings(await window.babyMenu.settings.setWslDistro(next));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not save WSL distro.";
+      try {
+        applySettings(await window.babyMenu.settings.get(), { clearWslError: false });
+      } catch {
+        // Keep local state if refetch also fails.
+      }
+      setWslError(message);
+    }
   }
 
   async function confirmSwitch() {
@@ -174,6 +204,7 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
                 />
               </Field>
             ) : null}
+            {wslError ? <span className="text-xs text-signal-danger">{wslError}</span> : null}
           </>
         ) : null}
       </section>

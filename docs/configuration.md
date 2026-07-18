@@ -32,11 +32,13 @@ If the failed turn edited files before stopping, Baby Menu keeps those partial c
 On Windows, Settings can enable **Run agents via WSL**. When on:
 
 - Agent CLI discovery (`claude`, `codex`, `grok`, …) probes inside the selected WSL distro (`wsl -d <distro> -- command -v …`).
-- Pure ACP launch commands (Grok Build and custom agents) run inside that distro.
+- Pure ACP launch commands (Grok Build and custom agents) run inside that distro (launch argv is tokenized and quoted; not expanded by bash).
 - Claude/Codex adapters still start as host Node processes; they spawn the nested CLI via WSL and pass `BABY_MENU_AGENT_RUNTIME=wsl` / `BABY_MENU_WSL_DISTRO=<distro>`.
-- The extension workspace stays on the Windows host (`~/.baby-menu/extensions`). Node/acpx keep a Windows cwd so `wsl` can be spawned; WSL inherits that directory as `/mnt/<drive>/…`, and adapter CLI spawns also `cd` into the translated path.
+- The extension workspace stays on the Windows host (`~/.baby-menu/extensions`). Node/acpx keep a Windows cwd so `wsl` can be spawned; ACP session cwd and CLI wraps use the `/mnt/<drive>/…` form so tools see a Linux path.
+- **Credentials are distro-local.** Host Windows installs of `claude` / `codex` / `grok` and their auth stores are not used when WSL mode is on. Sign in inside the selected distro (for example `wsl -d Ubuntu -- claude` / `codex login` / `grok`) before expecting turns to succeed.
 
-Default distro is `Ubuntu`. WSL mode has no effect on macOS or Linux builds.
+Default distro is `Ubuntu` (letters, numbers, `.`, `-`, `_` only). WSL mode has no effect on macOS or Linux builds.
+Settings refuses mode/distro changes while an agent turn is running or Keep/Undo is pending.
 
 ### Codex model exception
 
@@ -104,8 +106,8 @@ Set `BABY_MENU_TELEMETRY=0` in the launch environment to opt out.
 | `BABY_MENU_KEEP_POPOVER_OPEN=1`   | Disables blur-to-hide so devtools / external windows stay up                                                                                                                                                      |
 | `BABY_MENU_AGENT=<name>`          | Overrides agent auto-detection when no saved Settings choice exists                                                                                                                                               |
 | `BABY_MENU_AGENT_TIMEOUT_MS=<ms>` | Overrides the embedded-agent request timeout                                                                                                                                                                      |
-| `BABY_MENU_AGENT_RUNTIME=wsl`     | Forces WSL agent discovery/launch on win32 (also set automatically from the Settings preference). Adapters read this to spawn CLIs via `wsl`.                                                                      |
-| `BABY_MENU_WSL_DISTRO=<name>`     | WSL distro for agent probes and launches (default `Ubuntu`).                                                                                                                                                      |
+| `BABY_MENU_AGENT_RUNTIME=wsl`     | Host process env mirror of the Settings preference (and adapter env). Written at startup and whenever Settings changes mode; a launch-time value does **not** override a saved preference after the app starts. Adapters read this to spawn CLIs via `wsl`. |
+| `BABY_MENU_WSL_DISTRO=<name>`     | WSL distro for agent probes and launches (default `Ubuntu`). Same prefs-as-source-of-truth rule as `BABY_MENU_AGENT_RUNTIME`.                                                                                      |
 | `BABY_MENU_EXTENSIONS_DIR=<dir>`  | Overrides the active extension workspace in source/dev runs. Dev Tailwind scans only `extensions/` and `extensions-dev/`, so overrides outside those paths need matching `@source` coverage for widget utilities. |
 | `CODEX_HOME=<dir>`                | When Codex is the selected built-in agent, points the adapter at `<dir>/config.toml` for the top-level `model`; other Codex user config is still ignored.                                                         |
 | `BABY_MENU_TELEMETRY=0`           | Disables packaged-release telemetry; `false` and `off` are also accepted                                                                                                                                          |

@@ -1,7 +1,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import type { BabyMenuAgentRuntimeMode } from "../shared/contracts";
+import { DEFAULT_WSL_DISTRO, normalizeWslDistroName, sanitizeStoredWslDistro } from "../shared/wsl-agent";
 
-export type AgentRuntimeMode = "host" | "wsl";
+export type AgentRuntimeMode = BabyMenuAgentRuntimeMode;
 
 export type BabyMenuPreferences = {
   openAtLogin: boolean;
@@ -37,8 +39,6 @@ type CreatePreferencesServiceOptions = {
   allowOpenAtLogin?: boolean;
 };
 
-const DEFAULT_WSL_DISTRO = "Ubuntu";
-
 function normalizeRuntimeMode(value: unknown): AgentRuntimeMode | undefined {
   if (value === "wsl" || value === "host") return value;
   return undefined;
@@ -55,7 +55,7 @@ export function createPreferencesService({
   function normalizePreferences(preferences: BabyMenuPreferences): BabyMenuPreferences {
     const agentName = preferences.agentName?.trim();
     const agentRuntimeMode = normalizeRuntimeMode(preferences.agentRuntimeMode);
-    const wslDistro = preferences.wslDistro?.trim();
+    const wslDistro = sanitizeStoredWslDistro(preferences.wslDistro);
     return {
       openAtLogin: allowOpenAtLogin && preferences.openAtLogin,
       ...(agentName ? { agentName } : {}),
@@ -102,33 +102,43 @@ export function createPreferencesService({
       return writePreferences(normalizePreferences({ ...current, agentName }));
     },
     async setAgentRuntimeMode(mode) {
+      const normalized = normalizeRuntimeMode(mode);
+      if (!normalized) throw new Error('Agent runtime mode must be "host" or "wsl".');
       const current = await readPreferences();
       const next: BabyMenuPreferences = {
         ...current,
-        agentRuntimeMode: mode,
+        agentRuntimeMode: normalized,
         // When enabling WSL, ensure a distro is recorded so Settings and probes stay stable.
-        ...(mode === "wsl" && !current.wslDistro?.trim() ? { wslDistro: DEFAULT_WSL_DISTRO } : {}),
+        ...(normalized === "wsl" && !sanitizeStoredWslDistro(current.wslDistro)
+          ? { wslDistro: DEFAULT_WSL_DISTRO }
+          : {}),
       };
       return writePreferences(normalizePreferences(next));
     },
     async setWslDistro(distro) {
       const current = await readPreferences();
-      const trimmed = distro.trim() || DEFAULT_WSL_DISTRO;
-      return writePreferences(normalizePreferences({ ...current, wslDistro: trimmed }));
+      const normalized = normalizeWslDistroName(distro);
+      return writePreferences(normalizePreferences({ ...current, wslDistro: normalized }));
     },
     async setAgentRuntime(input) {
       const current = await readPreferences();
-      const mode = input.agentRuntimeMode !== undefined ? normalizeRuntimeMode(input.agentRuntimeMode) : current.agentRuntimeMode;
+      const mode =
+        input.agentRuntimeMode !== undefined
+          ? normalizeRuntimeMode(input.agentRuntimeMode)
+          : current.agentRuntimeMode;
+      if (input.agentRuntimeMode !== undefined && !mode) {
+        throw new Error('Agent runtime mode must be "host" or "wsl".');
+      }
       const distro =
         input.wslDistro !== undefined
-          ? input.wslDistro.trim() || DEFAULT_WSL_DISTRO
-          : current.wslDistro;
+          ? normalizeWslDistroName(input.wslDistro)
+          : sanitizeStoredWslDistro(current.wslDistro);
       const next: BabyMenuPreferences = {
         ...current,
         ...(mode ? { agentRuntimeMode: mode } : {}),
         ...(distro ? { wslDistro: distro } : {}),
       };
-      if (mode === "wsl" && !next.wslDistro?.trim()) {
+      if (mode === "wsl" && !next.wslDistro) {
         next.wslDistro = DEFAULT_WSL_DISTRO;
       }
       return writePreferences(normalizePreferences(next));

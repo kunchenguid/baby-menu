@@ -14,6 +14,7 @@ import {
 import type { AgentActiveTurn, AgentChatResult, GitActionResult, GitSessionSnapshot, WorkspaceChange } from "../shared/contracts";
 import type { AgentRuntimeStatus } from "../shared/contracts";
 import { BUILT_IN_AGENT_NAMES, type AgentDefinition, resolveAgentCatalog } from "./agent-catalog";
+import { resolveAgentProcessCwd } from "./agent-runtime-mode";
 import { getAgentStateDir, getDevExtensionSnapshotDir, getExtensionsDir } from "../shared/paths";
 import { AgentTurnLogRecorder } from "./agent-turn-log";
 import { DevExtensionChangeSession } from "./dev-extension-change-session";
@@ -26,6 +27,8 @@ export type BabyMenuAgentRuntimeOptions = {
   requestTimeoutMs?: number;
   paths?: BabyMenuAgentRuntimePaths;
   telemetry?: TelemetryClient;
+  /** Probe used for auto-detect when agentName is absent (WSL-aware from app). */
+  commandExists?: (command: string) => boolean;
 };
 
 export type BabyMenuAgentRuntimePaths = {
@@ -355,7 +358,9 @@ export class BabyMenuAgentRuntime {
     this.agentName =
       typeof options === "string"
         ? options
-        : options.agentName ?? resolveDefaultAgentName() ?? resolveAgentCatalog()[0].name;
+        : options.agentName ??
+          resolveDefaultAgentName({ commandExists: options.commandExists }) ??
+          resolveAgentCatalog()[0].name;
     this.registryOverrides = typeof options === "string" ? undefined : options.registryOverrides;
     this.requestTimeoutMs = typeof options === "string" ? resolveAgentTimeoutMs() : options.requestTimeoutMs ?? resolveAgentTimeoutMs();
     this.paths = typeof options === "string" ? undefined : options.paths;
@@ -396,14 +401,24 @@ export class BabyMenuAgentRuntime {
 
   /**
    * Replaces the acpx registry overrides used to launch agents.
+   * When `discardPersistentState` is true (WSL mode/distro flips), drops the
+   * persisted ACP session so the next turn does not resume under a different
+   * launch command (host vs `wsl -d …`).
    */
-  async setRegistryOverrides(overrides: Record<string, string> | undefined): Promise<void> {
+  async setRegistryOverrides(
+    overrides: Record<string, string> | undefined,
+    options: { discardPersistentState?: boolean } = {},
+  ): Promise<void> {
     this.registryOverrides = overrides && Object.keys(overrides).length > 0 ? overrides : undefined;
     if (this.agentSwitchDisabledReason) {
       this.registryOverridesStale = true;
       return;
     }
-    await this.closeRuntime("registry-overrides-change", undefined, true);
+    await this.closeRuntime(
+      "registry-overrides-change",
+      options.discardPersistentState === true ? true : undefined,
+      true,
+    );
   }
 
   get agentSwitchDisabledReason(): string | undefined {
@@ -412,6 +427,20 @@ export class BabyMenuAgentRuntime {
       return "Save or Rollback the current agent changes before switching agents.";
     }
     return undefined;
+  }
+
+  /**
+   * Throws when a turn is running or Keep/Undo is pending. Used to gate WSL
+   * mode/distro changes so Settings cannot claim WSL while the live runtime still
+   * runs a host launch.
+   */
+  assertCanChangeAgentRuntimeLaunch(): void {
+    if (this.activeTurn) {
+      throw new Error("Agent is running. Wait for it to finish before changing agent runtime mode.");
+    }
+    if (this.activeSession?.canSave || this.activeSession?.canRollback) {
+      throw new Error("Save or Rollback the current agent changes before changing agent runtime mode.");
+    }
   }
 
   /**
@@ -451,11 +480,11 @@ export class BabyMenuAgentRuntime {
   }
 
   private async runSend(prompt: string, options: BabyMenuAgentRuntimeSendOptions = {}): Promise<AgentChatResult> {
-    // Always a host filesystem path: change sessions and Node spawn cwd for `wsl`
-    // require a Windows-valid path. Inside WSL the inherited cwd maps to /mnt/...,
-    // and adapter CLI spawns re-apply an explicit cd via wrapCliSpawnForWsl.
-    const agentCwd = await this.ensureAgentRuntimeCwd();
-    const changeSession = await this.beginChangeSession(agentCwd);
+    // Host path for change sessions and Node spawn of `wsl` (must be Windows-valid).
+    // Session cwd may be /mnt/... under WSL so pure-ACP agents (Grok) see a Linux path.
+    const hostCwd = await this.ensureAgentRuntimeCwd();
+    const sessionCwd = resolveAgentProcessCwd(hostCwd);
+    const changeSession = await this.beginChangeSession(hostCwd);
     this.activeSession = changeSession;
     const telemetryAgent = telemetryAgentName(this.agentName);
 
@@ -469,7 +498,7 @@ export class BabyMenuAgentRuntime {
     }
 
     try {
-      return await this.runTurnAttempt(prompt, options, agentCwd, changeSession, telemetryAgent);
+      return await this.runTurnAttempt(prompt, options, hostCwd, sessionCwd, changeSession, telemetryAgent);
     } catch (error) {
       // A persisted session that the bundled (loadSession:false) adapter cannot
       // resume after a restart fails the FIRST turn with SESSION_RESUME_REQUIRED.
@@ -478,7 +507,7 @@ export class BabyMenuAgentRuntime {
       if (isSessionResumeRequiredError(error)) {
         await this.discardPersistedSession("session-resume-required");
         try {
-          return await this.runTurnAttempt(prompt, options, agentCwd, changeSession, telemetryAgent);
+          return await this.runTurnAttempt(prompt, options, hostCwd, sessionCwd, changeSession, telemetryAgent);
         } catch (retryError) {
           await this.closeCleanFailedSession(changeSession);
           throw this.reportTurnError(retryError, telemetryAgent);
@@ -495,7 +524,8 @@ export class BabyMenuAgentRuntime {
   private async runTurnAttempt(
     prompt: string,
     options: BabyMenuAgentRuntimeSendOptions,
-    agentCwd: string,
+    hostCwd: string,
+    sessionCwd: string,
     changeSession: AgentChangeSession,
     telemetryAgent: string,
   ): Promise<AgentChatResult> {
@@ -511,13 +541,15 @@ export class BabyMenuAgentRuntime {
         requestId,
         prompt,
       });
-      runtime = await this.ensureRuntime(agentCwd);
+      // createAcpRuntime uses hostCwd so Node can spawn `wsl` with a Windows cwd.
+      runtime = await this.ensureRuntime(hostCwd);
       handle = await withAgentTimeout(
         runtime.ensureSession({
           sessionKey: SESSION_KEY,
           agent: this.agentName,
           mode: "persistent",
-          cwd: agentCwd,
+          // ACP session cwd: Linux-form under WSL so Grok tools honor /mnt/... .
+          cwd: sessionCwd,
         }),
         {
           timeoutMs: this.requestTimeoutMs,

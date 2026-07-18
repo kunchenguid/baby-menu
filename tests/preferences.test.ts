@@ -138,4 +138,26 @@ describe("preferences service", () => {
       wslDistro: "Debian",
     });
   });
+
+  it("rejects invalid WSL distro names and invalid runtime modes", async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), "baby-menu-prefs-"));
+    tempDirs.push(userDataDir);
+    const service = createPreferencesService({ userDataDir, app: { setLoginItemSettings: vi.fn() }, defaultOpenAtLogin: false });
+
+    await expect(service.setWslDistro('Ubuntu";rm')).rejects.toThrow(/distro/i);
+    await expect(service.setWslDistro("My Distro")).rejects.toThrow(/distro/i);
+    await expect(service.setAgentRuntimeMode("docker" as "host")).rejects.toThrow(/host.*wsl/i);
+  });
+
+  it("drops an invalid distro stored on disk", async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), "baby-menu-prefs-"));
+    tempDirs.push(userDataDir);
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(
+      join(userDataDir, "preferences.json"),
+      JSON.stringify({ openAtLogin: false, agentRuntimeMode: "wsl", wslDistro: 'bad;name' }, null, 2),
+    );
+    const service = createPreferencesService({ userDataDir, app: { setLoginItemSettings: vi.fn() }, defaultOpenAtLogin: false });
+    await expect(service.get()).resolves.toEqual({ openAtLogin: false, agentRuntimeMode: "wsl" });
+  });
 });

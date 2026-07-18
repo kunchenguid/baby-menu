@@ -11,6 +11,7 @@ import {
   wrapLaunchCommandForWsl,
   wslCommandExists,
 } from "../src/main/agent-runtime-mode";
+import { normalizeWslDistroName, splitLaunchCommand } from "../src/shared/wsl-agent";
 import type { AgentDefinition } from "../src/main/agent-catalog";
 
 describe("agent-runtime-mode", () => {
@@ -34,6 +35,10 @@ describe("agent-runtime-mode", () => {
       expect(resolveWslDistro({ wslDistro: "Debian" })).toBe("Debian");
       expect(resolveWslDistro({ wslDistro: "Debian" }, { BABY_MENU_WSL_DISTRO: "Fedora" })).toBe("Fedora");
     });
+
+    it("ignores empty prefs distro and falls back to Ubuntu", () => {
+      expect(resolveWslDistro({ wslDistro: "   " })).toBe("Ubuntu");
+    });
   });
 
   describe("windowsPathToWslPath", () => {
@@ -43,6 +48,7 @@ describe("agent-runtime-mode", () => {
       );
       expect(windowsPathToWslPath("D:/work/repo")).toBe("/mnt/d/work/repo");
       expect(windowsPathToWslPath("C:\\")).toBe("/mnt/c");
+      expect(windowsPathToWslPath("C:")).toBe("/mnt/c");
     });
 
     it("normalizes already-unix paths", () => {
@@ -67,13 +73,36 @@ describe("agent-runtime-mode", () => {
     });
   });
 
-  describe("wrapLaunchCommandForWsl", () => {
-    it("wraps an ACP launch with wsl + bash -lc and PATH export", () => {
+  describe("splitLaunchCommand / wrapLaunchCommandForWsl", () => {
+    it("tokenizes quoted launch commands", () => {
+      expect(splitLaunchCommand('env FOO=1 "my agent" stdio')).toEqual(["env", "FOO=1", "my agent", "stdio"]);
+    });
+
+    it("wraps an ACP launch with wsl + bash -lc, quoted tokens, and PATH export", () => {
       const wrapped = wrapLaunchCommandForWsl("grok agent stdio", "Ubuntu");
-      expect(wrapped.startsWith("wsl -d Ubuntu -- bash -lc ")).toBe(true);
-      expect(wrapped).toContain("grok agent stdio");
+      expect(wrapped.startsWith('wsl -d "Ubuntu" -- bash -lc ')).toBe(true);
+      expect(wrapped).toContain("'grok'");
+      expect(wrapped).toContain("'agent'");
+      expect(wrapped).toContain("'stdio'");
       expect(wrapped).toContain("$HOME/.local/bin");
       expect(wrapped).toContain("$HOME/.grok/bin");
+      // Metacharacters in a token stay inside single quotes (not shell-expanded).
+      const withMeta = wrapLaunchCommandForWsl("tool ; rm -rf /", "Ubuntu");
+      expect(withMeta).toContain("';'");
+      expect(withMeta).not.toMatch(/exec tool ; rm/);
+    });
+
+    it("embeds optional host cwd as cd into /mnt form", () => {
+      const wrapped = wrapLaunchCommandForWsl("grok agent stdio", "Ubuntu", {
+        cwd: String.raw`C:\Users\me\ext`,
+      });
+      // Outer bash -lc is single-quoted, so the path appears as '\''/mnt/c/...'\'
+      expect(wrapped).toContain("/mnt/c/Users/me/ext");
+      expect(wrapped).toMatch(/cd /);
+    });
+
+    it("rejects an empty launch command", () => {
+      expect(() => wrapLaunchCommandForWsl("   ", "Ubuntu")).toThrow(/empty/i);
     });
   });
 
@@ -92,6 +121,13 @@ describe("agent-runtime-mode", () => {
       expect(script).toContain("claude");
       expect(script).toContain("'hi'");
     });
+
+    it("omits cd when cwd is not provided", () => {
+      const wrapped = wrapCliSpawnForWsl("codex", ["exec"], "Debian");
+      const script = wrapped.args[wrapped.args.length - 1]!;
+      expect(script).not.toContain("cd ");
+      expect(script).toContain("codex");
+    });
   });
 
   describe("wslCommandExists", () => {
@@ -101,17 +137,32 @@ describe("agent-runtime-mode", () => {
       expect(spawn).toHaveBeenCalledWith(
         "wsl",
         ["-d", "Ubuntu", "--", "bash", "-lc", expect.stringContaining("command -v")],
-        expect.objectContaining({ stdio: "ignore" }),
+        expect.objectContaining({ stdio: "ignore", timeout: 5_000 }),
       );
 
       const missing = vi.fn(() => ({ status: 1 }));
       expect(wslCommandExists("missing", "Debian", missing)).toBe(false);
     });
 
-    it("rejects unsafe command tokens without spawning", () => {
+    it("rejects unsafe command tokens and bad distros without spawning", () => {
       const spawn = vi.fn(() => ({ status: 0 }));
       expect(wslCommandExists("foo; rm -rf /", "Ubuntu", spawn)).toBe(false);
+      expect(wslCommandExists("grok", 'Ubuntu"; evil', spawn)).toBe(false);
       expect(spawn).not.toHaveBeenCalled();
+    });
+
+    it("treats spawn error / null status as unavailable", () => {
+      expect(wslCommandExists("grok", "Ubuntu", () => ({ status: null, error: new Error("timeout") }))).toBe(false);
+      expect(wslCommandExists("grok", "Ubuntu", () => ({ status: null }))).toBe(false);
+    });
+  });
+
+  describe("normalizeWslDistroName", () => {
+    it("accepts safe names and rejects spaces/quotes", () => {
+      expect(normalizeWslDistroName("Ubuntu-22.04")).toBe("Ubuntu-22.04");
+      expect(normalizeWslDistroName("  ")).toBe("Ubuntu");
+      expect(() => normalizeWslDistroName('Ubuntu";rm')).toThrow(/distro/i);
+      expect(() => normalizeWslDistroName("My Distro")).toThrow(/distro/i);
     });
   });
 
@@ -137,13 +188,16 @@ describe("agent-runtime-mode", () => {
         claude: catalog[0]!.launchCommand!,
         grok: catalog[1]!.launchCommand!,
       };
-      const next = applyWslModeToOverrides(overrides, catalog, "Ubuntu");
+      const next = applyWslModeToOverrides(overrides, catalog, "Ubuntu", {
+        hostCwd: String.raw`C:\Users\me\.baby-menu\extensions`,
+      });
       expect(next.claude).toContain("BABY_MENU_AGENT_RUNTIME=wsl");
       expect(next.claude).toContain("BABY_MENU_WSL_DISTRO=Ubuntu");
       expect(next.claude).toContain("ELECTRON_RUN_AS_NODE=1");
       expect(next.claude.startsWith("env ")).toBe(true);
-      expect(next.grok.startsWith("wsl -d Ubuntu")).toBe(true);
-      expect(next.grok).toContain("grok agent stdio");
+      expect(next.grok.startsWith('wsl -d "Ubuntu"')).toBe(true);
+      expect(next.grok).toContain("/mnt/c/Users/me/.baby-menu/extensions");
+      expect(next.grok).toContain("'grok'");
     });
   });
 
@@ -155,12 +209,26 @@ describe("agent-runtime-mode", () => {
   });
 
   describe("applyAgentRuntimeModeEnv", () => {
-    it("sets and clears host process env mirrors", () => {
+    it("sets and clears host process env mirrors on win32", () => {
       const env: NodeJS.ProcessEnv = {};
       applyAgentRuntimeModeEnv({ agentRuntimeMode: "wsl", wslDistro: "Debian" }, env, "win32");
       expect(env.BABY_MENU_AGENT_RUNTIME).toBe("wsl");
       expect(env.BABY_MENU_WSL_DISTRO).toBe("Debian");
 
+      applyAgentRuntimeModeEnv({ agentRuntimeMode: "host" }, env, "win32");
+      expect(env.BABY_MENU_AGENT_RUNTIME).toBe("host");
+      expect(env.BABY_MENU_WSL_DISTRO).toBeUndefined();
+    });
+
+    it("forces host on non-win32 even when prefs say wsl", () => {
+      const env: NodeJS.ProcessEnv = { BABY_MENU_AGENT_RUNTIME: "wsl", BABY_MENU_WSL_DISTRO: "Ubuntu" };
+      applyAgentRuntimeModeEnv({ agentRuntimeMode: "wsl" }, env, "linux");
+      expect(env.BABY_MENU_AGENT_RUNTIME).toBe("host");
+      expect(env.BABY_MENU_WSL_DISTRO).toBeUndefined();
+    });
+
+    it("prefs overwrite a stale launch-time env", () => {
+      const env: NodeJS.ProcessEnv = { BABY_MENU_AGENT_RUNTIME: "wsl", BABY_MENU_WSL_DISTRO: "Old" };
       applyAgentRuntimeModeEnv({ agentRuntimeMode: "host" }, env, "win32");
       expect(env.BABY_MENU_AGENT_RUNTIME).toBe("host");
       expect(env.BABY_MENU_WSL_DISTRO).toBeUndefined();
