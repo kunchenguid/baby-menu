@@ -34,13 +34,18 @@ await build({
   logLevel: "info",
 });
 
-// Host-side WSL ACP proxy (rewrites session/new cwd for Linux agents). Must live
-// next to adapters so asarUnpack out/adapters/** ships it for Electron-as-node.
+// Host-side WSL ACP proxy + Windows .cmd launcher. Must live next to adapters so
+// asarUnpack out/adapters/** ships them for Electron-as-node / cmd.exe spawn.
 const adaptersOut = resolve(root, "out/adapters");
 await mkdir(adaptersOut, { recursive: true });
 await copyFile(resolve(root, "scripts/wsl-acp-proxy.mjs"), resolve(adaptersOut, "wsl-acp-proxy.mjs"));
+await copyFile(resolve(root, "scripts/wsl-acp-launch.cmd"), resolve(adaptersOut, "wsl-acp-launch.cmd"));
 
 console.log(
   "Built ACP adapters:",
-  [...adapters.map((n) => `out/adapters/${n}/index.mjs`), "out/adapters/wsl-acp-proxy.mjs"].join(", "),
+  [
+    ...adapters.map((n) => `out/adapters/${n}/index.mjs`),
+    "out/adapters/wsl-acp-proxy.mjs",
+    "out/adapters/wsl-acp-launch.cmd",
+  ].join(", "),
 );

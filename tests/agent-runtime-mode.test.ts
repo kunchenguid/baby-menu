@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   applyAgentRuntimeModeEnv,
   applyWslModeToOverrides,
-  buildWindowsCmdEnvLaunch,
   injectAgentRuntimeEnvIntoLaunch,
   isWslMode,
   resolveAgentProcessCwd,
@@ -260,36 +259,26 @@ describe("agent-runtime-mode", () => {
       expect(next.grok).toContain("'grok'");
     });
 
-    it("uses cmd.exe env launch for pure ACP proxy on Windows (no POSIX env)", () => {
+    it("uses wsl-acp-launch.cmd for pure ACP proxy (no POSIX env / nested cmd)", () => {
       const overrides = { grok: "grok agent stdio" };
       const next = applyWslModeToOverrides(overrides, catalog, "Ubuntu", {
         hostCwd: String.raw`C:\Users\frand\.baby-menu\extensions`,
         pureAcpProxyLaunch: [
+          String.raw`C:\App\resources\app.asar.unpacked\out\adapters\wsl-acp-launch.cmd`,
           String.raw`C:\App\Baby Menu Dev.exe`,
           String.raw`C:\App\resources\app.asar.unpacked\out\adapters\wsl-acp-proxy.mjs`,
         ],
       });
-      expect(next.grok.startsWith("cmd.exe /d /s /c ")).toBe(true);
-      expect(next.grok).toContain("ELECTRON_RUN_AS_NODE=1");
-      expect(next.grok).toContain("BABY_MENU_WSL_DISTRO=Ubuntu");
-      expect(next.grok).toContain("BABY_MENU_WSL_PROXY_CWD=");
+      expect(next.grok).toContain("wsl-acp-launch.cmd");
+      expect(next.grok).toContain("Baby Menu Dev.exe");
       expect(next.grok).toContain("wsl-acp-proxy.mjs");
-      expect(next.grok).toContain("grok");
+      expect(next.grok).toContain("Ubuntu");
+      expect(next.grok).toContain(String.raw`C:\Users\frand\.baby-menu\extensions`);
+      expect(next.grok).toMatch(/\bgrok\b/);
+      expect(next.grok).toMatch(/\bagent\b/);
+      expect(next.grok).toMatch(/\bstdio\b/);
       expect(next.grok).not.toMatch(/^env /);
-    });
-  });
-
-  describe("buildWindowsCmdEnvLaunch", () => {
-    it("builds cmd /c set chain with quoted exe path", () => {
-      const line = buildWindowsCmdEnvLaunch(
-        { ELECTRON_RUN_AS_NODE: "1", FOO: "bar" },
-        [String.raw`C:\App\Baby Menu Dev.exe`, "script.mjs", "--", "grok"],
-      );
-      expect(line.startsWith("cmd.exe /d /s /c ")).toBe(true);
-      expect(line).toContain("ELECTRON_RUN_AS_NODE=1");
-      expect(line).toContain("FOO=bar");
-      expect(line).toContain("Baby Menu Dev.exe");
-      expect(line).toContain("script.mjs");
+      expect(next.grok).not.toContain("cmd.exe /d /s /c");
     });
   });
 
