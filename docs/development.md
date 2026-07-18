@@ -24,6 +24,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | `pnpm generate:contracts` | Regenerate `extensions/babymenu-env.d.ts` from `src/shared/contracts.ts` |
 | `pnpm package:mac` | Clean `release/` and create an ad-hoc-signed `Baby Menu Dev.app` |
 | `pnpm dist:mac` | Build `Baby Menu Dev.app` and create a universal DMG in `release/` |
+| `pnpm package:win` | Clean `release/` and build unsigned Windows NSIS + portable (x64; run on Windows) |
+| `pnpm package:win:dir` | Clean `release/` and build an unpacked Windows dir target (x64) |
 | `pnpm test` | Run all Vitest tests |
 | `pnpm test:e2e` | Only e2e tests (including `acpx/runtime` plus bundled adapter coverage) |
 | `pnpm typecheck` | `tsc --noEmit` |
@@ -41,9 +43,14 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 ## Packaging
 
 - `pnpm package:mac` tests the actual packaged app from `release/mac-universal/Baby Menu Dev.app`.
+- `pnpm package:win` produces unsigned NSIS and portable x64 artifacts under `release/` (intended on a Windows host or the CI `windows-latest` job).
 - Local packaging uses the `Baby Menu Dev` product name and `com.kunchenguid.baby-menu.dev` bundle id so local builds do not shadow the released `/Applications/Baby Menu.app` in macOS LaunchServices.
 - The universal package must run on both Intel and Apple Silicon Macs, so macOS native prebuilt dependencies must stay installed for `x64` and `arm64` and stay covered by `electron-builder.yml` `x64ArchFiles` when new native packages are added.
 - Keep `electron-builder` at `26.8.2` or newer so pnpm-deduped dependencies are included correctly in packaged builds.
+
+## CI
+
+`.github/workflows/ci.yml` keeps an `ubuntu-latest` job (install, contract-types check, typecheck, test, build) and a `windows-latest` job (install, typecheck, test, build, `package:win` with artifact upload). Triggers remain pull_request/push to `main`. Remote CI green - especially Windows packaging - requires a push to GitHub; local Linux typecheck/test cannot prove the `windows-latest` job. Release packaging stays mac-only in `release-please.yml`.
 
 ## Hero video
 

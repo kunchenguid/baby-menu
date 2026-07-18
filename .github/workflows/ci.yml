@@ -55,3 +55,48 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  windows:
+    name: windows typecheck / test / build / package
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      # Unsigned overnight packaging (G22); do not discover or require a cert.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package Windows (NSIS + portable)
+        run: pnpm package:win
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: |
+            release/Baby-Menu-*-win-x64.exe
+            release/Baby-Menu-*-win-x64-portable.exe
+          if-no-files-found: error
+          retention-days: 14
