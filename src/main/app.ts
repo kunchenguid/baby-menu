@@ -106,13 +106,14 @@ async function togglePopover(trayBounds: Rectangle): Promise<void> {
   telemetry.track("popover_open");
 }
 
-// baby-menu runs as a macOS accessory app (dock hidden) so it has no permanent dock icon. But an
-// accessory app's windows never become the macOS "key window", and macOS only does CSS cursor-rect
+// macOS only (G08): baby-menu runs as an accessory app (dock hidden) so it has no permanent dock
+// icon. Accessory windows never become the macOS "key window", and macOS only does CSS cursor-rect
 // tracking for the key window - so as an accessory app the popover's cursor never updates correctly
 // (it stays the default arrow, or updates unstably and flickers). Switching to the "regular"
 // activation policy while the popover is visible lets it become the key window so the cursor tracks
 // correctly; switching back to "accessory" on hide keeps the dock icon from lingering. Net effect:
 // the dock icon is only present for the brief moment the popover is open.
+// On Windows/Linux this is a no-op: tray + createPopoverOptions skipTaskbar:true is enough.
 function setPopoverKeyWindowActive(active: boolean): void {
   if (process.platform !== "darwin") return;
   app.setActivationPolicy(active ? "regular" : "accessory");
@@ -172,6 +173,7 @@ export async function startBabyMenuApp(): Promise<void> {
   }
   registerBabyMenuProtocolHandlers({ widgetCacheDir: paths.widgetCacheDir });
 
+  // Darwin only (G08): hide the dock icon for the accessory tray shell. Never call dock APIs on win32.
   if (process.platform === "darwin") {
     app.dock?.hide();
   }

@@ -167,6 +167,17 @@ describe("startBabyMenuApp", () => {
     expect(electronApp.commandLine.appendSwitch).toHaveBeenCalledWith("use-mock-keychain");
   });
 
+  it("does not append use-mock-keychain on win32 (G08)", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "win32",
+    });
+
+    await import("../src/main/app");
+
+    expect(electronApp.commandLine.appendSwitch).not.toHaveBeenCalledWith("use-mock-keychain");
+  });
+
   it("accepts a validated remote debugging port for unattended popover checks", async () => {
     process.env.BABY_MENU_REMOTE_DEBUGGING_PORT = "9333";
 
@@ -348,6 +359,18 @@ describe("startBabyMenuApp", () => {
     expect(electronApp.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: true });
   });
 
+  it("hides the macOS dock on startup (darwin accessory shell)", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "darwin",
+    });
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+
+    expect(electronApp.dock.hide).toHaveBeenCalled();
+  });
+
   it("temporarily uses regular activation policy while the macOS popover is visible", async () => {
     Object.defineProperty(process, "platform", {
       configurable: true,
@@ -371,6 +394,55 @@ describe("startBabyMenuApp", () => {
 
     expect((electronApp as { setActivationPolicy: ReturnType<typeof vi.fn> }).setActivationPolicy).toHaveBeenLastCalledWith(
       "accessory",
+    );
+  });
+
+  // G08: Windows is tray + skipTaskbar only — no dock, no activation-policy dance.
+  it("never calls dock or activation-policy APIs on win32 (G08)", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "win32",
+    });
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+
+    expect(electronApp.dock.hide).not.toHaveBeenCalled();
+    expect(electronApp.setActivationPolicy).not.toHaveBeenCalled();
+    expect(electronApp.focus).not.toHaveBeenCalled();
+
+    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+
+    await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalled());
+    expect(electronApp.setActivationPolicy).not.toHaveBeenCalled();
+    expect(electronApp.focus).not.toHaveBeenCalledWith({ steal: true });
+    expect(electronApp.dock.hide).not.toHaveBeenCalled();
+
+    const onHide = browserWindowInstance.on.mock.calls.find(([event]) => event === "hide")?.[1];
+    onHide?.();
+
+    expect(electronApp.setActivationPolicy).not.toHaveBeenCalled();
+    expect(electronApp.dock.hide).not.toHaveBeenCalled();
+  });
+
+  it("keeps skipTaskbar on the popover so Windows has no taskbar button (G08)", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "win32",
+    });
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+
+    expect(BrowserWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        frame: false,
+        skipTaskbar: true,
+        alwaysOnTop: true,
+      }),
     );
   });
 });

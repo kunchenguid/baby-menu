@@ -24,6 +24,18 @@ describe("calculatePopoverBounds", () => {
     expect(createPopoverOptions("/app/preload.js").width).toBe(504);
   });
 
+  // G08: tray-only shell on all platforms; Windows relies on skipTaskbar (no dock API).
+  it("creates a frameless skipTaskbar alwaysOnTop popover (G08)", () => {
+    expect(createPopoverOptions("/app/preload.js")).toEqual(
+      expect.objectContaining({
+        frame: false,
+        skipTaskbar: true,
+        alwaysOnTop: true,
+        show: false,
+      }),
+    );
+  });
+
   it("clamps content-driven popover width and height to a usable range", () => {
     expect(MIN_POPOVER_HEIGHT).toBe(220);
     expect(MAX_POPOVER_HEIGHT).toBe(720);
