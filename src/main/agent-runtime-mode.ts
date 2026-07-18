@@ -139,11 +139,37 @@ function shellJoin(tokens: readonly string[]): string {
 }
 
 /**
+ * Windows has no POSIX `env`; acpx spawns the first token with spawn().
+ * Build `cmd.exe /d /s /c "set K=V&& set ...&& program args"` so Electron-as-node
+ * and BABY_MENU_* vars are visible to the proxy child.
+ */
+export function buildWindowsCmdEnvLaunch(
+  envVars: Record<string, string>,
+  commandTokens: readonly string[],
+): string {
+  const sets = Object.entries(envVars)
+    .filter(([, value]) => value.length > 0)
+    .map(([key, value]) => {
+      // cmd `set "KEY=value"` — escape quotes and percent for cmd.
+      const escaped = value.replace(/%/g, "%%").replace(/"/g, '""');
+      return `set "${key}=${escaped}"`;
+    });
+  const run = commandTokens.map(shellJoinToken).join(" ");
+  const inner = [...sets, run].join("&& ");
+  // Double-quote the /c payload so acpx keeps it as one argv token.
+  const quoted = `"${inner.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return `cmd.exe /d /s /c ${quoted}`;
+}
+
+/**
  * Applies WSL wrapping to registry launch overrides.
  *
  * - Adapter agents (Claude/Codex): host Node adapter + nested CLI via WSL.
  * - Pure ACP (Grok, customs): host-side `wsl-acp-proxy.mjs` rewrites session/new
  *   cwd Windows → `/mnt/...` (direct wsl wrap fails with -32602 Invalid params).
+ *
+ * On Windows the proxy is launched via cmd.exe (not POSIX `env`), because `env`
+ * is not a standard Windows binary and spawn fails with "Failed to spawn agent command".
  */
 export function applyWslModeToOverrides(
   overrides: Record<string, string>,
@@ -172,11 +198,15 @@ export function applyWslModeToOverrides(
     }
 
     if (options.pureAcpProxyLaunch && options.pureAcpProxyLaunch.length > 0) {
-      const cmd = shellJoin([...options.pureAcpProxyLaunch, "--distro", distro, "--", ...tokens]);
-      next[name] = injectAgentRuntimeEnvIntoLaunch(cmd, {
-        BABY_MENU_WSL_DISTRO: distro,
-        ...(options.hostCwd ? { BABY_MENU_WSL_PROXY_CWD: options.hostCwd } : {}),
-      });
+      // pureAcpProxyLaunch is [electronExe, proxy.mjs] — set ELECTRON_RUN_AS_NODE via cmd on win32.
+      next[name] = buildWindowsCmdEnvLaunch(
+        {
+          ELECTRON_RUN_AS_NODE: "1",
+          BABY_MENU_WSL_DISTRO: distro,
+          ...(options.hostCwd ? { BABY_MENU_WSL_PROXY_CWD: options.hostCwd } : {}),
+        },
+        [...options.pureAcpProxyLaunch, "--distro", distro, "--", ...tokens],
+      );
     } else {
       // Unit-test fallback without a proxy path (not used by the production app).
       next[name] = wrapLaunchCommandForWsl(launchCommand, distro, { cwd: options.hostCwd });

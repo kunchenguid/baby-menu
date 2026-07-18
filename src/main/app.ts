@@ -208,11 +208,13 @@ export async function startBabyMenuApp(): Promise<void> {
     if (Object.keys(raw).length === 0) return undefined;
     if (!isWslMode(currentPreferences)) return raw;
     // Pure-ACP agents (Grok) cannot receive Windows session cwds under WSL — use
-    // host-side scripts/wsl-acp-proxy.mjs (copied to out/adapters/) to rewrite cwd.
+    // host-side wsl-acp-proxy.mjs (copied to out/adapters/) to rewrite cwd.
+    // Do NOT prefix with POSIX `env` — Windows spawn fails ("Failed to spawn agent command").
+    // applyWslModeToOverrides uses cmd.exe /c set ... on win32 for ELECTRON_RUN_AS_NODE.
     const wslAcpProxyPath = join(paths.adaptersDir, "wsl-acp-proxy.mjs");
     return applyWslModeToOverrides(raw, agentCatalog.catalog, resolveWslDistro(currentPreferences), {
       hostCwd: paths.extensionsDir,
-      pureAcpProxyLaunch: ["env", "ELECTRON_RUN_AS_NODE=1", process.execPath, wslAcpProxyPath],
+      pureAcpProxyLaunch: [process.execPath, wslAcpProxyPath],
     });
   }
 
