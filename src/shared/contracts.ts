@@ -81,6 +81,9 @@ export type BabyMenuCustomAgentInput = {
   command: string;
 };
 
+/** Where agent CLIs are discovered and launched. `"wsl"` is only effective on win32. */
+export type BabyMenuAgentRuntimeMode = "host" | "wsl";
+
 export type BabyMenuSettings = {
   openAtLogin: boolean;
   /** Name of the active embedded agent. */
@@ -89,6 +92,15 @@ export type BabyMenuSettings = {
   agentSwitchDisabledReason?: string;
   /** Selectable agents; unavailable ones are shown disabled with an install hint. */
   agents: BabyMenuAgentOption[];
+  /**
+   * Agent CLI runtime mode. Always `"host"` on non-Windows; on win32 may be `"wsl"`
+   * so discovery and launches go through the selected distro.
+   */
+  agentRuntimeMode: BabyMenuAgentRuntimeMode;
+  /** WSL distro name used when agentRuntimeMode is `"wsl"` (default Ubuntu). */
+  wslDistro: string;
+  /** True when the host can offer WSL mode (win32 only). */
+  wslModeSupported: boolean;
 };
 
 // SQL bind parameters: positional (an array) or named (an object keyed by the
@@ -379,6 +391,14 @@ export type BabyMenuApi = {
     updateAgent: (name: string, input: { label?: string; command: string }) => Promise<BabyMenuSettings>;
     /** Removes a custom agent. Rejects if the agent is currently active. */
     removeAgent: (name: string) => Promise<BabyMenuSettings>;
+    /**
+     * Sets agent CLI runtime mode (`host` or `wsl`). On non-Windows hosts the
+     * value is forced back to `host`. Changing mode refreshes availability probes
+     * and registry launch commands.
+     */
+    setAgentRuntimeMode: (mode: BabyMenuAgentRuntimeMode) => Promise<BabyMenuSettings>;
+    /** Sets the WSL distro name used when agentRuntimeMode is `wsl`. */
+    setWslDistro: (distro: string) => Promise<BabyMenuSettings>;
   };
   app: {
     /** Fully quits the Electron app from the popover shell. */

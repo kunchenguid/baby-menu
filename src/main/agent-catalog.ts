@@ -45,6 +45,14 @@ export const DEFAULT_AGENTS: readonly AgentDefinition[] = [
     adapter: "codex",
     installHint: "Install the Codex CLI, then restart Baby Menu.",
   },
+  {
+    name: "grok",
+    label: "Grok Build",
+    command: "grok",
+    // ACP stdio server (no Node adapter). Availability still probes `grok`.
+    launchCommand: "grok agent stdio",
+    installHint: "Install the Grok Build CLI (grok) on PATH (Windows or WSL), then restart Baby Menu.",
+  },
 ];
 
 /** Names of the code-defined built-in agents; these are read-only in the UI. */
@@ -140,8 +148,8 @@ export function resolveAgentCatalog(options: ResolveAgentCatalogOptions = {}): A
  * `launcher` is the command + leading args that run the adapter as a Node
  * program (e.g. `["node"]`, or `["env", "ELECTRON_RUN_AS_NODE=1", electronPath]`
  * to run the bundled Electron as Node without depending on a separate install).
- * Agents that already carry an explicit `launchCommand` (custom agents) are left
- * untouched.
+ * Agents that already carry an explicit `launchCommand` (custom agents and
+ * built-ins like Grok that speak ACP directly) are left untouched.
  */
 export function withAdapterLaunchCommands(
   catalog: readonly AgentDefinition[],
@@ -166,10 +174,14 @@ export function toAgentOptions(
 ): AgentOption[] {
   return catalog.map((agent) => {
     const custom = !BUILT_IN_AGENT_NAMES.has(agent.name);
+    // Built-ins (adapter CLIs and direct ACP like Grok) always probe `command`.
+    // Custom agents with an explicit launchCommand are treated as available so
+    // the user can select them without a separate host CLI probe.
+    const available = custom && agent.launchCommand ? true : commandExists(agent.command);
     return {
       name: agent.name,
       label: agent.label,
-      available: agent.launchCommand && !agent.adapter ? true : commandExists(agent.command),
+      available,
       installHint: agent.installHint,
       custom,
       // Only customs surface their launch command (so the edit form can prefill it).

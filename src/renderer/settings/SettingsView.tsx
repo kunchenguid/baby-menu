@@ -31,6 +31,9 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
   const [agents, setAgents] = useState<BabyMenuAgentOption[]>([]);
   const [agentName, setAgentName] = useState("");
   const [agentSwitchDisabledReason, setAgentSwitchDisabledReason] = useState<string | undefined>();
+  const [agentRuntimeMode, setAgentRuntimeMode] = useState<"host" | "wsl">("host");
+  const [wslDistro, setWslDistro] = useState("Ubuntu");
+  const [wslModeSupported, setWslModeSupported] = useState(false);
   const [pendingAgent, setPendingAgent] = useState<BabyMenuAgentOption | null>(null);
   const [agentForm, setAgentForm] = useState<AgentFormState | null>(null);
   const [agentFormError, setAgentFormError] = useState<string | null>(null);
@@ -47,6 +50,9 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
       setAgents(settings.agents);
       setAgentName(settings.agentName);
       setAgentSwitchDisabledReason(settings.agentSwitchDisabledReason);
+      setAgentRuntimeMode(settings.agentRuntimeMode ?? "host");
+      setWslDistro(settings.wslDistro ?? "Ubuntu");
+      setWslModeSupported(settings.wslModeSupported ?? false);
     });
     return () => {
       cancelled = true;
@@ -63,6 +69,19 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
     setAgentName(result.agentName);
     setAgents(result.agents);
     setAgentSwitchDisabledReason(result.agentSwitchDisabledReason);
+    setAgentRuntimeMode(result.agentRuntimeMode ?? "host");
+    setWslDistro(result.wslDistro ?? "Ubuntu");
+    setWslModeSupported(result.wslModeSupported ?? false);
+  }
+
+  async function toggleWslMode(next: boolean) {
+    if (!window.babyMenu?.settings) return;
+    applySettings(await window.babyMenu.settings.setAgentRuntimeMode(next ? "wsl" : "host"));
+  }
+
+  async function commitWslDistro(next: string) {
+    if (!window.babyMenu?.settings) return;
+    applySettings(await window.babyMenu.settings.setWslDistro(next));
   }
 
   async function confirmSwitch() {
@@ -124,6 +143,39 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
           </span>
           <Switch checked={openAtLogin} onCheckedChange={(next) => void toggle(next)} aria-label="launch at system start" />
         </div>
+        {wslModeSupported ? (
+          <>
+            <div className="flex items-center justify-between gap-4">
+              <span className="flex flex-col gap-0.5">
+                <span className="text-sm text-ink">run agents via WSL</span>
+                <span className="text-xs text-ink-soft">
+                  Discover and launch agent CLIs inside a WSL distro. Extension files stay on Windows.
+                </span>
+              </span>
+              <Switch
+                checked={agentRuntimeMode === "wsl"}
+                onCheckedChange={(next) => void toggleWslMode(next)}
+                aria-label="run agents via WSL"
+              />
+            </div>
+            {agentRuntimeMode === "wsl" ? (
+              <Field label="WSL distro" hint="Distro name passed to wsl -d (default Ubuntu).">
+                <Input
+                  value={wslDistro}
+                  placeholder="Ubuntu"
+                  aria-label="WSL distro"
+                  onChange={(event) => setWslDistro(event.target.value)}
+                  onBlur={(event) => void commitWslDistro(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.currentTarget.blur();
+                    }
+                  }}
+                />
+              </Field>
+            ) : null}
+          </>
+        ) : null}
       </section>
 
       <section className="flex flex-col gap-2" role="radiogroup" aria-label="agent">

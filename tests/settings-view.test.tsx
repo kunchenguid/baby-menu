@@ -10,6 +10,9 @@ function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
     openAtLogin: false,
     agentName: "claude",
     agents: [{ name: "claude", label: "Claude Code", available: true }],
+    agentRuntimeMode: "host",
+    wslDistro: "Ubuntu",
+    wslModeSupported: false,
     ...settings,
   };
   let current = base;
@@ -64,6 +67,14 @@ function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
       }),
       removeAgent: vi.fn(async (name: string) => {
         current = { ...current, agents: current.agents.filter((agent) => agent.name !== name) };
+        return current;
+      }),
+      setAgentRuntimeMode: vi.fn(async (agentRuntimeMode) => {
+        current = { ...current, agentRuntimeMode };
+        return current;
+      }),
+      setWslDistro: vi.fn(async (wslDistro) => {
+        current = { ...current, wslDistro };
         return current;
       }),
     },
@@ -275,6 +286,37 @@ describe("settings view", () => {
 
     expect(await screen.findByText(/built-in agent name/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /^save$/i })).toBeTruthy();
+  });
+
+  it("hides WSL mode controls when the host does not support them", async () => {
+    installBabyMenuApi({ wslModeSupported: false });
+    await openSettings();
+    expect(screen.queryByRole("switch", { name: "run agents via WSL" })).toBeNull();
+  });
+
+  it("toggles WSL mode and edits the distro on win32", async () => {
+    const api = installBabyMenuApi({ wslModeSupported: true, agentRuntimeMode: "host", wslDistro: "Ubuntu" });
+    await openSettings();
+
+    const toggle = await screen.findByRole("switch", { name: "run agents via WSL" });
+    fireEvent.click(toggle);
+    await waitFor(() => expect(api.settings.setAgentRuntimeMode).toHaveBeenCalledWith("wsl"));
+
+    // Simulate host returning WSL enabled so the distro field mounts.
+    (api.settings.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+      openAtLogin: false,
+      agentName: "claude",
+      agents: [{ name: "claude", label: "Claude Code", available: true }],
+      agentRuntimeMode: "wsl",
+      wslDistro: "Ubuntu",
+      wslModeSupported: true,
+    });
+    // Re-open settings state by calling setAgentRuntimeMode path already applied local state;
+    // applySettings from toggle should have set mode from the mock which returns { agentRuntimeMode }.
+    await waitFor(() => expect(screen.getByLabelText("WSL distro")).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("WSL distro"), { target: { value: "Debian" } });
+    fireEvent.blur(screen.getByLabelText("WSL distro"));
+    await waitFor(() => expect(api.settings.setWslDistro).toHaveBeenCalledWith("Debian"));
   });
 
   it("rediscovers extension settings sections when the popover reopens", async () => {

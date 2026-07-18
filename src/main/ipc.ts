@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import type {
   AgentActiveTurn,
   AgentChatResult,
+  BabyMenuAgentRuntimeMode,
   BabyMenuCustomAgentInput,
   BabyMenuSettings,
   GitActionResult,
@@ -44,6 +45,17 @@ type SettingsController = {
   addAgent: (input: BabyMenuCustomAgentInput) => Promise<BabyMenuSettings> | BabyMenuSettings;
   updateAgent: (name: string, input: { label?: string; command: string }) => Promise<BabyMenuSettings> | BabyMenuSettings;
   removeAgent: (name: string) => Promise<BabyMenuSettings> | BabyMenuSettings;
+  setAgentRuntimeMode: (mode: BabyMenuAgentRuntimeMode) => Promise<BabyMenuSettings> | BabyMenuSettings;
+  setWslDistro: (distro: string) => Promise<BabyMenuSettings> | BabyMenuSettings;
+};
+
+const EMPTY_SETTINGS: BabyMenuSettings = {
+  openAtLogin: false,
+  agentName: "",
+  agents: [],
+  agentRuntimeMode: "host",
+  wslDistro: "Ubuntu",
+  wslModeSupported: false,
 };
 
 type AppController = {
@@ -69,12 +81,14 @@ export function registerIpcHandlers(
     getVisibility: () => ({ visible: false }),
   },
   settings: SettingsController = {
-    get: () => ({ openAtLogin: false, agentName: "", agents: [] }),
-    setOpenAtLogin: (openAtLogin) => ({ openAtLogin, agentName: "", agents: [] }),
-    setAgent: (agentName) => ({ openAtLogin: false, agentName, agents: [] }),
-    addAgent: () => ({ openAtLogin: false, agentName: "", agents: [] }),
-    updateAgent: () => ({ openAtLogin: false, agentName: "", agents: [] }),
-    removeAgent: () => ({ openAtLogin: false, agentName: "", agents: [] }),
+    get: () => EMPTY_SETTINGS,
+    setOpenAtLogin: (openAtLogin) => ({ ...EMPTY_SETTINGS, openAtLogin }),
+    setAgent: (agentName) => ({ ...EMPTY_SETTINGS, agentName }),
+    addAgent: () => EMPTY_SETTINGS,
+    updateAgent: () => EMPTY_SETTINGS,
+    removeAgent: () => EMPTY_SETTINGS,
+    setAgentRuntimeMode: (agentRuntimeMode) => ({ ...EMPTY_SETTINGS, agentRuntimeMode }),
+    setWslDistro: (wslDistro) => ({ ...EMPTY_SETTINGS, wslDistro }),
   },
   appController: AppController = { quit: () => electronApp.quit() },
   runtimeOptions: IpcRuntimeOptions = {},
@@ -177,6 +191,14 @@ export function registerIpcHandlers(
 
   ipcMain.handle("baby-menu:settings:remove-agent", async (_event, name: string) => {
     return settings.removeAgent(name);
+  });
+
+  ipcMain.handle("baby-menu:settings:set-agent-runtime-mode", async (_event, mode: BabyMenuAgentRuntimeMode) => {
+    return settings.setAgentRuntimeMode(mode);
+  });
+
+  ipcMain.handle("baby-menu:settings:set-wsl-distro", async (_event, distro: string) => {
+    return settings.setWslDistro(distro);
   });
 
   ipcMain.handle("baby-menu:app:quit", async () => {

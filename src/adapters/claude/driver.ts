@@ -1,9 +1,9 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type * as schema from "@agentclientprotocol/sdk";
 import { AdapterTurnError, type SessionDriver, type UpdateSink } from "../shared/types.js";
 import { LineReader } from "../shared/line-reader.js";
 import { logDebug, logError } from "../shared/log.js";
-import { childEnv } from "../shared/child-env.js";
+import { spawnAgentCli } from "../shared/cli-spawn.js";
 import { mapClaudeEvent, type ClaudeEvent } from "./mapper.js";
 
 const SCOPE = "claude-adapter";
@@ -75,7 +75,7 @@ export class ClaudeDriver implements SessionDriver {
       : ["-p", ...flags, text];
 
     logDebug(SCOPE, "spawn", this.command, this.sessionId ? "(resume)" : "(new)");
-    const child = spawn(this.command, args, { cwd, stdio: ["pipe", "pipe", "pipe"], env: childEnv() });
+    const child = spawnAgentCli(this.command, args, { cwd });
     this.child = child;
     // claude reads stdin until EOF before producing output; the prompt is passed
     // as an arg, so close stdin immediately.

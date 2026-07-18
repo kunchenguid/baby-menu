@@ -91,4 +91,51 @@ describe("preferences service", () => {
     await expect(service.get()).resolves.toEqual({ openAtLogin: false, agentName: "codex" });
     await expect(readFile(join(userDataDir, "preferences.json"), "utf8")).resolves.toContain('"agentName": "codex"');
   });
+
+  it("has no agent runtime mode until the user enables WSL", async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), "baby-menu-prefs-"));
+    tempDirs.push(userDataDir);
+    const service = createPreferencesService({ userDataDir, app: { setLoginItemSettings: vi.fn() }, defaultOpenAtLogin: false });
+
+    await expect(service.get()).resolves.not.toHaveProperty("agentRuntimeMode");
+    await expect(service.get()).resolves.not.toHaveProperty("wslDistro");
+  });
+
+  it("persists agentRuntimeMode and defaults wslDistro to Ubuntu when enabling WSL", async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), "baby-menu-prefs-"));
+    tempDirs.push(userDataDir);
+    const service = createPreferencesService({ userDataDir, app: { setLoginItemSettings: vi.fn() }, defaultOpenAtLogin: false });
+
+    await expect(service.setAgentRuntimeMode("wsl")).resolves.toEqual({
+      openAtLogin: false,
+      agentRuntimeMode: "wsl",
+      wslDistro: "Ubuntu",
+    });
+    await expect(service.get()).resolves.toEqual({
+      openAtLogin: false,
+      agentRuntimeMode: "wsl",
+      wslDistro: "Ubuntu",
+    });
+    const raw = await readFile(join(userDataDir, "preferences.json"), "utf8");
+    expect(raw).toContain('"agentRuntimeMode": "wsl"');
+    expect(raw).toContain('"wslDistro": "Ubuntu"');
+  });
+
+  it("round-trips a custom WSL distro and can return to host mode", async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), "baby-menu-prefs-"));
+    tempDirs.push(userDataDir);
+    const service = createPreferencesService({ userDataDir, app: { setLoginItemSettings: vi.fn() }, defaultOpenAtLogin: false });
+
+    await service.setAgentRuntimeMode("wsl");
+    await expect(service.setWslDistro("Debian")).resolves.toEqual({
+      openAtLogin: false,
+      agentRuntimeMode: "wsl",
+      wslDistro: "Debian",
+    });
+    await expect(service.setAgentRuntime({ agentRuntimeMode: "host", wslDistro: "Debian" })).resolves.toEqual({
+      openAtLogin: false,
+      agentRuntimeMode: "host",
+      wslDistro: "Debian",
+    });
+  });
 });

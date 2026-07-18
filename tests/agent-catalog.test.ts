@@ -13,9 +13,14 @@ import {
 } from "../src/main/agent-catalog";
 
 describe("agent-catalog", () => {
-  it("ships claude and codex as the built-in agents (no pi)", () => {
-    expect(DEFAULT_AGENTS.map((agent) => agent.name)).toEqual(["claude", "codex"]);
-    expect(DEFAULT_AGENTS.map((agent) => agent.adapter)).toEqual(["claude", "codex"]);
+  it("ships claude, codex, and grok as the built-in agents (no pi)", () => {
+    expect(DEFAULT_AGENTS.map((agent) => agent.name)).toEqual(["claude", "codex", "grok"]);
+    expect(DEFAULT_AGENTS.map((agent) => agent.adapter)).toEqual(["claude", "codex", undefined]);
+    expect(DEFAULT_AGENTS.find((agent) => agent.name === "grok")).toMatchObject({
+      command: "grok",
+      launchCommand: "grok agent stdio",
+      label: "Grok Build",
+    });
   });
 
   it("derives Settings availability by probing each agent's wrapped CLI", () => {
@@ -25,7 +30,13 @@ describe("agent-catalog", () => {
     };
     const options = toAgentOptions(DEFAULT_AGENTS, available(["claude"]));
     const byName = Object.fromEntries(options.map((o) => [o.name, o.available]));
-    expect(byName).toEqual({ claude: true, codex: false });
+    expect(byName).toEqual({ claude: true, codex: false, grok: false });
+  });
+
+  it("probes grok availability via commandExists even with an explicit launchCommand", () => {
+    const options = toAgentOptions(DEFAULT_AGENTS, (command) => command === "grok");
+    const byName = Object.fromEntries(options.map((o) => [o.name, o.available]));
+    expect(byName).toEqual({ claude: false, codex: false, grok: true });
   });
 
   it("merges agents.json definitions over built-ins and appends new ones", () => {
@@ -75,25 +86,34 @@ describe("agent-catalog", () => {
     expect(wired[0]!.launchCommand).toBe("my-claude");
   });
 
-  it("treats a custom launchCommand override for a built-in name as available", () => {
+  it("still probes built-in CLIs when agents.json overrides launchCommand", () => {
+    // Built-ins always measure availability via commandExists(command), even if the
+    // user replaces the bundled adapter launch with a custom ACP command.
     const catalog = resolveAgentCatalog({ config: [{ name: "claude", launchCommand: "my-claude-acp" }] });
     const options = toAgentOptions(catalog, () => false);
-    expect(options.find((option) => option.name === "claude")?.available).toBe(true);
+    expect(options.find((option) => option.name === "claude")?.available).toBe(false);
+    expect(toAgentOptions(catalog, (command) => command === "claude").find((o) => o.name === "claude")?.available).toBe(true);
   });
 
   it("keeps probing wrapped CLIs for adapter-wired built-ins", () => {
     const wired = withAdapterLaunchCommands(DEFAULT_AGENTS, (a) => `/o/${a}.js`, ["node"]);
     const options = toAgentOptions(wired, (command) => command === "claude");
     const byName = Object.fromEntries(options.map((o) => [o.name, o.available]));
-    expect(byName).toEqual({ claude: true, codex: false });
+    expect(byName).toEqual({ claude: true, codex: false, grok: false });
   });
 
-  it("builds registry overrides from launchCommand (adapter-wired and custom)", () => {
+  it("does not overwrite grok's explicit launchCommand with an adapter path", () => {
+    const wired = withAdapterLaunchCommands(DEFAULT_AGENTS, (a) => `/o/${a}.js`, ["node"]);
+    expect(wired.find((a) => a.name === "grok")?.launchCommand).toBe("grok agent stdio");
+  });
+
+  it("builds registry overrides from launchCommand (adapter-wired, grok, and custom)", () => {
     const wired = withAdapterLaunchCommands(DEFAULT_AGENTS, (a) => `/o/${a}.js`, ["node"]);
     const overrides = agentRegistryOverrides([...wired, { name: "custom", label: "Custom", command: "c", launchCommand: "node custom.js" }]);
     expect(overrides).toEqual({
       claude: "node /o/claude.js",
       codex: "node /o/codex.js",
+      grok: "grok agent stdio",
       custom: "node custom.js",
     });
   });
@@ -114,7 +134,7 @@ describe("agent-catalog", () => {
   });
 
   it("exposes the built-in agent names", () => {
-    expect(BUILT_IN_AGENT_NAMES).toEqual(new Set(["claude", "codex"]));
+    expect(BUILT_IN_AGENT_NAMES).toEqual(new Set(["claude", "codex", "grok"]));
   });
 
   it("toAgentOptions flags custom agents and exposes their launch command", () => {
@@ -148,6 +168,7 @@ describe("agent-catalog", () => {
     it("rejects names that collide with a built-in", () => {
       expect(() => validateCustomAgentInput({ name: "claude", command: "x" }, [])).toThrow(/built-in/i);
       expect(() => validateCustomAgentInput({ name: "Codex", command: "x" }, [])).toThrow(/built-in/i);
+      expect(() => validateCustomAgentInput({ name: "grok", command: "x" }, [])).toThrow(/built-in/i);
     });
 
     it("rejects a duplicate custom name (case-insensitive)", () => {

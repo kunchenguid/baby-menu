@@ -32,10 +32,14 @@ describe("agent-catalog-controller", () => {
     return JSON.parse(await readFile(agentsJsonPath, "utf8")) as Array<Record<string, unknown>>;
   }
 
-  it("starts with only the built-ins and their adapter overrides", async () => {
+  it("starts with only the built-ins and their adapter / launch overrides", async () => {
     const controller = await create().load();
-    expect(controller.options().map((o) => o.name)).toEqual(["claude", "codex"]);
-    expect(controller.overrides).toEqual({ claude: "node /o/claude.js", codex: "node /o/codex.js" });
+    expect(controller.options().map((o) => o.name)).toEqual(["claude", "codex", "grok"]);
+    expect(controller.overrides).toEqual({
+      claude: "node /o/claude.js",
+      codex: "node /o/codex.js",
+      grok: "grok agent stdio",
+    });
   });
 
   it("adds a custom agent, persists it, rebuilds overrides, and notifies", async () => {
@@ -56,6 +60,7 @@ describe("agent-catalog-controller", () => {
     expect(controller.overrides).toEqual({
       claude: "node /o/claude.js",
       codex: "node /o/codex.js",
+      grok: "grok agent stdio",
       gemini: "gemini acp",
     });
     expect(onChange).toHaveBeenLastCalledWith(controller.overrides);
@@ -67,12 +72,13 @@ describe("agent-catalog-controller", () => {
     await first.addAgent({ name: "gemini", command: "gemini acp" });
 
     const second = await create().load();
-    expect(second.options().map((o) => o.name)).toEqual(["claude", "codex", "gemini"]);
+    expect(second.options().map((o) => o.name)).toEqual(["claude", "codex", "grok", "gemini"]);
   });
 
   it("rejects adding a name that collides with a built-in", async () => {
     const controller = await create().load();
     await expect(controller.addAgent({ name: "claude", command: "x" })).rejects.toThrow(/built-in/i);
+    await expect(controller.addAgent({ name: "grok", command: "x" })).rejects.toThrow(/built-in/i);
   });
 
   it("updates an existing custom agent's command", async () => {
@@ -89,7 +95,7 @@ describe("agent-catalog-controller", () => {
     await controller.addAgent({ name: "gemini", command: "gemini acp" });
     await controller.removeAgent("gemini");
 
-    expect(controller.options().map((o) => o.name)).toEqual(["claude", "codex"]);
+    expect(controller.options().map((o) => o.name)).toEqual(["claude", "codex", "grok"]);
     expect(controller.overrides.gemini).toBeUndefined();
     expect(await readJson()).toEqual([]);
   });

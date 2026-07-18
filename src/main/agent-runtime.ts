@@ -141,7 +141,12 @@ export function resolveDefaultAgentName(options: ResolveDefaultAgentNameOptions 
   const catalog = options.catalog ?? resolveAgentCatalog();
   if (catalog.length === 0) return null;
   const hasCommand = options.commandExists ?? commandExists;
-  const detected = catalog.find((agent) => (agent.launchCommand ? true : hasCommand(agent.command)))?.name;
+  // Built-ins always probe the CLI (including Grok's explicit launchCommand).
+  // Only non-built-in launchCommand entries count as available without a probe.
+  const detected = catalog.find((agent) => {
+    if (!BUILT_IN_AGENT_NAMES.has(agent.name) && agent.launchCommand) return true;
+    return hasCommand(agent.command);
+  })?.name;
   if (detected) return detected;
   return options.allowFallbackWhenMissing === false ? null : catalog[0].name;
 }
@@ -446,6 +451,9 @@ export class BabyMenuAgentRuntime {
   }
 
   private async runSend(prompt: string, options: BabyMenuAgentRuntimeSendOptions = {}): Promise<AgentChatResult> {
+    // Always a host filesystem path: change sessions and Node spawn cwd for `wsl`
+    // require a Windows-valid path. Inside WSL the inherited cwd maps to /mnt/...,
+    // and adapter CLI spawns re-apply an explicit cd via wrapCliSpawnForWsl.
     const agentCwd = await this.ensureAgentRuntimeCwd();
     const changeSession = await this.beginChangeSession(agentCwd);
     this.activeSession = changeSession;

@@ -1,9 +1,16 @@
 import { app, BrowserWindow, screen, shell, type Rectangle } from "electron";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { BabyMenuCustomAgentInput, BabyMenuSettings } from "../shared/contracts";
+import type { BabyMenuAgentRuntimeMode, BabyMenuCustomAgentInput, BabyMenuSettings } from "../shared/contracts";
 import { getRepoRoot } from "../shared/paths";
 import { createAgentCatalogController } from "./agent-catalog-controller";
+import {
+  applyAgentRuntimeModeEnv,
+  applyWslModeToOverrides,
+  isWslMode,
+  resolveWslDistro,
+  wslCommandExists,
+} from "./agent-runtime-mode";
 import { BabyMenuAgentRuntime, commandExists } from "./agent-runtime";
 import { resolveBabyMenuRuntimePaths } from "./app-paths";
 import { seedExtensionWorkspace } from "./extension-seeder";
@@ -21,7 +28,7 @@ import { createExtensionDatabase } from "./extension-database";
 import { createNotifier } from "./notifier";
 import { createPiKimiCredentialResolver } from "./pi-kimi-credential-resolver";
 import { createKimiQuotaBroker } from "./kimi-quota-broker";
-import { createPreferencesService } from "./preferences";
+import { createPreferencesService, type BabyMenuPreferences } from "./preferences";
 import { createBackgroundTaskSource, createServerActionRegistry } from "./server-action-registry";
 import { getDefaultTelemetry, initDefaultTelemetry } from "./telemetry";
 import { expandProcessPathForGuiLaunch } from "./shell-path";
@@ -185,6 +192,27 @@ export async function startBabyMenuApp(): Promise<void> {
     allowOpenAtLogin: paths.isPackaged,
   });
   const persistedPreferences = await preferences.apply();
+  // Live copy used by command probes and WSL override wrapping (updated on Settings writes).
+  let currentPreferences: BabyMenuPreferences = persistedPreferences;
+  applyAgentRuntimeModeEnv(currentPreferences);
+
+  function probeCommand(command: string): boolean {
+    if (isWslMode(currentPreferences)) {
+      return wslCommandExists(command, resolveWslDistro(currentPreferences));
+    }
+    return commandExists(command);
+  }
+
+  function runtimeOverridesFromCatalog(): Record<string, string> | undefined {
+    const raw = agentCatalog.overrides;
+    if (Object.keys(raw).length === 0) return undefined;
+    if (!isWslMode(currentPreferences)) return raw;
+    return applyWslModeToOverrides(raw, agentCatalog.catalog, resolveWslDistro(currentPreferences));
+  }
+
+  async function pushRuntimeOverrides(): Promise<void> {
+    await agentRuntime.setRegistryOverrides(runtimeOverridesFromCatalog());
+  }
 
   // Built-in claude/codex agents are driven by the bundled clean-room ACP
   // adapters. Run them with the bundled Electron as Node (ELECTRON_RUN_AS_NODE)
@@ -200,15 +228,17 @@ export async function startBabyMenuApp(): Promise<void> {
     agentsJsonPath: join(paths.appDataRoot, "agents.json"),
     resolveAdapterPath: (adapter) => join(paths.adaptersDir, adapter, "index.mjs"),
     adapterLauncher,
-    commandExists,
+    commandExists: probeCommand,
     getActiveAgentName: () => agentRuntime.currentAgent,
-    onOverridesChange: (overrides) => agentRuntime.setRegistryOverrides(overrides),
+    onOverridesChange: async () => {
+      await pushRuntimeOverrides();
+    },
   });
   await agentCatalog.load();
 
   agentRuntime = new BabyMenuAgentRuntime(paths.appDataRoot, {
     agentName: persistedPreferences.agentName,
-    registryOverrides: Object.keys(agentCatalog.overrides).length > 0 ? agentCatalog.overrides : undefined,
+    registryOverrides: runtimeOverridesFromCatalog(),
     telemetry,
     paths: {
       extensionsDir: paths.extensionsDir,
@@ -225,13 +255,21 @@ export async function startBabyMenuApp(): Promise<void> {
     userAgent: `baby-menu/${app.getVersion()}`,
   });
 
+  function effectiveRuntimeMode(prefs: BabyMenuPreferences): BabyMenuAgentRuntimeMode {
+    return isWslMode(prefs) ? "wsl" : "host";
+  }
+
   async function buildSettings(): Promise<BabyMenuSettings> {
     const current = await preferences.get();
+    currentPreferences = current;
     return {
       openAtLogin: current.openAtLogin,
       agentName: agentRuntime.currentAgent,
       agentSwitchDisabledReason: agentRuntime.agentSwitchDisabledReason,
       agents: agentCatalog.options(),
+      agentRuntimeMode: effectiveRuntimeMode(current),
+      wslDistro: resolveWslDistro(current),
+      wslModeSupported: process.platform === "win32",
     };
   }
 
@@ -256,6 +294,20 @@ export async function startBabyMenuApp(): Promise<void> {
     },
     async removeAgent(name: string) {
       await agentCatalog.removeAgent(name);
+      return buildSettings();
+    },
+    async setAgentRuntimeMode(mode: BabyMenuAgentRuntimeMode) {
+      // Non-Windows hosts cannot enable WSL mode; keep preference host-only.
+      const nextMode: BabyMenuAgentRuntimeMode = process.platform === "win32" ? mode : "host";
+      currentPreferences = await preferences.setAgentRuntimeMode(nextMode);
+      applyAgentRuntimeModeEnv(currentPreferences);
+      await pushRuntimeOverrides();
+      return buildSettings();
+    },
+    async setWslDistro(distro: string) {
+      currentPreferences = await preferences.setWslDistro(distro);
+      applyAgentRuntimeModeEnv(currentPreferences);
+      await pushRuntimeOverrides();
       return buildSettings();
     },
   };

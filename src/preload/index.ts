@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
   AgentRuntimeStatus,
+  BabyMenuAgentRuntimeMode,
   BabyMenuApi,
   BabyMenuCustomAgentInput,
   BackgroundTaskUpdate,
@@ -69,6 +70,9 @@ const api: BabyMenuApi = {
     updateAgent: (name: string, input: { label?: string; command: string }) =>
       ipcRenderer.invoke("baby-menu:settings:update-agent", name, input),
     removeAgent: (name: string) => ipcRenderer.invoke("baby-menu:settings:remove-agent", name),
+    setAgentRuntimeMode: (mode: BabyMenuAgentRuntimeMode) =>
+      ipcRenderer.invoke("baby-menu:settings:set-agent-runtime-mode", mode),
+    setWslDistro: (distro: string) => ipcRenderer.invoke("baby-menu:settings:set-wsl-distro", distro),
   },
   app: {
     quit: () => ipcRenderer.invoke("baby-menu:app:quit"),

@@ -254,27 +254,29 @@ describe("capabilities IPC", () => {
       currentTurn: vi.fn(),
     };
     const settings = {
-      get: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
-      setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin, agentName: "claude", agents: [] })),
-      setAgent: vi.fn(async (agentName: string) => ({ openAtLogin: false, agentName, agents: [] })),
-      addAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
-      updateAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
-      removeAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
+      get: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [], agentRuntimeMode: "host" as const, wslDistro: "Ubuntu", wslModeSupported: false })),
+      setOpenAtLogin: vi.fn(async (openAtLogin: boolean) => ({ openAtLogin, agentName: "claude", agents: [], agentRuntimeMode: "host" as const, wslDistro: "Ubuntu", wslModeSupported: false })),
+      setAgent: vi.fn(async (agentName: string) => ({ openAtLogin: false, agentName, agents: [], agentRuntimeMode: "host" as const, wslDistro: "Ubuntu", wslModeSupported: false })),
+      addAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [], agentRuntimeMode: "host" as const, wslDistro: "Ubuntu", wslModeSupported: false })),
+      updateAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [], agentRuntimeMode: "host" as const, wslDistro: "Ubuntu", wslModeSupported: false })),
+      removeAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [], agentRuntimeMode: "host" as const, wslDistro: "Ubuntu", wslModeSupported: false })),
+      setAgentRuntimeMode: vi.fn(async (agentRuntimeMode: "host" | "wsl") => ({ openAtLogin: false, agentName: "claude", agents: [], agentRuntimeMode, wslDistro: "Ubuntu", wslModeSupported: false })),
+      setWslDistro: vi.fn(async (wslDistro: string) => ({ openAtLogin: false, agentName: "claude", agents: [], agentRuntimeMode: "host" as const, wslDistro, wslModeSupported: false })),
     };
 
     registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, settings);
 
-    await expect(handlers.get("baby-menu:settings:get")?.({})).resolves.toEqual({ openAtLogin: false, agentName: "claude", agents: [] });
-    await expect(handlers.get("baby-menu:settings:set-open-at-login")?.({}, true)).resolves.toEqual({ openAtLogin: true, agentName: "claude", agents: [] });
+    await expect(handlers.get("baby-menu:settings:get")?.({})).resolves.toEqual({ openAtLogin: false, agentName: "claude", agents: [], agentRuntimeMode: "host" as const, wslDistro: "Ubuntu", wslModeSupported: false });
+    await expect(handlers.get("baby-menu:settings:set-open-at-login")?.({}, true)).resolves.toEqual({ openAtLogin: true, agentName: "claude", agents: [], agentRuntimeMode: "host" as const, wslDistro: "Ubuntu", wslModeSupported: false });
     expect(settings.setOpenAtLogin).toHaveBeenCalledWith(true);
-    await expect(handlers.get("baby-menu:settings:set-agent")?.({}, "codex")).resolves.toEqual({ openAtLogin: false, agentName: "codex", agents: [] });
+    await expect(handlers.get("baby-menu:settings:set-agent")?.({}, "codex")).resolves.toEqual({ openAtLogin: false, agentName: "codex", agents: [], agentRuntimeMode: "host" as const, wslDistro: "Ubuntu", wslModeSupported: false });
     expect(settings.setAgent).toHaveBeenCalledWith("codex");
   });
 
   it("registers settings channels for custom agent management", async () => {
     const { registerIpcHandlers } = await import("../src/main/ipc");
     const agentRuntime = { send: vi.fn(), save: vi.fn(), rollback: vi.fn(), currentSessionSnapshot: vi.fn(), currentTurn: vi.fn() };
-    const result = { openAtLogin: false, agentName: "claude", agents: [] };
+    const result = { openAtLogin: false, agentName: "claude", agents: [], agentRuntimeMode: "host" as const, wslDistro: "Ubuntu", wslModeSupported: false };
     const settings = {
       get: vi.fn(async () => result),
       setOpenAtLogin: vi.fn(async () => result),
@@ -282,6 +284,8 @@ describe("capabilities IPC", () => {
       addAgent: vi.fn(async () => result),
       updateAgent: vi.fn(async () => result),
       removeAgent: vi.fn(async () => result),
+      setAgentRuntimeMode: vi.fn(async () => result),
+      setWslDistro: vi.fn(async () => result),
     };
 
     registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, settings);

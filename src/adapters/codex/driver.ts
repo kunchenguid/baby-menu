@@ -1,9 +1,9 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type * as schema from "@agentclientprotocol/sdk";
 import { AdapterTurnError, type SessionDriver, type UpdateSink } from "../shared/types.js";
 import { LineReader } from "../shared/line-reader.js";
 import { logDebug, logError } from "../shared/log.js";
-import { childEnv } from "../shared/child-env.js";
+import { spawnAgentCli } from "../shared/cli-spawn.js";
 import { mapCodexEvent, type CodexExecEvent } from "./mapper.js";
 
 const SCOPE = "codex-adapter";
@@ -82,7 +82,8 @@ export class CodexDriver implements SessionDriver {
     logDebug(SCOPE, "spawn", this.command, args.slice(0, -1).join(" "), "<prompt>");
     // codex exec takes the prompt as an arg and ignores stdin, but we pipe all
     // three streams so the handle types as ChildProcessWithoutNullStreams.
-    const child = spawn(this.command, args, { cwd, stdio: ["pipe", "pipe", "pipe"], env: childEnv() });
+    // spawnAgentCli may route through WSL when BABY_MENU_AGENT_RUNTIME=wsl.
+    const child = spawnAgentCli(this.command, args, { cwd });
     this.child = child;
     // Close stdin immediately: codex exec reads stdin to EOF before finishing,
     // so leaving the pipe open makes it hang (and exit non-zero on teardown).
