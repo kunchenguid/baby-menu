@@ -416,13 +416,20 @@ describe("startBabyMenuApp", () => {
 
     await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalled());
     expect(electronApp.setActivationPolicy).not.toHaveBeenCalled();
-    expect(electronApp.focus).not.toHaveBeenCalledWith({ steal: true });
+    expect(electronApp.focus).not.toHaveBeenCalled();
     expect(electronApp.dock.hide).not.toHaveBeenCalled();
 
     const onHide = browserWindowInstance.on.mock.calls.find(([event]) => event === "hide")?.[1];
+    expect(onHide).toEqual(expect.any(Function));
+    browserWindowInstance.webContents.send.mockClear();
     onHide?.();
 
+    // Hide path still runs (visibility IPC) while dock/activation APIs stay quiet.
+    expect(browserWindowInstance.webContents.send).toHaveBeenCalledWith("baby-menu:popover:visibility", {
+      visible: false,
+    });
     expect(electronApp.setActivationPolicy).not.toHaveBeenCalled();
+    expect(electronApp.focus).not.toHaveBeenCalled();
     expect(electronApp.dock.hide).not.toHaveBeenCalled();
   });
 
