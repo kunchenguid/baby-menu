@@ -16,6 +16,19 @@ describe("distribution config", () => {
     expect(packageJson.devDependencies?.["electron-builder"]).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
+  // Real `pnpm package:win` is a Windows-host / windows-latest CI gate (G13), not a Linux gate.
+  it("adds Windows packaging scripts without renaming mac package scripts", () => {
+    expect(packageJson.scripts?.["package:mac"]).toContain("electron-builder --mac dir --universal");
+    expect(packageJson.scripts?.["dist:mac"]).toContain("scripts/create-dmg.mjs");
+    expect(packageJson.scripts?.["package:win"]).toContain("electron-builder --win");
+    expect(packageJson.scripts?.["package:win"]).toContain("--x64");
+    expect(packageJson.scripts?.["package:win"]).toContain("--config electron-builder.dev.yml");
+    expect(packageJson.scripts?.["package:win"]).toContain("pnpm build");
+    expect(packageJson.scripts?.["package:win:dir"]).toContain("electron-builder --win dir");
+    expect(packageJson.scripts?.["package:win:dir"]).toContain("--x64");
+    expect(packageJson.scripts?.["package:win:dir"]).toContain("--config electron-builder.dev.yml");
+  });
+
   it("uses an electron-builder that handles pnpm deduped dependencies (>= 26.8.2)", () => {
     // electron-builder <= 26.8.1 misparses pnpm's `pnpm list --json` output once pnpm
     // (>= 10.29.3) emits "deduped" stubs: a package reached via multiple paths is read as
@@ -51,6 +64,8 @@ describe("distribution config", () => {
     expect(config).toContain("identity: null");
     expect(config).toContain("hardenedRuntime: false");
     expect(config).toContain("icon: assets/app-icon.icns");
+    expect(config).toContain("asarUnpack:");
+    expect(config).toContain("out/adapters/**");
     await expect(stat(resolve(import.meta.dirname, "../assets/app-icon.svg")).then((file) => file.isFile())).resolves.toBe(true);
     await expect(stat(resolve(import.meta.dirname, "../assets/app-icon.icns")).then((file) => file.isFile())).resolves.toBe(true);
     for (const trayAsset of [
@@ -63,6 +78,31 @@ describe("distribution config", () => {
         stat(resolve(import.meta.dirname, "../assets/tray", trayAsset)).then((file) => file.isFile()),
       ).resolves.toBe(true);
     }
+  });
+
+  it("declares an unsigned electron-builder Windows win block with NSIS + portable x64 targets", async () => {
+    const config = await readFile(resolve(import.meta.dirname, "../electron-builder.yml"), "utf8");
+
+    // Targets and arch (G03); mac/dmg blocks must remain present (G09).
+    expect(config).toMatch(/\bwin:\s*\n[\s\S]*?target:\s*\n[\s\S]*?nsis[\s\S]*?portable/);
+    expect(config).toMatch(/target:\s*nsis[\s\S]*?arch:[\s\S]*?-\s*x64/);
+    expect(config).toMatch(/target:\s*portable[\s\S]*?arch:[\s\S]*?-\s*x64/);
+    // Unsigned overnight (G22) — no certificate path.
+    expect(config).toMatch(/\bwin:[\s\S]*?sign:\s*null/);
+    expect(config).not.toMatch(/certificateFile|certificateSubjectName|CSC_LINK/);
+    // Artifact names (G03).
+    expect(config).toContain("artifactName: Baby-Menu-${version}-win-x64.exe");
+    expect(config).toContain("artifactName: Baby-Menu-${version}-win-x64-portable.exe");
+    // Adapters stay unpacked for both platforms.
+    expect(config).toContain("asarUnpack:");
+    expect(config).toContain("out/adapters/**");
+    // Tray extraResources still include Windows non-template icons.
+    expect(config).toContain("baby_menu.png");
+    expect(config).toContain("baby_menu@2x.png");
+    expect(config).toContain("baby_menuTemplate*.png");
+    // mac packaging unchanged.
+    expect(config).toContain("identity: null");
+    expect(config).toContain("artifactName: Baby-Menu-${version}-universal.dmg");
   });
 
   it("adds a release-please workflow that publishes the DMG and updates the Homebrew tap after a release", async () => {

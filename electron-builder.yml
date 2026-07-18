@@ -41,5 +41,27 @@ mac:
   gatekeeperAssess: false
   x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/{@esbuild/**,esbuild/**,@tailwindcss/oxide-*/**,lightningcss-*/**,lightningcss/**,@earendil-works/pi-tui/**}
 
+# Windows packaging is unsigned for overnight MVP (G22). Real `pnpm package:win`
+# is expected to run on a Windows host / windows-latest CI, not as a Linux gate.
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  # G22: unsigned overnight; SmartScreen warnings expected on local smoke.
+  sign: null
+  verifyUpdateCodeSignature: false
+
+nsis:
+  artifactName: Baby-Menu-${version}-win-x64.exe
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+portable:
+  artifactName: Baby-Menu-${version}-win-x64-portable.exe
+
 dmg:
   artifactName: Baby-Menu-${version}-universal.dmg

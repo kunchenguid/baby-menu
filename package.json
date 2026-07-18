@@ -19,6 +19,8 @@
     "generate:contracts": "node scripts/generate-extension-dts.mjs",
     "package:mac": "rm -rf release && pnpm build && electron-builder --mac dir --universal --config electron-builder.dev.yml && node scripts/adhoc-sign-mac-app.mjs \"release/mac-universal/Baby Menu Dev.app\"",
     "dist:mac": "pnpm package:mac && node scripts/create-dmg.mjs \"release/mac-universal/Baby Menu Dev.app\"",
+    "package:win": "rm -rf release && pnpm build && electron-builder --win --x64 --config electron-builder.dev.yml",
+    "package:win:dir": "rm -rf release && pnpm build && electron-builder --win dir --x64 --config electron-builder.dev.yml",
     "test": "vitest run tests",
     "test:e2e": "vitest run tests/e2e-*.test.ts",
     "test:e2e:grok-popover": "node scripts/e2e-grok-popover.mjs",
