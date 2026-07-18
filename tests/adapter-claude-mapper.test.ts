@@ -120,7 +120,22 @@ describe("mapClaudeEvent", () => {
     expect(result.terminalError).toMatchObject({
       name: "AdapterTurnError",
       code: "AUTHENTICATION_FAILED",
-      message: "Claude is not authenticated. Run `claude` and complete sign-in, then try again.",
+      message: "Claude needs you to sign in again. Run `claude auth login`, then try again.",
+    });
+  });
+
+  it("classifies the real expired OAuth result as an actionable sign-in failure", () => {
+    const result = mapClaudeEvent({
+      type: "result",
+      subtype: "success",
+      is_error: true,
+      result: "Failed to authenticate: OAuth session expired and could not be refreshed",
+    });
+    expect(result.stopReason).toBeUndefined();
+    expect(result.terminalError).toMatchObject({
+      name: "AdapterTurnError",
+      code: "AUTHENTICATION_FAILED",
+      message: "Claude needs you to sign in again. Run `claude auth login`, then try again.",
     });
   });
 

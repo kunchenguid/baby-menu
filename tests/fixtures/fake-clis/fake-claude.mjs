@@ -28,6 +28,19 @@ if (prompt.includes("PROVIDER_AUTH_ERROR")) {
   process.exit(1);
 }
 
+if (prompt.includes("PROVIDER_OAUTH_EXPIRED")) {
+  emit({ type: "system", subtype: "init", session_id: "fake-session", model: "fake", cwd: process.cwd() });
+  emit({ type: "assistant", error: "authentication_failed", message: { role: "assistant", content: [] } });
+  emit({
+    type: "result",
+    subtype: "success",
+    is_error: true,
+    result: "Failed to authenticate: OAuth session expired and could not be refreshed",
+    session_id: "fake-session",
+  });
+  process.exit(1);
+}
+
 if (prompt.includes("SLOW_CANCEL")) {
   // Register the SIGTERM handler BEFORE announcing readiness. The parent reads
   // "ready" the instant the bytes hit the pipe and may fire SIGTERM while this

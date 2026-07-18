@@ -163,6 +163,26 @@ describe("AgentChat", () => {
     expect(screen.queryByText("the agent did not edit anything")).toBeNull();
   });
 
+  it("shows Claude's exact OAuth recovery command after the IPC error wrapper", async () => {
+    installBabyMenuAgentMock();
+    window.babyMenu!.agent.send = vi.fn(async () => {
+      throw new Error(
+        "Error invoking remote method 'baby-menu:agent:send': Error: Authentication required: Claude needs you to sign in again. Run `claude auth login`, then try again.",
+      );
+    });
+    render(<AgentChat />);
+
+    const composer = screen.getByPlaceholderText("talk to the baby");
+    fireEvent.change(composer, { target: { value: "check the Claude lane" } });
+    fireEvent.submit(composer.closest("form")!);
+
+    expect(
+      await screen.findByText(
+        "Authentication required: Claude needs you to sign in again. Run `claude auth login`, then try again.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("keeps partial failed changes reviewable alongside the failure reason", async () => {
     installBabyMenuAgentMock({
       session: {

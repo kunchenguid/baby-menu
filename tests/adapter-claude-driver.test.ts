@@ -77,7 +77,18 @@ describe("ClaudeDriver (against a fake claude CLI)", () => {
     await expect(d.prompt("PROVIDER_AUTH_ERROR", () => {}, new AbortController().signal)).rejects.toMatchObject({
       name: "AdapterTurnError",
       code: "AUTHENTICATION_FAILED",
-      message: "Claude is not authenticated. Run `claude` and complete sign-in, then try again.",
+      message: "Claude needs you to sign in again. Run `claude auth login`, then try again.",
+    });
+  });
+
+  it("rejects the real expired OAuth result with the exact login recovery command", async () => {
+    const d = makeDriver();
+    await d.start(tmpdir());
+
+    await expect(d.prompt("PROVIDER_OAUTH_EXPIRED", () => {}, new AbortController().signal)).rejects.toMatchObject({
+      name: "AdapterTurnError",
+      code: "AUTHENTICATION_FAILED",
+      message: "Claude needs you to sign in again. Run `claude auth login`, then try again.",
     });
   });
 

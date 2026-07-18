@@ -29,11 +29,11 @@ type AdapterName = "Claude" | "Codex";
 
 export function providerTurnError(agent: AdapterName, detail: unknown): AdapterTurnError {
   const text = typeof detail === "string" ? detail : "";
-  if (/\b401\b|unauthorized|authentication|not logged in|missing bearer/i.test(text)) {
+  if (/\b401\b|unauthorized|authenticat|not logged in|missing bearer/i.test(text)) {
     const message =
       agent === "Codex"
         ? "Codex is not authenticated. Run `codex login` and try again."
-        : "Claude is not authenticated. Run `claude` and complete sign-in, then try again.";
+        : "Claude needs you to sign in again. Run `claude auth login`, then try again.";
     return new AdapterTurnError("AUTHENTICATION_FAILED", message);
   }
   if (/\b429\b|rate.?limit|quota/i.test(text)) {
