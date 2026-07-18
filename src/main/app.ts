@@ -207,10 +207,12 @@ export async function startBabyMenuApp(): Promise<void> {
     const raw = agentCatalog.overrides;
     if (Object.keys(raw).length === 0) return undefined;
     if (!isWslMode(currentPreferences)) return raw;
+    // Pure-ACP agents (Grok) cannot receive Windows session cwds under WSL — use
+    // host-side scripts/wsl-acp-proxy.mjs (copied to out/adapters/) to rewrite cwd.
+    const wslAcpProxyPath = join(paths.adaptersDir, "wsl-acp-proxy.mjs");
     return applyWslModeToOverrides(raw, agentCatalog.catalog, resolveWslDistro(currentPreferences), {
-      // Pure-ACP wraps embed an explicit cd so Grok/customs land in the workspace
-      // even when ACP tools ignore process cwd inheritance.
       hostCwd: paths.extensionsDir,
+      pureAcpProxyLaunch: ["env", "ELECTRON_RUN_AS_NODE=1", process.execPath, wslAcpProxyPath],
     });
   }
 

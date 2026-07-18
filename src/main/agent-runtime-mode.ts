@@ -6,6 +6,7 @@ import {
   looksLikeWindowsPath,
   normalizeWslDistroName,
   sanitizeStoredWslDistro,
+  splitLaunchCommand,
   toWslCwd,
   windowsPathToWslPath,
   wrapCliSpawnForWsl,
@@ -127,19 +128,28 @@ export function injectAgentRuntimeEnvIntoLaunch(
   return `env ${assignments} ${trimmed}`;
 }
 
+/** Quote a single argv token for acpx space-separated launch strings. */
+function shellJoinToken(token: string): string {
+  if (/^[A-Za-z0-9_./:=@%+-]+$/.test(token)) return token;
+  return `"${token.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function shellJoin(tokens: readonly string[]): string {
+  return tokens.map(shellJoinToken).join(" ");
+}
+
 /**
  * Applies WSL wrapping to registry launch overrides.
- * Adapter agents keep a host launch and receive runtime env; pure ACP launches
- * (Grok, customs) are wrapped to run entirely inside WSL.
  *
- * @param hostCwd optional Windows extensions path embedded as `cd` for pure-ACP wraps
- * so session tools that ignore process cwd still land in the workspace.
+ * - Adapter agents (Claude/Codex): host Node adapter + nested CLI via WSL.
+ * - Pure ACP (Grok, customs): host-side `wsl-acp-proxy.mjs` rewrites session/new
+ *   cwd Windows → `/mnt/...` (direct wsl wrap fails with -32602 Invalid params).
  */
 export function applyWslModeToOverrides(
   overrides: Record<string, string>,
   catalog: readonly AgentDefinition[],
   distro: string,
-  options: { hostCwd?: string } = {},
+  options: { hostCwd?: string; pureAcpProxyLaunch?: readonly string[] } = {},
 ): Record<string, string> {
   if (Object.keys(overrides).length === 0) return overrides;
 
@@ -152,7 +162,23 @@ export function applyWslModeToOverrides(
         BABY_MENU_AGENT_RUNTIME: "wsl",
         BABY_MENU_WSL_DISTRO: distro,
       });
+      continue;
+    }
+
+    const tokens = splitLaunchCommand(launchCommand);
+    if (tokens.length === 0) {
+      next[name] = launchCommand;
+      continue;
+    }
+
+    if (options.pureAcpProxyLaunch && options.pureAcpProxyLaunch.length > 0) {
+      const cmd = shellJoin([...options.pureAcpProxyLaunch, "--distro", distro, "--", ...tokens]);
+      next[name] = injectAgentRuntimeEnvIntoLaunch(cmd, {
+        BABY_MENU_WSL_DISTRO: distro,
+        ...(options.hostCwd ? { BABY_MENU_WSL_PROXY_CWD: options.hostCwd } : {}),
+      });
     } else {
+      // Unit-test fallback without a proxy path (not used by the production app).
       next[name] = wrapLaunchCommandForWsl(launchCommand, distro, { cwd: options.hostCwd });
     }
   }

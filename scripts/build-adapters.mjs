@@ -5,6 +5,7 @@
 // modules from inside the packaged app.asar. esbuild bundles everything except
 // Node built-ins into one file per adapter.
 import { build } from "esbuild";
+import { copyFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -33,4 +34,13 @@ await build({
   logLevel: "info",
 });
 
-console.log("Built ACP adapters:", adapters.map((n) => `out/adapters/${n}/index.mjs`).join(", "));
+// Host-side WSL ACP proxy (rewrites session/new cwd for Linux agents). Must live
+// next to adapters so asarUnpack out/adapters/** ships it for Electron-as-node.
+const adaptersOut = resolve(root, "out/adapters");
+await mkdir(adaptersOut, { recursive: true });
+await copyFile(resolve(root, "scripts/wsl-acp-proxy.mjs"), resolve(adaptersOut, "wsl-acp-proxy.mjs"));
+
+console.log(
+  "Built ACP adapters:",
+  [...adapters.map((n) => `out/adapters/${n}/index.mjs`), "out/adapters/wsl-acp-proxy.mjs"].join(", "),
+);
