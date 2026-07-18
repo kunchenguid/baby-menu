@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   expandProcessPathForGuiLaunch,
+  expandWindowsEnvVars,
   mergeShellPath,
   parseRegQueryPathValue,
   readLoginShellPath,
@@ -10,11 +11,12 @@ import {
 
 describe("shell-path Windows merge (G05)", () => {
   const winHome = "C:\\Users\\me";
-  const winEnv = {
+  const winEnv: NodeJS.ProcessEnv = {
     LOCALAPPDATA: "C:\\Users\\me\\AppData\\Local",
     APPDATA: "C:\\Users\\me\\AppData\\Roaming",
     ProgramFiles: "C:\\Program Files",
     "ProgramFiles(x86)": "C:\\Program Files (x86)",
+    USERPROFILE: "C:\\Users\\me",
     Path: "C:\\Windows\\system32;C:\\Windows",
     PATH: "C:\\Windows\\system32;C:\\Windows",
   };
@@ -40,31 +42,74 @@ describe("shell-path Windows merge (G05)", () => {
       pathExists: (dir) => present.has(dir),
     });
 
-    const segments = merged.split(";");
-    // Windows PATH uses `;` as the list delimiter (drive letters still contain `:`).
-    expect(segments.join(";")).toBe(merged);
-    expect(segments.length).toBeGreaterThan(1);
-    expect(segments).toContain("C:\\Windows\\system32");
-    expect(segments).toContain("C:\\Windows");
-    expect(segments).toContain("C:\\Users\\me\\AppData\\Local\\Programs\\claude");
-    expect(segments).toContain("C:\\Tools");
-    expect(segments).toContain("C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps");
-    expect(segments).toContain("C:\\Users\\me\\AppData\\Roaming\\npm");
-    expect(segments).toContain("C:\\Users\\me\\.local\\bin");
-    expect(segments).toContain("C:\\Program Files\\nodejs");
-    expect(segments).toContain("C:\\Program Files\\Git\\cmd");
-    // Absent Git bin / x86 paths must not appear
-    expect(segments).not.toContain("C:\\Program Files\\Git\\bin");
-    expect(segments).not.toContain("C:\\Program Files (x86)\\Git\\cmd");
-    // Unix homebrew paths must never appear on win32 merge
-    expect(segments).not.toContain("/opt/homebrew/bin");
-    // Deduped system32 from current + registry
-    expect(segments.filter((s) => s === "C:\\Windows\\system32")).toHaveLength(1);
+    expect(merged).toBe(
+      [
+        "C:\\Windows\\system32",
+        "C:\\Windows",
+        "C:\\Users\\me\\AppData\\Local\\Programs\\claude",
+        "C:\\Tools",
+        "C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps",
+        "C:\\Users\\me\\AppData\\Roaming\\npm",
+        "C:\\Users\\me\\.local\\bin",
+        "C:\\Program Files\\nodejs",
+        "C:\\Program Files\\Git\\cmd",
+      ].join(";"),
+    );
+  });
+
+  it("expands REG_EXPAND_SZ %VAR% tokens from registry Path against env", () => {
+    const merged = mergeShellPath({
+      platform: "win32",
+      homeDir: winHome,
+      env: { ...winEnv, USERPROFILE: "C:\\Users\\me" },
+      currentPath: "C:\\Windows\\system32",
+      registryPathSegments: ["%USERPROFILE%\\go\\bin;%userprofile%\\bin;C:\\Literal"],
+      pathExists: () => false,
+    });
+
+    expect(merged.split(";")).toEqual([
+      "C:\\Windows\\system32",
+      "C:\\Users\\me\\go\\bin",
+      "C:\\Users\\me\\bin",
+      "C:\\Literal",
+    ]);
+  });
+
+  it("leaves unknown %VAR% tokens unchanged", () => {
+    expect(expandWindowsEnvVars("%MISSING%\\tools;C:\\ok", { USERPROFILE: "C:\\Users\\me" })).toBe(
+      "%MISSING%\\tools;C:\\ok",
+    );
+  });
+
+  it("dedupes win32 path segments case-insensitively while keeping first-seen casing", () => {
+    const merged = mergeShellPath({
+      platform: "win32",
+      homeDir: winHome,
+      env: winEnv,
+      currentPath: "C:\\Windows\\System32;C:\\Windows",
+      registryPathSegments: ["c:\\windows\\system32;C:\\Tools"],
+      pathExists: () => false,
+    });
+
+    expect(merged.split(";")).toEqual(["C:\\Windows\\System32", "C:\\Windows", "C:\\Tools"]);
   });
 
   it("lists the expected Windows common CLI directory candidates", () => {
     const dirs = windowsCommonCliDirs(winEnv, winHome);
     expect(dirs).toEqual([
+      "C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps",
+      "C:\\Users\\me\\AppData\\Roaming\\npm",
+      "C:\\Users\\me\\.local\\bin",
+      "C:\\Program Files\\nodejs",
+      "C:\\Program Files\\Git\\cmd",
+      "C:\\Program Files\\Git\\bin",
+      "C:\\Program Files (x86)\\Git\\cmd",
+      "C:\\Program Files (x86)\\Git\\bin",
+    ]);
+  });
+
+  it("derives common CLI dirs from homeDir when env is empty", () => {
+    expect(windowsCommonCliDirs({}, "C:\\Users\\me")).toEqual([
       "C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps",
       "C:\\Users\\me\\AppData\\Roaming\\npm",
       "C:\\Users\\me\\.local\\bin",
@@ -102,43 +147,150 @@ describe("shell-path Windows merge (G05)", () => {
     });
 
     expect(readShellPath).not.toHaveBeenCalled();
-    expect(merged.split(";")).toEqual(
-      expect.arrayContaining([
+    expect(merged).toBe(
+      [
         "C:\\Windows\\system32",
         "D:\\UserTools",
         "C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps",
         "C:\\Program Files\\nodejs",
-      ]),
+      ].join(";"),
     );
     expect(env.PATH).toBe(merged);
     expect(env.Path).toBe(merged);
-    expect(merged.split(";").join(";")).toBe(merged);
-    expect(merged.split(";")).not.toContain("/opt/homebrew/bin");
   });
 
-  it("readWindowsRegistryPathSegments is a no-op off win32 and fail-soft on spawn errors", () => {
-    const spawn = vi.fn(() => {
-      throw new Error("reg missing");
+  it("expandProcessPathForGuiLaunch still merges common dirs when registry returns empty", () => {
+    const env: NodeJS.ProcessEnv = {
+      Path: "C:\\Windows\\system32",
+      LOCALAPPDATA: winEnv.LOCALAPPDATA,
+      ProgramFiles: winEnv.ProgramFiles,
+    };
+
+    const merged = expandProcessPathForGuiLaunch({
+      platform: "win32",
+      env,
+      homeDir: winHome,
+      pathExists: (dir) => dir.endsWith("WindowsApps") || dir.endsWith("nodejs"),
+      readRegistryPathSegments: () => [],
     });
+
+    expect(merged).toBe(
+      [
+        "C:\\Windows\\system32",
+        "C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps",
+        "C:\\Program Files\\nodejs",
+      ].join(";"),
+    );
+  });
+
+  it("resolves current path from Path then PATH; empty Path wins over PATH via ??", () => {
+    expect(
+      mergeShellPath({
+        platform: "win32",
+        env: { Path: "C:\\FromPath", PATH: "C:\\FromPATH" },
+        pathExists: () => false,
+      }),
+    ).toBe("C:\\FromPath");
+
+    expect(
+      mergeShellPath({
+        platform: "win32",
+        env: { PATH: "C:\\FromPATHOnly" },
+        pathExists: () => false,
+      }),
+    ).toBe("C:\\FromPATHOnly");
+
+    // Empty string is not nullish, so ?? does not fall through to PATH.
+    expect(
+      mergeShellPath({
+        platform: "win32",
+        env: { Path: "", PATH: "C:\\WouldBeIgnored" },
+        pathExists: () => false,
+      }),
+    ).toBe("");
+  });
+
+  it("readWindowsRegistryPathSegments is a no-op off win32", () => {
+    const spawn = vi.fn();
     expect(readWindowsRegistryPathSegments({ platform: "linux", spawn: spawn as never })).toEqual([]);
     expect(spawn).not.toHaveBeenCalled();
-
-    expect(readWindowsRegistryPathSegments({ platform: "win32", spawn: spawn as never })).toEqual([]);
-    expect(spawn).toHaveBeenCalled();
   });
 
-  it("parses reg query Path output", () => {
-    const stdout = [
-      "",
-      "HKEY_CURRENT_USER\\Environment",
-      "    Path    REG_EXPAND_SZ    C:\\Users\\me\\bin;%USERPROFILE%\\go\\bin",
-      "",
-    ].join("\r\n");
-    expect(parseRegQueryPathValue(stdout)).toBe("C:\\Users\\me\\bin;%USERPROFILE%\\go\\bin");
-    expect(parseRegQueryPathValue("no path here")).toBeUndefined();
+  it("readWindowsRegistryPathSegments is fail-soft across spawn shapes and still tries both keys", () => {
+    const throwSpawn = vi.fn(() => {
+      throw new Error("reg missing");
+    });
+    expect(readWindowsRegistryPathSegments({ platform: "win32", spawn: throwSpawn as never })).toEqual(
+      [],
+    );
+    expect(throwSpawn).toHaveBeenCalledTimes(2);
+
+    const softFailures = vi.fn((...args: unknown[]) => {
+      const key = String((args[1] as string[])[1] ?? "");
+      if (key.includes("HKCU")) {
+        return { status: 1, stdout: "", stderr: "ERROR", error: undefined };
+      }
+      return {
+        status: null,
+        stdout: "",
+        stderr: "",
+        error: Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+      };
+    });
+    expect(
+      readWindowsRegistryPathSegments({ platform: "win32", spawn: softFailures as never }),
+    ).toEqual([]);
+    expect(softFailures).toHaveBeenCalledTimes(2);
+
+    const partial = vi.fn((...args: unknown[]) => {
+      const key = String((args[1] as string[])[1] ?? "");
+      if (key.includes("HKCU")) {
+        return { status: 0, stdout: "    Path    REG_SZ    C:\\UserOnly\r\n", stderr: "", error: undefined };
+      }
+      return { status: 1, stdout: "", stderr: "denied", error: undefined };
+    });
+    expect(readWindowsRegistryPathSegments({ platform: "win32", spawn: partial as never })).toEqual([
+      "C:\\UserOnly",
+    ]);
+    expect(partial).toHaveBeenCalledTimes(2);
   });
 
-  it("readWindowsRegistryPathSegments parses successful reg query stdout", () => {
+  it.each([
+    {
+      name: "REG_EXPAND_SZ with CRLF",
+      stdout: [
+        "",
+        "HKEY_CURRENT_USER\\Environment",
+        "    Path    REG_EXPAND_SZ    C:\\Users\\me\\bin;%USERPROFILE%\\go\\bin",
+        "",
+      ].join("\r\n"),
+      expected: "C:\\Users\\me\\bin;%USERPROFILE%\\go\\bin",
+    },
+    {
+      name: "REG_SZ with LF",
+      stdout: "HKEY_LOCAL_MACHINE\\...\n    Path    REG_SZ    C:\\SystemBin\n",
+      expected: "C:\\SystemBin",
+    },
+    {
+      name: "case-insensitive Path/REG type",
+      stdout: "    path    reg_expand_sz    D:\\MixedCase\n",
+      expected: "D:\\MixedCase",
+    },
+    {
+      name: "empty value",
+      stdout: "    Path    REG_SZ    \n",
+      expected: undefined,
+    },
+    {
+      name: "no path line",
+      stdout: "no path here",
+      expected: undefined,
+    },
+  ])("parseRegQueryPathValue: $name", ({ stdout, expected }) => {
+    expect(parseRegQueryPathValue(stdout)).toBe(expected);
+  });
+
+  it("readWindowsRegistryPathSegments parses successful reg query and locks spawn args", () => {
     const spawn = vi.fn((_cmd: string, args: string[]) => {
       const key = args[1] ?? "";
       if (key.includes("HKCU")) {
@@ -160,7 +312,24 @@ describe("shell-path Windows merge (G05)", () => {
     expect(
       readWindowsRegistryPathSegments({ platform: "win32", spawn: spawn as never }),
     ).toEqual(["C:\\UserBin", "C:\\SystemBin"]);
-    expect(spawn).toHaveBeenCalledTimes(2);
+
+    expect(spawn).toHaveBeenNthCalledWith(
+      1,
+      "reg",
+      ["query", "HKCU\\Environment", "/v", "Path"],
+      expect.objectContaining({ encoding: "utf8", timeout: 1500, windowsHide: true }),
+    );
+    expect(spawn).toHaveBeenNthCalledWith(
+      2,
+      "reg",
+      [
+        "query",
+        "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+        "/v",
+        "Path",
+      ],
+      expect.objectContaining({ encoding: "utf8", timeout: 1500, windowsHide: true }),
+    );
   });
 });
 
@@ -192,6 +361,26 @@ describe("shell-path darwin/unix merge (unchanged)", () => {
     expect(merged.split(":")).toContain("/opt/homebrew/bin");
   });
 
+  it("expandProcessPathForGuiLaunch on darwin uses readShellPath and only sets PATH", () => {
+    const readShellPath = vi.fn(() => "/opt/custom/bin:/usr/bin");
+    const env: NodeJS.ProcessEnv = { PATH: "/usr/bin:/bin" };
+
+    const merged = expandProcessPathForGuiLaunch({
+      platform: "darwin",
+      env,
+      homeDir: "/Users/me",
+      readShellPath,
+    });
+
+    expect(readShellPath).toHaveBeenCalledOnce();
+    expect(merged.split(":")).toEqual(
+      expect.arrayContaining(["/usr/bin", "/bin", "/opt/homebrew/bin", "/Users/me/.local/bin", "/opt/custom/bin"]),
+    );
+    expect(env.PATH).toBe(merged);
+    expect(env.Path).toBeUndefined();
+    expect(merged.includes(";")).toBe(false);
+  });
+
   it("readLoginShellPath still spawns zsh on non-win32 when spawn is provided", () => {
     const spawn = vi.fn(() => ({
       status: 0,
@@ -207,5 +396,25 @@ describe("shell-path darwin/unix merge (unchanged)", () => {
       ["-lc", "print -r -- $PATH"],
       expect.objectContaining({ encoding: "utf8", timeout: 2000 }),
     );
+  });
+
+  it("readLoginShellPath returns undefined when zsh exits non-zero", () => {
+    const spawn = vi.fn(() => ({
+      status: 1,
+      stdout: "/should/not/use\n",
+      stderr: "nope",
+      error: undefined,
+    }));
+    expect(readLoginShellPath({ platform: "darwin", spawn: spawn as never })).toBeUndefined();
+  });
+
+  it("readLoginShellPath returns undefined when zsh stdout is empty", () => {
+    const spawn = vi.fn(() => ({
+      status: 0,
+      stdout: "   \n",
+      stderr: "",
+      error: undefined,
+    }));
+    expect(readLoginShellPath({ platform: "darwin", spawn: spawn as never })).toBeUndefined();
   });
 });

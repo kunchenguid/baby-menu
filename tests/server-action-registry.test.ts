@@ -184,6 +184,8 @@ describe("server action registry", () => {
     tempDirs.push(rootDir);
     const actionPath = join(rootDir, "extensions", "demo", "server.ts");
     await mkdir(dirname(actionPath), { recursive: true });
+    // Different lengths so size-based sourceSignature always detects the mid-compile edit
+    // even when mtime resolution is coarse (same-length "old"/"new" was flaky on fast FS).
     await writeFile(actionPath, `export const actions = { ping: () => "old" };`);
 
     let compileCount = 0;
@@ -193,7 +195,7 @@ describe("server action registry", () => {
       compileCount += 1;
       const sourceSignature = await testSourceSignature(actionPath);
       if (compileCount === 1) {
-        await writeFile(actionPath, `export const actions = { ping: () => "new" };`);
+        await writeFile(actionPath, `export const actions = { ping: () => "new-content" };`);
       }
       await mkdir(dirname(outputPath), { recursive: true });
       await writeFile(outputPath, `export const actions = { ping: () => "compiled" };`);
@@ -209,7 +211,7 @@ describe("server action registry", () => {
     const importModule = vi
       .fn()
       .mockResolvedValueOnce({ actions: { ping: () => "old" } })
-      .mockResolvedValueOnce({ actions: { ping: () => "new" } });
+      .mockResolvedValueOnce({ actions: { ping: () => "new-content" } });
     const loader = createServerModuleLoader({ compile, importModule });
 
     const first = await loader.load(actionPath, rootDir);
@@ -217,8 +219,8 @@ describe("server action registry", () => {
     const firstActions = first.module.actions as { ping: (input: unknown, context: { rootDir: string }) => string };
     const secondActions = second.module.actions as { ping: (input: unknown, context: { rootDir: string }) => string };
 
-    expect(firstActions.ping(undefined, { rootDir })).toBe("new");
-    expect(secondActions.ping(undefined, { rootDir })).toBe("new");
+    expect(firstActions.ping(undefined, { rootDir })).toBe("new-content");
+    expect(secondActions.ping(undefined, { rootDir })).toBe("new-content");
     expect(compile).toHaveBeenCalledTimes(2);
   });
 

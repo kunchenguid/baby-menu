@@ -27,6 +27,7 @@ describe("agent runtime distribution behavior", () => {
 
   it("merges Homebrew, local-bin, and login-shell PATH entries for GUI launches", () => {
     const merged = mergeShellPath({
+      platform: "darwin",
       currentPath: "/usr/bin:/bin",
       homeDir: "/Users/me",
       shellPath: "/opt/custom/bin:/usr/bin",

@@ -18,6 +18,7 @@ export type MergeShellPathOptions = {
    * When omitted on win32, mergeShellPath does not read the registry itself —
    * callers (expandProcessPathForGuiLaunch) pass readWindowsRegistryPathSegments().
    * Injectable for tests so no real registry is required.
+   * REG_EXPAND_SZ tokens (`%USERPROFILE%`, etc.) are expanded against `env`.
    */
   registryPathSegments?: string[];
   /** Override the candidate common CLI directories list (before existence filter on win32). */
@@ -60,8 +61,40 @@ function pathDelimiterFor(platform: NodeJS.Platform, override?: string): string 
   return platform === "win32" ? ";" : ":";
 }
 
-function dedupePathSegments(segments: string[], delimiter: string): string {
-  return [...new Set(segments.map((segment) => segment.trim()).filter(Boolean))].join(delimiter);
+/**
+ * Expand `%NAME%` tokens against env (case-insensitive key lookup).
+ * Unknown tokens are left unchanged. Used for REG_EXPAND_SZ Path values from `reg query`.
+ */
+export function expandWindowsEnvVars(value: string, env: NodeJS.ProcessEnv): string {
+  return value.replace(/%([^%]+)%/gi, (match, name: string) => {
+    const key = Object.keys(env).find((k) => k.toLowerCase() === name.toLowerCase());
+    if (key === undefined) return match;
+    const resolved = env[key];
+    if (resolved === undefined || resolved === "") return match;
+    return resolved;
+  });
+}
+
+function dedupePathSegments(
+  segments: string[],
+  delimiter: string,
+  caseInsensitive = false,
+): string {
+  if (!caseInsensitive) {
+    return [...new Set(segments.map((segment) => segment.trim()).filter(Boolean))].join(delimiter);
+  }
+
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const raw of segments) {
+    const segment = raw.trim();
+    if (!segment) continue;
+    const key = segment.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ordered.push(segment);
+  }
+  return ordered.join(delimiter);
 }
 
 function splitPathValue(value: string | undefined, delimiter: string): string[] {
@@ -94,6 +127,8 @@ export function windowsCommonCliDirs(env: NodeJS.ProcessEnv, homeDir: string): s
  * Best-effort User + System PATH from the Windows registry via `reg query`.
  * Fail-soft: any spawn error, non-zero exit, timeout, or parse failure yields [].
  * No-op (returns []) when not on win32 unless platform is overridden to win32 for tests.
+ * Values are returned as `reg query` prints them (may still contain `%VAR%`);
+ * mergeShellPath expands those tokens against env.
  */
 export function readWindowsRegistryPathSegments(
   options: ReadWindowsRegistryPathOptions = {},
@@ -148,11 +183,14 @@ export function mergeShellPath(options: MergeShellPathOptions = {}): string {
 
   if (platform === "win32") {
     const env = options.env ?? process.env;
+    // `??` only falls through null/undefined — an empty Path string wins over PATH.
     const currentPath = options.currentPath ?? env.Path ?? env.PATH ?? "";
     const pathExists = options.pathExists ?? existsSync;
     const commonCandidates = options.commonDirs ?? windowsCommonCliDirs(env, homeDir);
     const presentCommon = commonCandidates.filter((dir) => pathExists(dir));
-    const registrySegments = options.registryPathSegments ?? [];
+    const registrySegments = (options.registryPathSegments ?? []).map((value) =>
+      expandWindowsEnvVars(value, env),
+    );
 
     const segments = [
       ...splitPathValue(currentPath, delimiter),
@@ -160,7 +198,7 @@ export function mergeShellPath(options: MergeShellPathOptions = {}): string {
       ...presentCommon,
       ...splitPathValue(options.shellPath, delimiter),
     ];
-    return dedupePathSegments(segments, delimiter);
+    return dedupePathSegments(segments, delimiter, true);
   }
 
   const segments = [
@@ -169,7 +207,7 @@ export function mergeShellPath(options: MergeShellPathOptions = {}): string {
     path.posix.join(homeDir, ".local", "bin"),
     ...splitPathValue(options.shellPath ?? "", delimiter),
   ];
-  return dedupePathSegments(segments, delimiter);
+  return dedupePathSegments(segments, delimiter, false);
 }
 
 export function readLoginShellPath(options: ReadLoginShellPathOptions = {}): string | undefined {
@@ -183,7 +221,7 @@ export function readLoginShellPath(options: ReadLoginShellPathOptions = {}): str
     stdio: ["ignore", "pipe", "ignore"],
   });
   if (result.status !== 0) return undefined;
-  return result.stdout.trim() || undefined;
+  return result.stdout?.trim() || undefined;
 }
 
 /**
@@ -197,6 +235,7 @@ export function expandProcessPathForGuiLaunch(options: ExpandProcessPathOptions 
   const env = options.env ?? process.env;
 
   if (platform === "win32") {
+    // `??` only falls through null/undefined — an empty Path string wins over PATH.
     const currentPath = env.Path ?? env.PATH ?? "";
     const registryPathSegments =
       options.readRegistryPathSegments?.() ??
