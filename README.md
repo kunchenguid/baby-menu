@@ -38,7 +38,7 @@ brew install --cask kunchenguid/tap/baby-menu
 open -a "Baby Menu"
 ```
 
-**Windows (in progress / CI):** build unsigned NSIS or portable x64 with `pnpm package:win` on a Windows host (or download the CI `windows-package` artifact). SmartScreen may warn because builds are unsigned. Packaging and agent PATH expansion are dual-platform; end-user install channels (winget, signed releases) are not the Homebrew path.
+**Windows (in progress / CI):** build unsigned NSIS or portable x64 with `pnpm package:win` on a Windows host (or download the CI `windows-package` artifact). SmartScreen may warn because builds are unsigned. Packaging and agent PATH expansion are dual-platform. There is no winget or signed Windows release channel yet (unlike Homebrew on macOS).
 
 Click the tray icon, then ask for a widget in the composer such as:
 
