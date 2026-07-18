@@ -180,6 +180,8 @@ function noReportedQuotaResponse(): Response {
 }
 
 describe("clean generated Grok quota installation", () => {
+  // configureFakeRefresh writes a shebang script; CreateProcess on win32 does not run #!/bin/sh.
+  const skipPosixFakeCli = process.platform === "win32";
   const tempDirs: string[] = [];
   const databases: ExtensionDatabase[] = [];
 
@@ -430,7 +432,7 @@ describe("clean generated Grok quota installation", () => {
     expect(compiledIds).toHaveLength(1);
   });
 
-  it("refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer", async () => {
+  it.skipIf(skipPosixFakeCli)("refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer", async () => {
     const installed = await install();
     await writeAuth(join(installed.grokHome, "auth.json"), { key: "fake-expired", expired: true });
     const countPath = await configureFakeRefresh(installed, {
@@ -453,7 +455,7 @@ describe("clean generated Grok quota installation", () => {
     expect((fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>).Authorization).toBe("Bearer fake-refreshed");
   });
 
-  it("uses one provider request after local-expiry refresh even when it fails transiently", async () => {
+  it.skipIf(skipPosixFakeCli)("uses one provider request after local-expiry refresh even when it fails transiently", async () => {
     const installed = await install();
     await writeAuth(join(installed.grokHome, "auth.json"), { key: "fake-expired", expired: true });
     const countPath = await configureFakeRefresh(installed, {
@@ -481,7 +483,7 @@ describe("clean generated Grok quota installation", () => {
     expect(await readFile(countPath, "utf8")).toBe("x");
   });
 
-  it.each([
+  it.skipIf(skipPosixFakeCli).each([
     ["HTTP 401", () => new Response("", { status: 401 })],
     ["gRPC unauthenticated", () => new Response(responseBody(grpcFrame(
       new TextEncoder().encode("grpc-status: 16\r\ngrpc-message: expired\r\n"),
@@ -517,7 +519,7 @@ describe("clean generated Grok quota installation", () => {
     expect(await readFile(countPath, "utf8")).toBe("x");
   });
 
-  it("uses one post-refresh transport attempt while ordinary transient acquisition retains one retry", async () => {
+  it.skipIf(skipPosixFakeCli)("uses one post-refresh transport attempt while ordinary transient acquisition retains one retry", async () => {
     const installed = await install();
     const countPath = await configureFakeRefresh(installed, {
       "https://auth.x.ai::fixture-client": {
@@ -556,7 +558,7 @@ describe("clean generated Grok quota installation", () => {
     expect(ordinaryFetch).toHaveBeenCalledTimes(2);
   });
 
-  it("never runs the conditional refresh for a healthy successful bearer", async () => {
+  it.skipIf(skipPosixFakeCli)("never runs the conditional refresh for a healthy successful bearer", async () => {
     const installed = await install();
     const countPath = await configureFakeRefresh(installed, {
       "https://auth.x.ai::fixture-client": {
@@ -575,7 +577,7 @@ describe("clean generated Grok quota installation", () => {
     expect(await readFile(countPath, "utf8")).toBe("");
   });
 
-  it("does not refresh a healthy bearer after HTTP 403", async () => {
+  it.skipIf(skipPosixFakeCli)("does not refresh a healthy bearer after HTTP 403", async () => {
     const installed = await install();
     const countPath = await configureFakeRefresh(installed, {
       "https://auth.x.ai::fixture-client": {
@@ -673,7 +675,7 @@ describe("clean generated Grok quota installation", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("refuses a refreshed principal change before a gRPC retry", async () => {
+  it.skipIf(skipPosixFakeCli)("refuses a refreshed principal change before a gRPC retry", async () => {
     const installed = await install();
     const countPath = await configureFakeRefresh(installed, {
       "https://auth.x.ai::fixture-client": {
@@ -696,7 +698,7 @@ describe("clean generated Grok quota installation", () => {
     expect(await readFile(countPath, "utf8")).toBe("x");
   });
 
-  it("preserves same-principal last-good cache when conditional official refresh fails", async () => {
+  it.skipIf(skipPosixFakeCli)("preserves same-principal last-good cache when conditional official refresh fails", async () => {
     const installed = await install();
     const trusted = trustedSnapshot();
     const stored = JSON.stringify(trusted);
@@ -725,7 +727,7 @@ describe("clean generated Grok quota installation", () => {
     expect(await readFile(countPath, "utf8")).toBe("x");
   });
 
-  it("bounds refresh termination when a descendant keeps inherited stdio open", async () => {
+  it.skipIf(skipPosixFakeCli)("bounds refresh termination when a descendant keeps inherited stdio open", async () => {
     const installed = await install();
     process.env.GROK_QUOTA_TEST_CLI_TIMEOUT_MS = "500";
     process.env.GROK_QUOTA_TEST_CLI_TERMINATION_GRACE_MS = "100";

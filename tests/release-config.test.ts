@@ -203,31 +203,51 @@ describe("distribution config", () => {
   it("adds a windows-latest CI job for typecheck, test, build, and package:win without dropping ubuntu gates", async () => {
     const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/ci.yml"), "utf8");
 
-    // Job ids and runners (G10).
+    // Top-level job ids (G10).
     expect(workflow).toMatch(/^\s{2}check:\s*$/m);
     expect(workflow).toMatch(/^\s{2}windows:\s*$/m);
-    expect(workflow).toContain("runs-on: ubuntu-latest");
-    expect(workflow).toContain("runs-on: windows-latest");
 
-    // Ubuntu keeps the contract-types check; Windows does not need to re-run it.
-    expect(workflow).toContain("Verify generated contract types are up to date");
-    expect(workflow).toContain("pnpm generate:contracts");
-    expect(workflow).toContain("extensions/babymenu-env.d.ts");
+    // Scope assertions to each job body so gates cannot float into the sibling job or a comment.
+    // Avoid multiline `$` (end-of-line); slice from job id until the next top-level job key.
+    const jobBody = (id: string): string => {
+      const header = workflow.match(new RegExp(`^  ${id}:\\n`, "m"));
+      if (!header || header.index === undefined) return "";
+      const from = header.index + header[0].length;
+      const rest = workflow.slice(from);
+      const nextJob = rest.search(/\n  [a-zA-Z]/);
+      return nextJob === -1 ? rest : rest.slice(0, nextJob);
+    };
+    const checkJob = jobBody("check");
+    const windowsJob = jobBody("windows");
+    expect(checkJob.length).toBeGreaterThan(0);
+    expect(windowsJob.length).toBeGreaterThan(0);
 
-    // Windows packaging job shape.
-    expect(workflow).toContain("CSC_IDENTITY_AUTO_DISCOVERY");
-    expect(workflow).toContain('CSC_IDENTITY_AUTO_DISCOVERY: "false"');
-    expect(workflow).toContain("pnpm install --frozen-lockfile");
-    expect(workflow).toContain("pnpm typecheck");
-    expect(workflow).toContain("pnpm test");
-    expect(workflow).toContain("pnpm build");
-    expect(workflow).toContain("pnpm package:win");
-    expect(workflow).toMatch(/timeout-minutes:\s*45/);
+    // Ubuntu keeps the contract-types check; Windows does not re-run it.
+    expect(checkJob).toContain("runs-on: ubuntu-latest");
+    expect(checkJob).toContain("Verify generated contract types are up to date");
+    expect(checkJob).toContain("pnpm generate:contracts");
+    expect(checkJob).toContain("extensions/babymenu-env.d.ts");
+    expect(checkJob).toContain("pnpm typecheck");
+    expect(checkJob).toContain("pnpm test");
+    expect(checkJob).toContain("pnpm build");
+    expect(checkJob).not.toContain("pnpm package:win");
 
-    // Artifact upload for NSIS + portable (G03).
-    expect(workflow).toContain("actions/upload-artifact@v4");
-    expect(workflow).toContain("release/Baby-Menu-*-win-x64.exe");
-    expect(workflow).toContain("release/Baby-Menu-*-win-x64-portable.exe");
+    // Windows packaging job shape (unsigned overnight, G22).
+    expect(windowsJob).toContain("runs-on: windows-latest");
+    expect(windowsJob).toMatch(/timeout-minutes:\s*45/);
+    expect(windowsJob).toContain('CSC_IDENTITY_AUTO_DISCOVERY: "false"');
+    expect(windowsJob).toContain("pnpm install --frozen-lockfile");
+    expect(windowsJob).toContain("pnpm typecheck");
+    expect(windowsJob).toContain("pnpm test");
+    expect(windowsJob).toContain("pnpm build");
+    expect(windowsJob).toContain("pnpm package:win");
+    expect(windowsJob).not.toContain("Verify generated contract types are up to date");
+
+    // Artifact upload for NSIS + portable (G03); fail the job if packaging produced nothing.
+    expect(windowsJob).toContain("actions/upload-artifact@v4");
+    expect(windowsJob).toContain("if-no-files-found: error");
+    expect(windowsJob).toContain("release/Baby-Menu-*-win-x64.exe");
+    expect(windowsJob).toContain("release/Baby-Menu-*-win-x64-portable.exe");
 
     // Script-level --publish never is the publish guard; CI just runs package:win.
     expect(packageJson.scripts?.["package:win"]).toContain("--publish never");

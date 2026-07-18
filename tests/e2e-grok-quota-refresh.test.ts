@@ -166,7 +166,8 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-describe("Grok conditional official refresh E2E", () => {
+// Fake Grok CLI is a POSIX shebang script; CreateProcess on win32 does not honor #!/bin/sh.
+describe.skipIf(process.platform === "win32")("Grok conditional official refresh E2E", () => {
   it("refreshes local expiry through only the fake official-client executable and rereads auth", async () => {
     const harness = await createHarness(authEntry("fake-expired", "fixture-user", true));
     const fetchMock = vi.fn<typeof fetch>(async () => quotaResponse());

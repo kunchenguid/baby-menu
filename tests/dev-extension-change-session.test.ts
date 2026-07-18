@@ -147,7 +147,8 @@ describe("DevExtensionChangeSession", () => {
     expect(await readFile(join(extensionsDir, "alpha", "icon.bin"))).toEqual(before);
   });
 
-  it("restores executable file modes on rollback", async () => {
+  // Unix execute bits are not preserved as 0o755 on win32 (Node chmod/stat).
+  it.skipIf(process.platform === "win32")("restores executable file modes on rollback", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-dev-extension-session-"));
     const extensionsDir = join(rootDir, "extensions-dev");
     await mkdir(join(extensionsDir, "alpha"), { recursive: true });
