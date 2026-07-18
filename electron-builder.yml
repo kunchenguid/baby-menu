@@ -22,6 +22,8 @@ extraResources:
     to: tray
     filter:
       - baby_menuTemplate*.png
+      - baby_menu.png
+      - baby_menu@2x.png
 
 asar: true
 

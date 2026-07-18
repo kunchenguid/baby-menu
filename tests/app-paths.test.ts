@@ -18,6 +18,7 @@ describe("Baby Menu runtime paths", () => {
       isPackaged: false,
       sourceRoot: "/repo",
       env: { BABY_MENU_EXTENSIONS_DIR: "extensions-dev" },
+      platform: "darwin",
     });
 
     expect(paths).toMatchObject({
@@ -39,6 +40,7 @@ describe("Baby Menu runtime paths", () => {
       sourceRoot: "/ignored/source",
       homeDir: "/Users/me",
       resourcesPath: "/Applications/Baby Menu.app/Contents/Resources",
+      platform: "darwin",
     });
 
     expect(paths).toMatchObject({
@@ -52,6 +54,46 @@ describe("Baby Menu runtime paths", () => {
       trayIconPath: "/Applications/Baby Menu.app/Contents/Resources/tray/baby_menuTemplate.png",
       isPackaged: true,
     });
+  });
+
+  it("selects the non-template tray icon for win32 source and packaged modes", () => {
+    const sourcePaths = createBabyMenuRuntimePaths({
+      isPackaged: false,
+      sourceRoot: "/repo",
+      platform: "win32",
+    });
+    expect(sourcePaths.trayIconPath).toBe("/repo/assets/tray/baby_menu.png");
+
+    const packagedPaths = createBabyMenuRuntimePaths({
+      isPackaged: true,
+      sourceRoot: "/ignored/source",
+      homeDir: "C:\\Users\\me",
+      resourcesPath: "C:\\Program Files\\Baby Menu\\resources",
+      platform: "win32",
+    });
+    expect(packagedPaths.trayIconPath).toBe("C:\\Program Files\\Baby Menu\\resources/tray/baby_menu.png");
+    // Packaged data root stays ~/.baby-menu (G04) even on Windows.
+    expect(packagedPaths.appDataRoot).toBe(join("C:\\Users\\me", ".baby-menu"));
+  });
+
+  it("selects the macOS Template tray icon when platform is darwin", () => {
+    const sourcePaths = createBabyMenuRuntimePaths({
+      isPackaged: false,
+      sourceRoot: "/repo",
+      platform: "darwin",
+    });
+    expect(sourcePaths.trayIconPath).toBe("/repo/assets/tray/baby_menuTemplate.png");
+
+    const packagedPaths = createBabyMenuRuntimePaths({
+      isPackaged: true,
+      sourceRoot: "/ignored/source",
+      homeDir: "/Users/me",
+      resourcesPath: "/Applications/Baby Menu.app/Contents/Resources",
+      platform: "darwin",
+    });
+    expect(packagedPaths.trayIconPath).toBe(
+      "/Applications/Baby Menu.app/Contents/Resources/tray/baby_menuTemplate.png",
+    );
   });
 
   it("refreshes bundled template files while preserving user-created extensions", async () => {

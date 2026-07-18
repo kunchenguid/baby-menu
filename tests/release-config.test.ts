@@ -46,6 +46,8 @@ describe("distribution config", () => {
     expect(config).toContain("@earendil-works/pi-tui/**");
     expect(config).toContain("to: tray");
     expect(config).toContain("baby_menuTemplate*.png");
+    expect(config).toContain("baby_menu.png");
+    expect(config).toContain("baby_menu@2x.png");
     expect(config).toContain("identity: null");
     expect(config).toContain("hardenedRuntime: false");
     expect(config).toContain("icon: assets/app-icon.icns");

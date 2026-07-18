@@ -26,9 +26,23 @@ type CreateBabyMenuRuntimePathsOptions = {
   env?: Partial<Pick<NodeJS.ProcessEnv, typeof EXTENSIONS_DIR_ENV>>;
   homeDir?: string;
   resourcesPath?: string;
+  /** Override platform so darwin/win32 tray icon selection can be unit-tested on Linux. */
+  platform?: NodeJS.Platform;
 };
 
+/**
+ * Tray asset basename by platform (G06).
+ * macOS keeps Template images; Windows uses a non-template monochrome PNG.
+ * Other platforms keep the Template basename for source-mode parity with mac tests.
+ */
+export function trayIconFileName(platform: NodeJS.Platform = process.platform): string {
+  return platform === "win32" ? "baby_menu.png" : "baby_menuTemplate.png";
+}
+
 export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOptions): BabyMenuRuntimePaths {
+  const platform = options.platform ?? process.platform;
+  const trayFile = trayIconFileName(platform);
+
   if (!options.isPackaged) {
     const cacheDir = join(options.sourceRoot, ".cache", "baby-menu");
     const extensionsDir = resolveSourceExtensionsDir(options.sourceRoot, options.env);
@@ -43,7 +57,7 @@ export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOp
       agentStateDir: join(cacheDir, "acp-sessions"),
       devExtensionSnapshotDir: join(cacheDir, "dev-extension-snapshots"),
       bundledExtensionTemplateDir: null,
-      trayIconPath: join(options.sourceRoot, "assets", "tray", "baby_menuTemplate.png"),
+      trayIconPath: join(options.sourceRoot, "assets", "tray", trayFile),
       databasePath: join(cacheDir, "baby-menu.db"),
       // Dev/source: adapters are esbuild-bundled into the checkout's out/.
       adaptersDir: join(options.sourceRoot, "out", "adapters"),
@@ -68,7 +82,7 @@ export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOp
     agentStateDir: join(cacheDir, "acp-sessions"),
     devExtensionSnapshotDir: join(cacheDir, "snapshots"),
     bundledExtensionTemplateDir: join(options.resourcesPath, "extensions-template"),
-    trayIconPath: join(options.resourcesPath, "tray", "baby_menuTemplate.png"),
+    trayIconPath: join(options.resourcesPath, "tray", trayFile),
     databasePath: join(appDataRoot, "baby-menu.db"),
     // Packaged: adapters are asar-unpacked (a standalone Node process cannot read
     // inside app.asar), so they live alongside the asar in app.asar.unpacked.
@@ -84,6 +98,7 @@ export function resolveBabyMenuRuntimePaths(sourceRoot: string): BabyMenuRuntime
     env: process.env,
     homeDir: app.isPackaged ? app.getPath("home") : undefined,
     resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
+    platform: process.platform,
   });
 }
 
