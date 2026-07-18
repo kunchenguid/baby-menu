@@ -273,7 +273,8 @@ describe("agent-runtime-mode", () => {
       expect(next.grok).toContain("Baby Menu Dev.exe");
       expect(next.grok).toContain("wsl-acp-proxy.mjs");
       expect(next.grok).toContain("Ubuntu");
-      expect(next.grok).toContain(String.raw`C:\Users\frand\.baby-menu\extensions`);
+      // shellJoin escapes backslashes for acpx tokens
+      expect(next.grok).toMatch(/Users\\+frand\\+\.baby-menu\\+extensions/);
       expect(next.grok).toMatch(/\bgrok\b/);
       expect(next.grok).toMatch(/\bagent\b/);
       expect(next.grok).toMatch(/\bstdio\b/);
