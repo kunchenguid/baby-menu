@@ -34,7 +34,7 @@ On Windows, Settings can enable **Run agents via WSL**. When on:
 - Agent CLI discovery (`claude`, `codex`, `grok`, …) probes inside the selected WSL distro (`wsl -d <distro> -- command -v …`).
 - Pure ACP launch commands (Grok Build and custom agents) run inside that distro (launch argv is tokenized and quoted; not expanded by bash).
 - Claude/Codex adapters still start as host Node processes; they spawn the nested CLI via WSL and pass `BABY_MENU_AGENT_RUNTIME=wsl` / `BABY_MENU_WSL_DISTRO=<distro>`.
-- The extension workspace stays on the Windows host (`~/.baby-menu/extensions`). Node/acpx keep a Windows cwd so `wsl` can be spawned; ACP session cwd and CLI wraps use the `/mnt/<drive>/…` form so tools see a Linux path.
+- The extension workspace stays on the Windows host (`~/.baby-menu/extensions`). Node/acpx always use a Windows host path for spawn and ACP session cwd (so `path.resolve` never sees `/mnt/...`). Linux process cwd inside the distro comes from wrap-script `cd '/mnt/<drive>/…'` (pure-ACP launches and adapter CLI spawns) and from WSL inheriting the Windows spawn directory.
 - **Credentials are distro-local.** Host Windows installs of `claude` / `codex` / `grok` and their auth stores are not used when WSL mode is on. Sign in inside the selected distro (for example `wsl -d Ubuntu -- claude` / `codex login` / `grok`) before expecting turns to succeed.
 
 Default distro is `Ubuntu` (letters, numbers, `.`, `-`, `_` only). WSL mode has no effect on macOS or Linux builds.

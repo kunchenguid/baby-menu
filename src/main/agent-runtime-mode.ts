@@ -62,8 +62,9 @@ export function resolveWslDistro(
 }
 
 /**
- * Host path for change sessions / Node spawn of wsl.exe; Linux-form path for ACP
- * session cwd when WSL mode is active so pure-ACP agents (Grok) see /mnt/... .
+ * Translates a host workspace path to the form used *inside* WSL wrap scripts
+ * (`cd '/mnt/...'`). Not for acpx/session cwd: on win32 those must stay host
+ * Windows paths so `path.resolve` does not produce `\mnt\c\...` garbage.
  */
 export function resolveAgentProcessCwd(
   hostCwd: string,

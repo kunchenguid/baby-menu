@@ -218,10 +218,12 @@ export async function startBabyMenuApp(): Promise<void> {
     await agentRuntime.setRegistryOverrides(runtimeOverridesFromCatalog(), options);
   }
 
-  async function applyAgentRuntimePreferenceChange(
-    next: BabyMenuPreferences,
-  ): Promise<void> {
-    agentRuntime.assertCanChangeAgentRuntimeLaunch();
+  /**
+   * Applies an already-persisted preference snapshot to live env/overrides.
+   * Callers must assert the runtime is idle and write preferences first only
+   * after that assert (so a refused toggle never lands on disk).
+   */
+  async function applyAgentRuntimePreferenceChange(next: BabyMenuPreferences): Promise<void> {
     currentPreferences = next;
     applyAgentRuntimeModeEnv(currentPreferences);
     await pushRuntimeOverrides({ discardPersistentState: true });
@@ -322,6 +324,8 @@ export async function startBabyMenuApp(): Promise<void> {
       if (mode !== "host" && mode !== "wsl") {
         throw new Error('Agent runtime mode must be "host" or "wsl".');
       }
+      // Gate before any disk write so a refused toggle leaves preferences unchanged.
+      agentRuntime.assertCanChangeAgentRuntimeLaunch();
       // Non-Windows hosts cannot enable WSL mode; keep preference host-only.
       const nextMode: BabyMenuAgentRuntimeMode = process.platform === "win32" ? mode : "host";
       const next = await preferences.setAgentRuntimeMode(nextMode);
@@ -329,6 +333,8 @@ export async function startBabyMenuApp(): Promise<void> {
       return buildSettings();
     },
     async setWslDistro(distro: string) {
+      // Gate before any disk write so a refused edit leaves preferences unchanged.
+      agentRuntime.assertCanChangeAgentRuntimeLaunch();
       const next = await preferences.setWslDistro(distro);
       await applyAgentRuntimePreferenceChange(next);
       return buildSettings();

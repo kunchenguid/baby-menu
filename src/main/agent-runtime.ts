@@ -14,7 +14,6 @@ import {
 import type { AgentActiveTurn, AgentChatResult, GitActionResult, GitSessionSnapshot, WorkspaceChange } from "../shared/contracts";
 import type { AgentRuntimeStatus } from "../shared/contracts";
 import { BUILT_IN_AGENT_NAMES, type AgentDefinition, resolveAgentCatalog } from "./agent-catalog";
-import { resolveAgentProcessCwd } from "./agent-runtime-mode";
 import { getAgentStateDir, getDevExtensionSnapshotDir, getExtensionsDir } from "../shared/paths";
 import { AgentTurnLogRecorder } from "./agent-turn-log";
 import { DevExtensionChangeSession } from "./dev-extension-change-session";
@@ -480,11 +479,11 @@ export class BabyMenuAgentRuntime {
   }
 
   private async runSend(prompt: string, options: BabyMenuAgentRuntimeSendOptions = {}): Promise<AgentChatResult> {
-    // Host path for change sessions and Node spawn of `wsl` (must be Windows-valid).
-    // Session cwd may be /mnt/... under WSL so pure-ACP agents (Grok) see a Linux path.
-    const hostCwd = await this.ensureAgentRuntimeCwd();
-    const sessionCwd = resolveAgentProcessCwd(hostCwd);
-    const changeSession = await this.beginChangeSession(hostCwd);
+    // Always a host filesystem path for change sessions and every acpx cwd argument.
+    // On win32, path.resolve("/mnt/c/...") is wrong; Linux process cwd comes from
+    // WSL wrap-script `cd '/mnt/...'` (pure-ACP + adapter CLI), not from acpx.
+    const agentCwd = await this.ensureAgentRuntimeCwd();
+    const changeSession = await this.beginChangeSession(agentCwd);
     this.activeSession = changeSession;
     const telemetryAgent = telemetryAgentName(this.agentName);
 
@@ -498,7 +497,7 @@ export class BabyMenuAgentRuntime {
     }
 
     try {
-      return await this.runTurnAttempt(prompt, options, hostCwd, sessionCwd, changeSession, telemetryAgent);
+      return await this.runTurnAttempt(prompt, options, agentCwd, changeSession, telemetryAgent);
     } catch (error) {
       // A persisted session that the bundled (loadSession:false) adapter cannot
       // resume after a restart fails the FIRST turn with SESSION_RESUME_REQUIRED.
@@ -507,7 +506,7 @@ export class BabyMenuAgentRuntime {
       if (isSessionResumeRequiredError(error)) {
         await this.discardPersistedSession("session-resume-required");
         try {
-          return await this.runTurnAttempt(prompt, options, hostCwd, sessionCwd, changeSession, telemetryAgent);
+          return await this.runTurnAttempt(prompt, options, agentCwd, changeSession, telemetryAgent);
         } catch (retryError) {
           await this.closeCleanFailedSession(changeSession);
           throw this.reportTurnError(retryError, telemetryAgent);
@@ -524,8 +523,7 @@ export class BabyMenuAgentRuntime {
   private async runTurnAttempt(
     prompt: string,
     options: BabyMenuAgentRuntimeSendOptions,
-    hostCwd: string,
-    sessionCwd: string,
+    agentCwd: string,
     changeSession: AgentChangeSession,
     telemetryAgent: string,
   ): Promise<AgentChatResult> {
@@ -541,15 +539,14 @@ export class BabyMenuAgentRuntime {
         requestId,
         prompt,
       });
-      // createAcpRuntime uses hostCwd so Node can spawn `wsl` with a Windows cwd.
-      runtime = await this.ensureRuntime(hostCwd);
+      runtime = await this.ensureRuntime(agentCwd);
       handle = await withAgentTimeout(
         runtime.ensureSession({
           sessionKey: SESSION_KEY,
           agent: this.agentName,
           mode: "persistent",
-          // ACP session cwd: Linux-form under WSL so Grok tools honor /mnt/... .
-          cwd: sessionCwd,
+          // Host path always: acpx path.resolve on win32 must not see /mnt/... .
+          cwd: agentCwd,
         }),
         {
           timeoutMs: this.requestTimeoutMs,
