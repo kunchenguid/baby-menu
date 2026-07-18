@@ -82,6 +82,104 @@ describe("calculatePopoverBounds", () => {
     expect(bounds.y).toBe(22);
   });
 
+  const EDGE_PADDING = 8;
+
+  function expectFullyInsideWorkArea(
+    bounds: { x: number; y: number; width: number; height: number },
+    workArea: { x: number; y: number; width: number; height: number },
+  ) {
+    expect(bounds.x).toBeGreaterThanOrEqual(workArea.x + EDGE_PADDING);
+    expect(bounds.y).toBeGreaterThanOrEqual(workArea.y + EDGE_PADDING);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(workArea.x + workArea.width - EDGE_PADDING);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(workArea.y + workArea.height - EDGE_PADDING);
+  }
+
+  it("opens above a bottom-edge tray (Windows-style horizontal taskbar)", () => {
+    const workArea = { x: 0, y: 0, width: 1440, height: 900 };
+    // Notification-area icon sitting on a bottom taskbar just below the work area.
+    const tray = { x: 1380, y: 876, width: 24, height: 24 };
+    const size = { width: 420, height: 620 };
+    const bounds = calculatePopoverBounds(tray, workArea, size);
+
+    // Prefer above: tray.y - height - padding = 876 - 620 - 8 = 248
+    expect(bounds.y).toBe(248);
+    // Horizontally centered on the tray, clamped into the work area.
+    expect(bounds.x).toBe(workArea.width - size.width - EDGE_PADDING);
+    expectFullyInsideWorkArea(bounds, workArea);
+  });
+
+  it("opens below a top-edge tray when that side has more free space", () => {
+    const workArea = { x: 0, y: 0, width: 1280, height: 800 };
+    const tray = { x: 640, y: 0, width: 22, height: 22 };
+    const size = { width: 420, height: 500 };
+    const bounds = calculatePopoverBounds(tray, workArea, size);
+
+    expect(bounds.y).toBe(tray.height + EDGE_PADDING);
+    expect(bounds.x).toBe(Math.round(tray.x + tray.width / 2 - size.width / 2));
+    expectFullyInsideWorkArea(bounds, workArea);
+  });
+
+  it("opens to the right of a left-edge tray (vertical taskbar)", () => {
+    const workArea = { x: 0, y: 0, width: 1440, height: 900 };
+    // Tray icon on a left vertical taskbar.
+    const tray = { x: 4, y: 420, width: 40, height: 40 };
+    const size = { width: 420, height: 620 };
+    const bounds = calculatePopoverBounds(tray, workArea, size);
+
+    // Prefer right of tray: tray.x + width + padding
+    expect(bounds.x).toBe(tray.x + tray.width + EDGE_PADDING);
+    // Vertically centered on the tray.
+    expect(bounds.y).toBe(Math.round(tray.y + tray.height / 2 - size.height / 2));
+    expectFullyInsideWorkArea(bounds, workArea);
+  });
+
+  it("opens to the left of a right-edge tray (vertical taskbar)", () => {
+    const workArea = { x: 0, y: 0, width: 1440, height: 900 };
+    const tray = { x: 1400, y: 420, width: 40, height: 40 };
+    const size = { width: 420, height: 620 };
+    const bounds = calculatePopoverBounds(tray, workArea, size);
+
+    // Prefer left of tray: tray.x - width - padding = 1400 - 420 - 8 = 972
+    expect(bounds.x).toBe(972);
+    expect(bounds.y).toBe(Math.round(tray.y + tray.height / 2 - size.height / 2));
+    expectFullyInsideWorkArea(bounds, workArea);
+  });
+
+  it("clamps a bottom-edge popover that would overflow the top of the work area", () => {
+    // Short work area: preferred "above" position would go past y=0; clamp to padding.
+    const workArea = { x: 0, y: 0, width: 800, height: 500 };
+    const tray = { x: 400, y: 470, width: 24, height: 24 };
+    const size = { width: 420, height: 480 };
+    const bounds = calculatePopoverBounds(tray, workArea, size);
+
+    expect(bounds.y).toBe(EDGE_PADDING);
+    expectFullyInsideWorkArea(bounds, workArea);
+  });
+
+  it("clamps a left-edge popover that would overflow the bottom of the work area", () => {
+    const workArea = { x: 0, y: 0, width: 1000, height: 600 };
+    // Tray near the bottom of a left taskbar; centering vertically would overflow.
+    const tray = { x: 2, y: 560, width: 36, height: 36 };
+    const size = { width: 420, height: 500 };
+    const bounds = calculatePopoverBounds(tray, workArea, size);
+
+    expect(bounds.x).toBe(tray.x + tray.width + EDGE_PADDING);
+    expect(bounds.y).toBe(workArea.height - size.height - EDGE_PADDING);
+    expectFullyInsideWorkArea(bounds, workArea);
+  });
+
+  it("respects a non-origin workArea (multi-monitor secondary display)", () => {
+    // Secondary monitor to the right of the primary; workArea origin is not (0,0).
+    const workArea = { x: 1920, y: 100, width: 1440, height: 900 };
+    const tray = { x: 1920 + 700, y: 100, width: 22, height: 22 };
+    const size = { width: 420, height: 620 };
+    const bounds = calculatePopoverBounds(tray, workArea, size);
+
+    expect(bounds.y).toBe(workArea.y + tray.height + EDGE_PADDING);
+    expect(bounds.x).toBe(Math.round(tray.x + tray.width / 2 - size.width / 2));
+    expectFullyInsideWorkArea(bounds, workArea);
+  });
+
   it("loads localhost renderer URLs during development", async () => {
     const window = createRendererWindow();
 
