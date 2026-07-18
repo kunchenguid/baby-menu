@@ -43,6 +43,8 @@ mac:
 
 # Windows packaging is unsigned for overnight MVP (G22). Real `pnpm package:win`
 # is expected to run on a Windows host / windows-latest CI, not as a Linux gate.
+# electron-builder 26 documents custom Windows signing under signtoolOptions.sign
+# (not a top-level win.sign field). null + no certificate = unsigned artifacts.
 win:
   target:
     - target: nsis
@@ -51,8 +53,8 @@ win:
     - target: portable
       arch:
         - x64
-  # G22: unsigned overnight; SmartScreen warnings expected on local smoke.
-  sign: null
+  signtoolOptions:
+    sign: null
   verifyUpdateCodeSignature: false
 
 nsis:

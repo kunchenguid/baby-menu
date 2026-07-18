@@ -18,15 +18,31 @@ describe("distribution config", () => {
 
   // Real `pnpm package:win` is a Windows-host / windows-latest CI gate (G13), not a Linux gate.
   it("adds Windows packaging scripts without renaming mac package scripts", () => {
-    expect(packageJson.scripts?.["package:mac"]).toContain("electron-builder --mac dir --universal");
+    const packageMac = packageJson.scripts?.["package:mac"] ?? "";
+    const packageWin = packageJson.scripts?.["package:win"] ?? "";
+    const packageWinDir = packageJson.scripts?.["package:win:dir"] ?? "";
+
+    // mac scripts remain additive and complete (G09 / G13).
+    expect(packageMac).toContain("electron-builder --mac dir --universal");
+    expect(packageMac).toContain("scripts/adhoc-sign-mac-app.mjs");
     expect(packageJson.scripts?.["dist:mac"]).toContain("scripts/create-dmg.mjs");
-    expect(packageJson.scripts?.["package:win"]).toContain("electron-builder --win");
-    expect(packageJson.scripts?.["package:win"]).toContain("--x64");
-    expect(packageJson.scripts?.["package:win"]).toContain("--config electron-builder.dev.yml");
-    expect(packageJson.scripts?.["package:win"]).toContain("pnpm build");
-    expect(packageJson.scripts?.["package:win:dir"]).toContain("electron-builder --win dir");
-    expect(packageJson.scripts?.["package:win:dir"]).toContain("--x64");
-    expect(packageJson.scripts?.["package:win:dir"]).toContain("--config electron-builder.dev.yml");
+
+    // Full installer package (not dir-only).
+    expect(packageWin).toContain("pnpm build");
+    expect(packageWin).toContain("electron-builder --win --x64");
+    expect(packageWin).toContain("--config electron-builder.dev.yml");
+    expect(packageWin).not.toMatch(/electron-builder --win dir\b/);
+
+    // Unpacked dir smoke (G13).
+    expect(packageWinDir).toContain("pnpm build");
+    expect(packageWinDir).toContain("electron-builder --win dir --x64");
+    expect(packageWinDir).toContain("--config electron-builder.dev.yml");
+
+    // Cross-platform release clean for Windows hosts (cmd has no `rm -rf`).
+    for (const script of [packageWin, packageWinDir]) {
+      expect(script).toMatch(/fs\.rmSync\(['"]release['"]/);
+      expect(script).not.toMatch(/(?:^|&&\s*)rm\s+-rf\s+release/);
+    }
   });
 
   it("uses an electron-builder that handles pnpm deduped dependencies (>= 26.8.2)", () => {
@@ -83,16 +99,27 @@ describe("distribution config", () => {
   it("declares an unsigned electron-builder Windows win block with NSIS + portable x64 targets", async () => {
     const config = await readFile(resolve(import.meta.dirname, "../electron-builder.yml"), "utf8");
 
-    // Targets and arch (G03); mac/dmg blocks must remain present (G09).
+    // Targets and arch (G03); each target binds its own x64 without spanning siblings.
     expect(config).toMatch(/\bwin:\s*\n[\s\S]*?target:\s*\n[\s\S]*?nsis[\s\S]*?portable/);
-    expect(config).toMatch(/target:\s*nsis[\s\S]*?arch:[\s\S]*?-\s*x64/);
-    expect(config).toMatch(/target:\s*portable[\s\S]*?arch:[\s\S]*?-\s*x64/);
-    // Unsigned overnight (G22) — no certificate path.
-    expect(config).toMatch(/\bwin:[\s\S]*?sign:\s*null/);
+    expect(config).toMatch(/target:\s*nsis\s*\n\s*arch:\s*\n\s*-\s*x64/);
+    expect(config).toMatch(/target:\s*portable\s*\n\s*arch:\s*\n\s*-\s*x64/);
+    // No Windows arm64 overnight (G03 / out of scope).
+    const winSection = config.match(/\bwin:\n([\s\S]*?)(?=\n(?:nsis|portable|dmg|mac|linux):|\n*$)/)?.[1] ?? "";
+    expect(winSection).not.toMatch(/arm64/);
+
+    // Unsigned overnight (G22) — documented e-b 26 field under signtoolOptions; no cert paths.
+    expect(config).toMatch(/signtoolOptions:\s*\n\s*sign:\s*null/);
+    expect(config).toMatch(/\bwin:[\s\S]*?verifyUpdateCodeSignature:\s*false/);
     expect(config).not.toMatch(/certificateFile|certificateSubjectName|CSC_LINK/);
-    // Artifact names (G03).
-    expect(config).toContain("artifactName: Baby-Menu-${version}-win-x64.exe");
-    expect(config).toContain("artifactName: Baby-Menu-${version}-win-x64-portable.exe");
+
+    // Block-scoped NSIS / portable options and artifact names (G03).
+    expect(config).toMatch(
+      /\bnsis:\s*\n\s*artifactName:\s*Baby-Menu-\$\{version\}-win-x64\.exe\s*\n\s*oneClick:\s*false\s*\n\s*allowToChangeInstallationDirectory:\s*true/,
+    );
+    expect(config).toMatch(
+      /\bportable:\s*\n\s*artifactName:\s*Baby-Menu-\$\{version\}-win-x64-portable\.exe/,
+    );
+
     // Adapters stay unpacked for both platforms.
     expect(config).toContain("asarUnpack:");
     expect(config).toContain("out/adapters/**");
