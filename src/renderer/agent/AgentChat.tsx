@@ -25,9 +25,76 @@ function AssistantReply({ text }: { text: string | null }) {
   return (
     <section className="assistant-reply" role="status" aria-label="MANA response">
       <div className="assistant-reply-label">MANA</div>
-      <div className="assistant-reply-body">{text}</div>
+      <div className="assistant-reply-body"><AssistantBlocks text={text} /></div>
     </section>
   );
+}
+
+function AssistantBlocks({ text }: { text: string }) {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const blocks: React.ReactNode[] = [];
+
+  for (let index = 0; index < lines.length;) {
+    const line = lines[index].trim();
+    if (!line) {
+      index += 1;
+      continue;
+    }
+
+    const heading = assistantHeading(line);
+    if (heading) {
+      blocks.push(<h3 key={`heading-${index}`}>{heading}</h3>);
+      index += 1;
+      continue;
+    }
+
+    const bullet = line.match(/^[-*]\s+(.+)/);
+    if (bullet) {
+      const items: string[] = [];
+      while (index < lines.length) {
+        const match = lines[index].trim().match(/^[-*]\s+(.+)/);
+        if (!match) break;
+        items.push(match[1]);
+        index += 1;
+      }
+      blocks.push(<ul key={`list-${index}`}>{items.map((item, itemIndex) => <li key={`${itemIndex}-${item}`}>{item}</li>)}</ul>);
+      continue;
+    }
+
+    const numbered = line.match(/^\d+[.)]\s+(.+)/);
+    if (numbered) {
+      const items: string[] = [];
+      while (index < lines.length) {
+        const match = lines[index].trim().match(/^\d+[.)]\s+(.+)/);
+        if (!match) break;
+        items.push(match[1]);
+        index += 1;
+      }
+      blocks.push(<ol key={`steps-${index}`}>{items.map((item, itemIndex) => <li key={`${itemIndex}-${item}`}>{item}</li>)}</ol>);
+      continue;
+    }
+
+    const paragraph: string[] = [];
+    while (index < lines.length) {
+      const candidate = lines[index].trim();
+      if (!candidate || assistantHeading(candidate) || /^[-*]\s+/.test(candidate) || /^\d+[.)]\s+/.test(candidate)) break;
+      paragraph.push(candidate);
+      index += 1;
+    }
+    blocks.push(<p key={`paragraph-${index}`}>{paragraph.join(" ")}</p>);
+  }
+
+  return <>{blocks}</>;
+}
+
+function assistantHeading(line: string): string | null {
+  const markdown = line.match(/^#{1,3}\s+(.+)$/)?.[1];
+  const emphasized = line.match(/^\*\*(.+?)\*\*:?$/)?.[1];
+  const candidate = (markdown ?? emphasized ?? line).replace(/:$/, "").trim();
+  if (markdown || emphasized) return candidate;
+  return /^(?:outcome|result|status|what (?:changed|i changed|i found|i learned|i verified|happens next)|why it matters|verification|verified|next)$/i.test(candidate)
+    ? candidate
+    : null;
 }
 
 function Composer({ onSend }: { onSend: (prompt: string) => void | Promise<void> }) {

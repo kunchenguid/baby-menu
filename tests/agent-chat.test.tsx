@@ -270,6 +270,33 @@ describe("AgentChat", () => {
     expect(response.textContent).toContain("Next, I can open the site");
   });
 
+  it("gives human-readable hierarchy to headings and lists in MANA responses", async () => {
+    installBabyMenuAgentMock();
+    window.babyMenu!.agent.send = vi.fn(async (): Promise<AgentChatResult> => ({
+      assistantText: [
+        "The video lane is working end to end.",
+        "",
+        "What changed",
+        "- MANA queues the approved LTX workflow.",
+        "- Finished videos save to the Mac.",
+        "",
+        "What happens next",
+        "I can now audit the authenticated browser boundary.",
+      ].join("\n"),
+      session: { startedClean: true, canSave: true, canRollback: true, head: null, dirty: false, changes: [] },
+    }));
+    render(<AgentChat />);
+
+    const composer = screen.getByPlaceholderText("talk to the baby");
+    fireEvent.change(composer, { target: { value: "what did you finish?" } });
+    fireEvent.submit(composer.closest("form")!);
+
+    expect(await screen.findByRole("heading", { name: "What changed" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "What happens next" })).toBeTruthy();
+    expect(screen.getByRole("list").querySelectorAll("li")).toHaveLength(2);
+    expect(screen.getByText("The video lane is working end to end.").tagName).toBe("P");
+  });
+
   it("clears the session bar after Keep without a kept confirmation", async () => {
     installBabyMenuAgentMock({
       session: {

@@ -341,12 +341,49 @@ button:disabled,
 }
 
 .assistant-reply-body {
+  display: grid;
+  gap: 10px;
   color: var(--ink-200);
   font-family: var(--font-prose);
   font-size: 13px;
   line-height: 1.6;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
+}
+
+.assistant-reply-body p,
+.assistant-reply-body h3,
+.assistant-reply-body ul,
+.assistant-reply-body ol {
+  margin: 0;
+}
+
+.assistant-reply-body h3 {
+  margin-top: 2px;
+  color: var(--ink-100);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.assistant-reply-body ul,
+.assistant-reply-body ol {
+  display: grid;
+  gap: 4px;
+  padding-left: 19px;
+}
+
+.assistant-reply-body ul {
+  list-style: disc;
+}
+
+.assistant-reply-body ol {
+  list-style: decimal;
+}
+
+.assistant-reply-body li::marker {
+  color: var(--signal-live);
 }
 
 .sessionbar.pending,
