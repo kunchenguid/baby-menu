@@ -119,7 +119,13 @@ For the full design notes and repository layout, see [docs/architecture.md](docs
 - [docs/architecture.md](docs/architecture.md) - runtime design notes and repository layout
 - [docs/development.md](docs/development.md) - building, testing, and packaging Baby Menu itself
 
-CI (`.github/workflows/ci.yml`) runs on `ubuntu-latest` (typecheck, test, build, contract check) and `windows-latest` (typecheck, test, build, `package:win`). Full Windows packaging green is only observed after a push/PR that triggers GitHub Actions - local Linux cannot replace the `windows-latest` job.
+## CI
+
+`.github/workflows/ci.yml` runs two jobs:
+- **`check`** on `ubuntu-latest` - typecheck, test, build, and generated contract-types check
+- **`windows`** on `windows-latest` - typecheck, test, build, and `package:win` (unsigned NSIS + portable)
+
+Full Windows packaging green is only observed after a push/PR that triggers GitHub Actions - local Linux cannot replace the `windows` job.
 
 ## License
 

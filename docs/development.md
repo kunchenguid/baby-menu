@@ -50,7 +50,11 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 
 ## CI
 
-`.github/workflows/ci.yml` keeps an `ubuntu-latest` job (install, contract-types check, typecheck, test, build) and a `windows-latest` job (install, typecheck, test, build, `package:win` with artifact upload). Triggers remain pull_request/push to `main`. Remote CI green - especially Windows packaging - requires a push to GitHub; local Linux typecheck/test cannot prove the `windows-latest` job. Release packaging stays mac-only in `release-please.yml`.
+`.github/workflows/ci.yml` keeps:
+- job **`check`** on `ubuntu-latest` (install, contract-types check, typecheck, test, build)
+- job **`windows`** on `windows-latest` (install, typecheck, test, build, `package:win` with artifact upload; unsigned via `CSC_IDENTITY_AUTO_DISCOVERY=false` and script `--publish never`)
+
+Triggers remain pull_request/push to `main`. Remote CI green - especially Windows packaging - requires a push to GitHub; local Linux typecheck/test cannot prove the `windows` job. Release packaging stays mac-only in `release-please.yml`.
 
 ## Hero video
 

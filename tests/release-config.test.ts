@@ -31,12 +31,14 @@ describe("distribution config", () => {
     expect(packageWin).toContain("pnpm build");
     expect(packageWin).toContain("electron-builder --win --x64");
     expect(packageWin).toContain("--config electron-builder.dev.yml");
+    expect(packageWin).toContain("--publish never");
     expect(packageWin).not.toMatch(/electron-builder --win dir\b/);
 
     // Unpacked dir smoke (G13).
     expect(packageWinDir).toContain("pnpm build");
     expect(packageWinDir).toContain("electron-builder --win dir --x64");
     expect(packageWinDir).toContain("--config electron-builder.dev.yml");
+    expect(packageWinDir).toContain("--publish never");
 
     // Cross-platform release clean for Windows hosts (cmd has no `rm -rf`).
     for (const script of [packageWin, packageWinDir]) {
@@ -165,33 +167,70 @@ describe("distribution config", () => {
     });
   });
 
-  it("generates a syntactically valid Homebrew relaunch shell script", async () => {
-    const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/release-please.yml"), "utf8");
-    const caskTemplateMatch = workflow.match(/cat > "\$RUNNER_TEMP\/homebrew-tap\/Casks\/baby-menu\.rb" << CASK_EOF\n(?<template>[\s\S]*?)\n\s+CASK_EOF/);
+  // macOS Homebrew cask shell syntax; /bin/bash and /bin/sh are absent on windows-latest.
+  it.skipIf(process.platform === "win32")(
+    "generates a syntactically valid Homebrew relaunch shell script",
+    async () => {
+      const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/release-please.yml"), "utf8");
+      const caskTemplateMatch = workflow.match(/cat > "\$RUNNER_TEMP\/homebrew-tap\/Casks\/baby-menu\.rb" << CASK_EOF\n(?<template>[\s\S]*?)\n\s+CASK_EOF/);
 
-    expect(caskTemplateMatch?.groups?.template).toBeDefined();
+      expect(caskTemplateMatch?.groups?.template).toBeDefined();
 
-    const caskTemplate = (caskTemplateMatch?.groups?.template ?? "").replace(/^\s{10}/gm, "");
-    const { stdout: generatedCask } = await execFileAsync("/bin/bash", [
-      "-c",
-      `cat << CASK_EOF\n${caskTemplate}\nCASK_EOF`,
-    ], {
-      env: {
-        ...process.env,
-        SHA256: "abc123",
-        TAG_NAME: "baby-menu-v1.2.3",
-        VERSION: "1.2.3",
-      },
-    });
-    const scriptMatch = generatedCask.match(/<<~RELAUNCH_SCRIPT\], must_succeed: false\n(?<script>[\s\S]*?)\n\s*RELAUNCH_SCRIPT/);
+      const caskTemplate = (caskTemplateMatch?.groups?.template ?? "").replace(/^\s{10}/gm, "");
+      const { stdout: generatedCask } = await execFileAsync("/bin/bash", [
+        "-c",
+        `cat << CASK_EOF\n${caskTemplate}\nCASK_EOF`,
+      ], {
+        env: {
+          ...process.env,
+          SHA256: "abc123",
+          TAG_NAME: "baby-menu-v1.2.3",
+          VERSION: "1.2.3",
+        },
+      });
+      const scriptMatch = generatedCask.match(/<<~RELAUNCH_SCRIPT\], must_succeed: false\n(?<script>[\s\S]*?)\n\s*RELAUNCH_SCRIPT/);
 
-    expect(scriptMatch?.groups?.script).toBeDefined();
+      expect(scriptMatch?.groups?.script).toBeDefined();
 
-    const script = (scriptMatch?.groups?.script ?? "")
-      .replace(/^\s{14}/gm, "")
-      .replaceAll("#{appdir}", "/Applications");
+      const script = (scriptMatch?.groups?.script ?? "")
+        .replace(/^\s{14}/gm, "")
+        .replaceAll("#{appdir}", "/Applications");
 
-    await expect(execFileAsync("/bin/sh", ["-n", "-c", script])).resolves.toBeDefined();
+      await expect(execFileAsync("/bin/sh", ["-n", "-c", script])).resolves.toBeDefined();
+    },
+  );
+
+  it("adds a windows-latest CI job for typecheck, test, build, and package:win without dropping ubuntu gates", async () => {
+    const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/ci.yml"), "utf8");
+
+    // Job ids and runners (G10).
+    expect(workflow).toMatch(/^\s{2}check:\s*$/m);
+    expect(workflow).toMatch(/^\s{2}windows:\s*$/m);
+    expect(workflow).toContain("runs-on: ubuntu-latest");
+    expect(workflow).toContain("runs-on: windows-latest");
+
+    // Ubuntu keeps the contract-types check; Windows does not need to re-run it.
+    expect(workflow).toContain("Verify generated contract types are up to date");
+    expect(workflow).toContain("pnpm generate:contracts");
+    expect(workflow).toContain("extensions/babymenu-env.d.ts");
+
+    // Windows packaging job shape.
+    expect(workflow).toContain("CSC_IDENTITY_AUTO_DISCOVERY");
+    expect(workflow).toContain('CSC_IDENTITY_AUTO_DISCOVERY: "false"');
+    expect(workflow).toContain("pnpm install --frozen-lockfile");
+    expect(workflow).toContain("pnpm typecheck");
+    expect(workflow).toContain("pnpm test");
+    expect(workflow).toContain("pnpm build");
+    expect(workflow).toContain("pnpm package:win");
+    expect(workflow).toMatch(/timeout-minutes:\s*45/);
+
+    // Artifact upload for NSIS + portable (G03).
+    expect(workflow).toContain("actions/upload-artifact@v4");
+    expect(workflow).toContain("release/Baby-Menu-*-win-x64.exe");
+    expect(workflow).toContain("release/Baby-Menu-*-win-x64-portable.exe");
+
+    // Script-level --publish never is the publish guard; CI just runs package:win.
+    expect(packageJson.scripts?.["package:win"]).toContain("--publish never");
   });
 
   it("declares release-please manifest mode for the Baby Menu package", async () => {
