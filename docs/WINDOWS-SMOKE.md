@@ -19,7 +19,7 @@ Pick one artifact source (both are **unsigned** x64):
 | Local Windows build | `pnpm package:win` → `release/Baby-Menu-<version>-win-x64.exe` (NSIS) and `release/Baby-Menu-<version>-win-x64-portable.exe` |
 | CI | Download the `windows-package` (or equivalent) artifact from the `windows` job on `windows-latest` |
 
-Dev packaging uses product name **Baby Menu Dev** (`com.kunchenguid.baby-menu.dev`) via `electron-builder.dev.yml`.
+Local and CI `package:win` both produce the **Baby Menu Dev** identity today (`com.kunchenguid.baby-menu.dev` via `electron-builder.dev.yml`).
 
 There is **no** winget, Microsoft Store, or signed Windows release channel for this smoke. Manual download or local package only.
 
@@ -53,11 +53,13 @@ Run on a real Windows desktop (not WSL GUI-less, not Linux). Check each box in o
 - [ ] Popover hides without quitting the tray process.
 - [ ] Optional debug: `BABY_MENU_KEEP_POPOVER_OPEN=1` keeps the popover open for inspection (dev only).
 
-### 6. Settings open-at-login (packaged / installed only)
+### 6. Settings open-at-login (packaged runs only)
+
+Applies to any packaged artifact (NSIS **or** portable): both run with `app.isPackaged === true`, so login items are allowed. Skip only for source/`pnpm dev`.
 
 - [ ] Open **Settings** from the popover.
-- [ ] Toggle **open at login** (or equivalent open-at-login control).
-- [ ] Confirm it sticks after quit/relaunch when using a **packaged** install. Source/`pnpm dev` mode is a no-op for login items; skip this step for pure portable smoke if the UI disables it when not packaged.
+- [ ] Toggle **launch at system start** (open-at-login).
+- [ ] Confirm it sticks after quit/relaunch. In source/`pnpm dev`, preferences force `openAtLogin` off and do not apply login items - the Settings switch may still appear, but the OS login item is not updated.
 
 ### 7. Optional: agent CLI on PATH detected
 
@@ -78,7 +80,7 @@ Run on a real Windows desktop (not WSL GUI-less, not Linux). Check each box in o
 | SmartScreen | Warning acceptable; app still runs after bypass |
 | Tray | Icon visible and clickable |
 | Popover | Opens on click; blur hides it |
-| Login item | Works when packaged (or N/A for portable/dev) |
+| Login item | Works when packaged (NSIS or portable); N/A for source/dev only |
 | Agent PATH | Optional; only if a CLI is present |
 | PR process | Human + no-mistakes; loop never merges `main` |
 
