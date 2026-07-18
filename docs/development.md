@@ -43,10 +43,31 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 ## Packaging
 
 - `pnpm package:mac` tests the actual packaged app from `release/mac-universal/Baby Menu Dev.app`.
-- `pnpm package:win` produces unsigned NSIS and portable x64 artifacts under `release/` (intended on a Windows host or the CI `windows-latest` job).
-- Local packaging uses the `Baby Menu Dev` product name and `com.kunchenguid.baby-menu.dev` bundle id so local builds do not shadow the released `/Applications/Baby Menu.app` in macOS LaunchServices.
+- `pnpm package:win` produces unsigned NSIS and portable x64 artifacts under `release/` (intended on a Windows host or the CI `windows-latest` job). Linux/WSL can assert the `package:win` script and `electron-builder.yml` `win` block via unit tests, but must not treat that as a real Windows package oracle.
+- `pnpm package:win:dir` builds an unpacked Windows x64 dir target for local smoke without the installer.
+- Windows builds are intentionally **unsigned** (`signtoolOptions.sign: null`, `CSC_IDENTITY_AUTO_DISCOVERY=false` in CI, `--publish never`). Expect **SmartScreen** warnings when installing or first-running the NSIS/portable artifacts until code signing is added (out of scope for the overnight port).
+- Local packaging uses the `Baby Menu Dev` product name and `com.kunchenguid.baby-menu.dev` bundle id so local builds do not shadow the released `/Applications/Baby Menu.app` in macOS LaunchServices (and keep the same dev identity on Windows via `electron-builder.dev.yml`).
 - The universal package must run on both Intel and Apple Silicon Macs, so macOS native prebuilt dependencies must stay installed for `x64` and `arm64` and stay covered by `electron-builder.yml` `x64ArchFiles` when new native packages are added.
 - Keep `electron-builder` at `26.8.2` or newer so pnpm-deduped dependencies are included correctly in packaged builds.
+
+## Platform notes (macOS + Windows)
+
+### GUI PATH (`src/main/shell-path.ts`)
+
+Packaged / GUI-launched Electron often has a thin `PATH`, so agent CLIs (`claude`, `codex`, …) need expansion at startup:
+
+- **macOS / Linux:** merge current `PATH` with common GUI bins and a login-shell path from `zsh -lc` (`print -r -- $PATH`).
+- **Windows (`win32`):** pure env merge - **no shell spawn**. Merge `Path`/`PATH` with best-effort User + System PATH from the registry (`reg query`, fail-soft) and common CLI dirs that exist (WindowsApps, npm global, nodejs, Git `cmd`/`bin`, `~/.local/bin`), using `;` as delimiter, then set both `PATH` and `Path`.
+
+### Tray icons (`assets/tray/`, `tray.ts`, `app-paths.ts`)
+
+- **macOS:** Template PNGs (`baby_menuTemplate*.png`) with `setTemplateImage(true)` so the menu bar follows light/dark.
+- **Windows:** non-template monochrome PNGs (`baby_menu.png`, `baby_menu@2x.png`); never call `setTemplateImage` off darwin (template assets often render blank in the notification area).
+- Both sets ship via electron-builder `extraResources` into `tray/`.
+
+### Popover geometry
+
+`calculatePopoverBounds` is edge-aware (top/bottom/left/right tray) so a Windows taskbar on any edge still places the frameless, `skipTaskbar` popover in free work-area space. Dock / activation-policy APIs remain darwin-only.
 
 ## CI
 
@@ -54,7 +75,7 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 - job **`check`** on `ubuntu-latest` (install, contract-types check, typecheck, test, build)
 - job **`windows`** on `windows-latest` (install, typecheck, test, build, `package:win` with artifact upload; unsigned via `CSC_IDENTITY_AUTO_DISCOVERY=false` and script `--publish never`)
 
-Triggers remain pull_request/push to `main`. Remote CI green - especially Windows packaging - requires a push to GitHub; local Linux typecheck/test cannot prove the `windows` job. Release packaging stays mac-only in `release-please.yml`.
+Triggers remain pull_request/push to `main`. Remote CI green - especially Windows packaging - requires a push to GitHub; local Linux typecheck/test cannot prove the `windows` job or real tray UX. Release packaging stays mac-only in `release-please.yml`.
 
 ## Hero video
 

@@ -1,7 +1,7 @@
 <h1 align="center">baby-menu</h1>
 <p align="center">
   <a href="https://github.com/kunchenguid/baby-menu/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kunchenguid/baby-menu/ci.yml?style=flat-square&label=ci" /></a>
-  <a href="https://img.shields.io/badge/platform-macOS-blue?style=flat-square"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" /></a>
+  <a href="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue?style=flat-square"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue?style=flat-square" /></a>
   <a href="https://img.shields.io/badge/electron-42-9feaf9?style=flat-square"><img alt="Electron" src="https://img.shields.io/badge/electron-42-9feaf9?style=flat-square" /></a>
   <a href="https://x.com/kunchenguid"><img alt="X" src="https://img.shields.io/badge/X-@kunchenguid-black?style=flat-square" /></a>
   <a href="https://discord.gg/Wsy2NpnZDu"><img alt="Discord" src="https://img.shields.io/discord/1439901831038763092?style=flat-square&label=discord" /></a>
@@ -31,12 +31,14 @@ You ask for a feature in plain English, the agent writes an extension and it hot
 
 ## Quick Start
 
-Requires macOS 13 Ventura or newer, Homebrew, and a supported, already-authenticated agent CLI such as `claude` or `codex` on `PATH`.
+**macOS (released):** requires macOS 13 Ventura or newer, Homebrew, and a supported, already-authenticated agent CLI such as `claude` or `codex` on `PATH`.
 
 ```sh
 brew install --cask kunchenguid/tap/baby-menu
 open -a "Baby Menu"
 ```
+
+**Windows (in progress / CI):** build unsigned NSIS or portable x64 with `pnpm package:win` on a Windows host (or download the CI `windows-package` artifact). SmartScreen may warn because builds are unsigned. Packaging and agent PATH expansion are dual-platform; end-user install channels (winget, signed releases) are not the Homebrew path.
 
 Click the tray icon, then ask for a widget in the composer such as:
 
@@ -73,7 +75,7 @@ For agent selection, custom ACP agents, telemetry, and environment flags, see [d
 
 ```
    ┌─────────────────────┐
-   │  macOS tray popover │   (React renderer, adaptive size)
+   │  tray popover       │   (React renderer, adaptive size)
    │ + Menu / Settings   │
    │ + Reload layout     │
    │ + Update / Quit     │
@@ -123,9 +125,9 @@ For the full design notes and repository layout, see [docs/architecture.md](docs
 
 `.github/workflows/ci.yml` runs two jobs:
 - **`check`** on `ubuntu-latest` - typecheck, test, build, and generated contract-types check
-- **`windows`** on `windows-latest` - typecheck, test, build, and `package:win` (unsigned NSIS + portable)
+- **`windows`** on `windows-latest` - typecheck, test, build, and `package:win` (unsigned NSIS + portable; SmartScreen warnings expected on local smoke)
 
-Full Windows packaging green is only observed after a push/PR that triggers GitHub Actions - local Linux cannot replace the `windows` job.
+Full Windows packaging green is only observed after a push/PR that triggers GitHub Actions - local Linux cannot replace the `windows` job. See [docs/development.md](docs/development.md) for PATH, tray assets, and packaging notes.
 
 ## License
 

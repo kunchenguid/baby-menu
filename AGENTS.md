@@ -11,6 +11,8 @@ Embedded agents launched from baby-menu should work from the active extension wo
 - `pnpm generate:contracts` - regenerates `extensions/babymenu-env.d.ts` (the `@babymenu/contracts` surface) from `src/shared/contracts.ts`. Run after changing any extension-facing type or `src/shared/extension-contract-names.ts`, then commit the result; CI fails on a stale file.
 - `pnpm package:mac` - cleans `release/`, builds the app, packages `release/mac-universal/Baby Menu Dev.app`, and ad-hoc signs it for local testing. Local/dev packaging uses `electron-builder.dev.yml`, which overrides `appId` to `com.kunchenguid.baby-menu.dev` and `productName` to `Baby Menu Dev` so locally-built bundles never collide with the released app (`com.kunchenguid.baby-menu`) in macOS LaunchServices. The CI release workflow builds from `electron-builder.yml` directly, keeps the production identity, and generates a Homebrew Cask that relaunches Baby Menu after upgrade only when the old app was already running before uninstall started.
 - `pnpm dist:mac` - runs `package:mac` and creates `release/Baby-Menu-<version>-universal.dmg` from the dev bundle.
+- `pnpm package:win` - cleans `release/`, builds the app, and runs electron-builder `--win --x64` with the dev config for unsigned NSIS + portable artifacts (`Baby-Menu-<version>-win-x64.exe` and `Baby-Menu-<version>-win-x64-portable.exe`). Intended on a Windows host or the CI `windows-latest` job; Linux gates assert the script and `win` block only. Builds are unsigned (`signtoolOptions.sign: null`, `--publish never`); SmartScreen warnings on install/run are expected until signing is added.
+- `pnpm package:win:dir` - same as `package:win` but electron-builder `--win dir` for an unpacked x64 tree under `release/` (local smoke without installer).
 - `pnpm test` - run all Vitest tests.
 - `pnpm test:e2e` - run only `tests/e2e-*.test.ts` (these include real `acpx/runtime` coverage against `acp-mock` plus bundled adapter coverage against fake local CLIs).
 - `pnpm test:e2e:grok-popover` - run the unattended macOS Grok production-wiring check described in `docs/grok-quota-e2e.md`; it uses the real popover and exact consumer Grok usage source, requires a healthy local bearer, proves no refresh or auth mutation occurs, and never exposes auth or raw provider data.
@@ -40,8 +42,9 @@ Follow these rules:
 
 ## Architecture
 
-This is a macOS tray-bar Electron app whose distinguishing idea is that an embedded agent (running via `acpx/runtime`) edits the active extension workspace at runtime.
+This is a tray Electron app (macOS menu bar and Windows notification area) whose distinguishing idea is that an embedded agent (running via `acpx/runtime`) edits the active extension workspace at runtime.
 Tracked source extensions use git as the accept/rollback mechanism when selected explicitly; packaged mode edits `~/.baby-menu/extensions` and uses filesystem snapshots.
+Packaged data root stays `join(homeDir, ".baby-menu")` on all platforms.
 
 Three processes, kept deliberately separate:
 
@@ -60,9 +63,9 @@ The extension-facing slice of that contract is a generated public surface, treat
 `src/main/` module index:
 
 - `app.ts` - Electron lifecycle, popover window creation, packaged path setup, extension seeding, preferences, selectable-agent catalog wiring, protocols, tray, and IPC. `package.json#main` points here via `out/main/index.js`.
-- `app-paths.ts` - resolves source paths versus packaged `~/.baby-menu` paths.
-- `tray.ts` - macOS tray icon and click handling (`createBabyMenuTray`).
-- `popover.ts` - popover `BrowserWindow` options (`createPopoverOptions`), adaptive width/height sizing (`responsivePopoverSize`), bounds math (`calculatePopoverBounds`), and renderer URL/file loading (`loadPopoverRenderer`).
+- `app-paths.ts` - resolves source paths versus packaged `~/.baby-menu` paths; picks the tray icon file by platform (`baby_menuTemplate.png` on darwin, non-template `baby_menu.png` on win32).
+- `tray.ts` - tray icon and click handling (`createBabyMenuTray`); calls `setTemplateImage(true)` only on darwin so Windows keeps a visible non-template PNG.
+- `popover.ts` - popover `BrowserWindow` options (`createPopoverOptions`), adaptive width/height sizing (`responsivePopoverSize`), edge-aware bounds math (`calculatePopoverBounds` for top/bottom/left/right tray edges), and renderer URL/file loading (`loadPopoverRenderer`).
 - `ipc.ts` - registers all `ipcMain` handlers exposed via the preload bridge; the single place new generic IPC routes are added.
 - `agent-catalog.ts` - defines built-in agents, parses custom `agents.json`, computes Settings availability, and builds `acpx` registry overrides.
 - `agent-catalog-controller.ts` - owns the live agent catalog, validates Settings-added custom ACP agents, persists `agents.json`, and pushes refreshed registry overrides into the runtime without requiring an app restart.
@@ -77,7 +80,7 @@ The extension-facing slice of that contract is a generated public surface, treat
 - `widget-module-registry.ts` - discovers widget modules and the optional root `layout.tsx`, returning renderer `/@fs` URLs in dev and, in packaged mode, compiled `baby-menu-widget://` module URLs plus sibling compiled `cssUrl` files; compiled layout failures warn and fall back to the built-in column.
 - `widget-protocol.ts` - registers custom protocols for compiled widget and layout modules, their `.css`, and the renderer host shims (`react`, `react/jsx-runtime`, and `@babymenu/ui` re-exported from the host global).
 - `preferences.ts` - stores app preferences, including the selected agent, under the active app data root and applies login-item settings only when login items are allowed, keeping source/dev mode as a no-op for macOS login items.
-- `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs.
+- `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs. On darwin/linux, merges the current `PATH` with common GUI bins and a login-shell path from `zsh -lc`. On win32, never spawns a shell: merges `Path`/`PATH` with best-effort User/System PATH from the registry (`reg query`, fail-soft) and existing common CLI dirs (WindowsApps, npm, nodejs, Git `cmd`/`bin`, `~/.local/bin`), using `path.delimiter` (`;`), then sets both `PATH` and `Path`.
 - `update-checker.ts` - checks the latest GitHub Release at most every 4 hours, compares it to the running app version, opens the release page externally, and simulates an available update in source/dev mode so the header indicator can be exercised.
 - `recipe-loader.ts` - discovers and parses `recipes/*.html` from the active extension workspace.
 - `server-action-registry.ts` - discovers extension server actions and background task declarations from the active extension workspace, caches unchanged compiled server modules, and reloads them when the entry or local helper source changes.
@@ -115,8 +118,17 @@ Keep both packages in runtime dependencies unless those paths change.
 `tailwindcss`, `@tailwindcss/postcss`, and `postcss` are externalized for the same reason: `widget-tailwind-css.ts` runs Tailwind in the main process to compile widget and layout CSS in packaged mode, including workspaces whose `~/.baby-menu/extensions` path is a symlink.
 Keep them in runtime dependencies, and keep the single pinned `postcss` (`pnpm-workspace.yaml` `overrides`) so the Tailwind plugin and the processor share one version.
 Universal macOS packages must run on both Intel and Apple Silicon Macs, so `pnpm-workspace.yaml` keeps Darwin `x64` and `arm64` native prebuilt dependencies installed, and `electron-builder.yml` `x64ArchFiles` must preserve architecture-specific native package files during the universal merge, including Pi TUI's architecture-named prebuild directories.
+Windows packaging (`electron-builder.yml` `win`) targets NSIS + portable x64 only for now; `signtoolOptions.sign` is null (unsigned). Tray assets under `assets/tray/` ship both mac Template PNGs (`baby_menuTemplate*.png`) and Windows non-template PNGs (`baby_menu.png`, `baby_menu@2x.png`) via `extraResources` into `tray/`.
 Keep `electron-builder` at `26.8.2` or newer; older releases can omit transitive dependencies from pnpm-deduped package trees and ship broken app bundles.
 The renderer build adds `@tailwindcss/vite` and aliases `@babymenu/ui` to `src/ui/index.ts` so dev-mode widgets resolve the design system directly.
+
+### CI (dual platform)
+
+`.github/workflows/ci.yml` runs:
+- **`check`** on `ubuntu-latest` - install, generated contract-types check, typecheck, test, build.
+- **`windows`** on `windows-latest` - install, typecheck, test, build, and `pnpm package:win` (unsigned; `CSC_IDENTITY_AUTO_DISCOVERY=false`), with NSIS/portable artifacts uploaded. Local Linux typecheck/test cannot prove the Windows packaging job; full green requires a GitHub Actions run after push/PR to `main`.
+
+Release packaging (`release-please.yml`) remains mac-only (DMG + Homebrew cask). Do not treat Linux-only green as Windows tray or NSIS proof.
 
 ### Design system (`@babymenu/ui`)
 
