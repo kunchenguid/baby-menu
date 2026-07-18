@@ -77,6 +77,8 @@ Packaged / GUI-launched Electron often has a thin `PATH`, so agent CLIs (`claude
 
 Triggers remain pull_request/push to `main`. Remote CI green - especially Windows packaging - requires a push to GitHub; local Linux typecheck/test cannot prove the `windows` job or real tray UX. Release packaging stays mac-only in `release-please.yml`.
 
+After packaging, real desktop tray/popover smoke is **human-only** - see [WINDOWS-SMOKE.md](./WINDOWS-SMOKE.md). The overnight loop and CI do not complete that checklist.
+
 ## Hero video
 
 The README hero animation is committed from `marketing-video/baby-menu-marketing-square.gif`.
