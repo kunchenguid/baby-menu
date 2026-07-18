@@ -8,13 +8,15 @@ allowBuilds:
 overrides:
   postcss: ^8.5.15
 
-# Install macOS prebuilt native binaries for both architectures so the
-# universal electron-builder package runs on Intel and Apple Silicon.
-# "current" keeps the host platform's binaries for dev/CI on other OSes.
+# Install prebuilt native binaries for the host plus macOS (universal) and
+# Windows x64 so `pnpm package:win` from WSL/Linux still ships
+# lightningcss/oxide win32 natives (missing them crashes main process at boot).
+# "current" keeps the host platform's binaries for local dev.
 supportedArchitectures:
   os:
     - current
     - darwin
+    - win32
   cpu:
     - current
     - x64
