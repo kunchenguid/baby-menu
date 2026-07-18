@@ -14,7 +14,7 @@ export function createBabyMenuTray(onClick: (bounds: Rectangle) => void, options
   icon.setTemplateImage(true);
 
   const tray = new Tray(icon);
-  tray.setToolTip("baby-menu");
+  tray.setToolTip("MANA");
   tray.on("click", (_event, bounds) => onClick(bounds));
 
   return {

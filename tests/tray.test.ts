@@ -35,6 +35,6 @@ describe("createBabyMenuTray", () => {
     expect(image.setTemplateImage).toHaveBeenCalledWith(true);
     expect(Tray).toHaveBeenCalledWith(image);
     expect(tray.setTitle).not.toHaveBeenCalled();
-    expect(tray.setToolTip).toHaveBeenCalledWith("baby-menu");
+    expect(tray.setToolTip).toHaveBeenCalledWith("MANA");
   });
 });
