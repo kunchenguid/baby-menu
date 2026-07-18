@@ -54,4 +54,17 @@ describe("createBabyMenuTray", () => {
     expect(Tray).toHaveBeenCalledWith(image);
     expect(tray.setToolTip).toHaveBeenCalledWith("baby-menu");
   });
+
+  it("does not mark the tray icon as a template image on linux", async () => {
+    const { createBabyMenuTray } = await import("../src/main/tray");
+
+    createBabyMenuTray(vi.fn(), {
+      iconPath: "/repo/assets/tray/baby_menuTemplate.png",
+      platform: "linux",
+    });
+
+    expect(createFromPath).toHaveBeenCalledWith("/repo/assets/tray/baby_menuTemplate.png");
+    expect(image.setTemplateImage).not.toHaveBeenCalled();
+    expect(Tray).toHaveBeenCalledWith(image);
+  });
 });

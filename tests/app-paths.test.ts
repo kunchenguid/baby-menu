@@ -96,6 +96,24 @@ describe("Baby Menu runtime paths", () => {
     );
   });
 
+  it("keeps the Template tray basename on linux (non-win32 non-product host)", () => {
+    const sourcePaths = createBabyMenuRuntimePaths({
+      isPackaged: false,
+      sourceRoot: "/repo",
+      platform: "linux",
+    });
+    expect(sourcePaths.trayIconPath).toBe("/repo/assets/tray/baby_menuTemplate.png");
+
+    const packagedPaths = createBabyMenuRuntimePaths({
+      isPackaged: true,
+      sourceRoot: "/ignored/source",
+      homeDir: "/home/me",
+      resourcesPath: "/opt/baby-menu/resources",
+      platform: "linux",
+    });
+    expect(packagedPaths.trayIconPath).toBe("/opt/baby-menu/resources/tray/baby_menuTemplate.png");
+  });
+
   it("refreshes bundled template files while preserving user-created extensions", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-seed-"));
     tempDirs.push(rootDir);

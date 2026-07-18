@@ -44,15 +44,25 @@ describe("distribution config", () => {
     expect(config).toContain("babymenu-env.d.ts");
     expect(config).toContain("kimi-code-quota/**");
     expect(config).toContain("@earendil-works/pi-tui/**");
-    expect(config).toContain("to: tray");
-    expect(config).toContain("baby_menuTemplate*.png");
-    expect(config).toContain("baby_menu.png");
-    expect(config).toContain("baby_menu@2x.png");
+    // Tray extraResources block ships mac Template assets and Windows non-template icons (G06).
+    expect(config).toMatch(
+      /from:\s*assets\/tray\s*\n\s*to:\s*tray\s*\n\s*filter:\s*\n\s*-\s*baby_menuTemplate\*\.png\s*\n\s*-\s*baby_menu\.png\s*\n\s*-\s*baby_menu@2x\.png/,
+    );
     expect(config).toContain("identity: null");
     expect(config).toContain("hardenedRuntime: false");
     expect(config).toContain("icon: assets/app-icon.icns");
     await expect(stat(resolve(import.meta.dirname, "../assets/app-icon.svg")).then((file) => file.isFile())).resolves.toBe(true);
     await expect(stat(resolve(import.meta.dirname, "../assets/app-icon.icns")).then((file) => file.isFile())).resolves.toBe(true);
+    for (const trayAsset of [
+      "baby_menuTemplate.png",
+      "baby_menuTemplate@2x.png",
+      "baby_menu.png",
+      "baby_menu@2x.png",
+    ]) {
+      await expect(
+        stat(resolve(import.meta.dirname, "../assets/tray", trayAsset)).then((file) => file.isFile()),
+      ).resolves.toBe(true);
+    }
   });
 
   it("adds a release-please workflow that publishes the DMG and updates the Homebrew tap after a release", async () => {

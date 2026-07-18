@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Rectangle } from "electron";
 
+/** Mirrors app-paths trayIconFileName (G06); inlined so this file's electron mock stays intact. */
+const expectedSourceTrayIconPath =
+  process.platform === "win32"
+    ? "/repo/assets/tray/baby_menu.png"
+    : "/repo/assets/tray/baby_menuTemplate.png";
+
 const trayInstance = {
   tray: {},
   getBounds: vi.fn(),
@@ -197,8 +203,9 @@ describe("startBabyMenuApp", () => {
 
     await appModule.startBabyMenuApp();
 
+    // Host-derived basename (G06): win32 uses non-template; darwin/linux keep Template.
     expect(createBabyMenuTray).toHaveBeenCalledWith(expect.any(Function), {
-      iconPath: "/repo/assets/tray/baby_menuTemplate.png",
+      iconPath: expectedSourceTrayIconPath,
     });
     expect(appModule.getActiveBabyMenuTray?.()).toBe(trayInstance);
   });
@@ -211,7 +218,7 @@ describe("startBabyMenuApp", () => {
     await expect(appModule.startBabyMenuApp()).resolves.toBeUndefined();
 
     expect(createBabyMenuTray).toHaveBeenCalledWith(expect.any(Function), {
-      iconPath: "/repo/assets/tray/baby_menuTemplate.png",
+      iconPath: expectedSourceTrayIconPath,
     });
     expect(appModule.getActiveBabyMenuTray()).toBe(trayInstance);
   });
