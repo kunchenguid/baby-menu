@@ -107,9 +107,23 @@ export function wrapCliSpawnForWsl(
 }
 
 /**
+ * Escape a string for inclusion inside double quotes for acpx's splitCommandLine
+ * (same rules as POSIX-ish: backslash and double-quote).
+ * acpx does NOT understand bash `'\''` nesting — outer single-quoted -lc payloads
+ * break when the script itself contains single quotes (e.g. bashSingleQuote tokens).
+ */
+function acpxDoubleQuote(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/**
  * Wraps an ACP launch command for WSL. Tokenizes the launch string and
  * bash-quotes each token so metacharacters stay literal (host mode parity).
  * Optional hostCwd becomes an explicit `cd` inside the distro.
+ *
+ * The returned string is a single space-separated command line that **acpx
+ * splitCommandLine** can parse into argv. The bash script is always the last
+ * argument, double-quoted for acpx (not bash `'\''` nested single quotes).
  */
 export function wrapLaunchCommandForWsl(
   launchCommand: string,
@@ -120,15 +134,16 @@ export function wrapLaunchCommandForWsl(
   if (tokens.length === 0) {
     throw new Error("Launch command is empty.");
   }
+  // PATH uses double quotes inside the bash script so $HOME expands in WSL.
   const pathExport = 'export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"';
   const argv = tokens.map((token) => bashSingleQuote(token)).join(" ");
   let script = `${pathExport}; exec ${argv}`;
   if (options.cwd?.trim()) {
     script = `cd ${bashSingleQuote(toWslCwd(options.cwd))} && ${script}`;
   }
-  // Distro is allowlisted before call; still quote for acpx outer split safety.
-  const distroToken = `"${distro.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-  return `wsl -d ${distroToken} -- bash -lc ${bashSingleQuote(script)}`;
+  // Distro is allowlisted before call; quote for acpx outer split safety.
+  const distroToken = acpxDoubleQuote(distro);
+  return `wsl -d ${distroToken} -- bash -lc ${acpxDoubleQuote(script)}`;
 }
 
 /** Validate/normalize a WSL distro name. Throws on illegal characters. */

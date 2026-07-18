@@ -81,6 +81,9 @@ describe("agent-runtime-mode", () => {
     it("wraps an ACP launch with wsl + bash -lc, quoted tokens, and PATH export", () => {
       const wrapped = wrapLaunchCommandForWsl("grok agent stdio", "Ubuntu");
       expect(wrapped.startsWith('wsl -d "Ubuntu" -- bash -lc ')).toBe(true);
+      // acpx-safe: -lc payload is double-quoted (not bash nested single quotes)
+      expect(wrapped).toMatch(/bash -lc "/);
+      expect(wrapped).not.toContain("'\\''");
       expect(wrapped).toContain("'grok'");
       expect(wrapped).toContain("'agent'");
       expect(wrapped).toContain("'stdio'");
@@ -96,9 +99,64 @@ describe("agent-runtime-mode", () => {
       const wrapped = wrapLaunchCommandForWsl("grok agent stdio", "Ubuntu", {
         cwd: String.raw`C:\Users\me\ext`,
       });
-      // Outer bash -lc is single-quoted, so the path appears as '\''/mnt/c/...'\'
       expect(wrapped).toContain("/mnt/c/Users/me/ext");
       expect(wrapped).toMatch(/cd /);
+    });
+
+    it("produces an acpx-splitable line (one -lc script arg)", () => {
+      // Mirrors acpx splitCommandLine (prompt-turn-CVPMWdj1.js)
+      function splitCommandLine(value: string): { command: string; args: string[] } {
+        const parts: string[] = [];
+        let current = "";
+        let quote: string | null = null;
+        let escaping = false;
+        for (const ch of value) {
+          if (escaping) {
+            current += ch;
+            escaping = false;
+            continue;
+          }
+          if (ch === "\\" && quote !== "'") {
+            escaping = true;
+            continue;
+          }
+          if (quote) {
+            if (ch === quote) quote = null;
+            else current += ch;
+            continue;
+          }
+          if (ch === "'" || ch === '"') {
+            quote = ch;
+            continue;
+          }
+          if (/\s/.test(ch)) {
+            if (current.length > 0) {
+              parts.push(current);
+              current = "";
+            }
+            continue;
+          }
+          current += ch;
+        }
+        if (current.length > 0) parts.push(current);
+        return { command: parts[0]!, args: parts.slice(1) };
+      }
+
+      const wrapped = wrapLaunchCommandForWsl("grok agent stdio", "Ubuntu", {
+        cwd: String.raw`C:\Users\frand\.baby-menu\extensions`,
+      });
+      const { command, args } = splitCommandLine(wrapped);
+      expect(command).toBe("wsl");
+      expect(args).toEqual([
+        "-d",
+        "Ubuntu",
+        "--",
+        "bash",
+        "-lc",
+        expect.stringContaining("exec 'grok' 'agent' 'stdio'"),
+      ]);
+      expect(args[args.length - 1]).toContain("/mnt/c/Users/frand/.baby-menu/extensions");
+      expect(args).toHaveLength(6);
     });
 
     it("rejects an empty launch command", () => {
