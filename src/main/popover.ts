@@ -20,21 +20,43 @@ export const MIN_POPOVER_HEIGHT = 220;
 export const MAX_POPOVER_HEIGHT = 720;
 export const MIN_POPOVER_WIDTH = 320;
 
-const EDGE_PADDING = 8;
+/** Inset kept between the popover and the workArea edges. */
+export const EDGE_PADDING = 8;
+
+/**
+ * Free space at or below this (px) counts as "docked to that edge" for axis
+ * selection. Covers mac menu bar (~22–28), default Windows taskbar (~40–48),
+ * and slight insets from DPI / auto-hide / partial overlap without treating a
+ * mid-screen tray as docked.
+ */
+const DOCK_STRIP_PX = 48;
 
 function clamp(value: number, min: number, max: number): number {
   if (max < min) return min;
   return Math.min(Math.max(value, min), max);
 }
 
+function dockedFreeSpace(space: number): number {
+  return space <= DOCK_STRIP_PX ? 0 : space;
+}
+
 /**
  * Places the popover fully inside `workArea` with EDGE_PADDING, edge-aware for
  * tray icons on top/bottom/left/right (mac menu bar, Windows taskbar orientations).
  *
- * 1. Measure free space from the tray to each workArea edge.
- * 2. Nearest edge selects the primary axis (top/bottom → vertical; left/right → horizontal).
- * 3. On that axis, prefer the side with more free space (toward the interior).
- * 4. Center on the secondary axis; clamp both axes into the workArea.
+ * 1. Measure free space from the tray to each workArea edge (negative overflow
+ *    clamped to 0 — `Tray.getBounds()` often sits fully outside workArea).
+ * 2. For axis selection only, free space ≤ DOCK_STRIP_PX is treated as 0 so a
+ *    slightly inset top/bottom tray flush with a side edge stays vertical.
+ * 3. Nearest docked edge selects the primary axis (top/bottom → vertical;
+ *    left/right → horizontal). **Corner policy (G02 MVP):** when both a
+ *    vertical-edge and a horizontal-edge free space are zero (or both docked),
+ *    prefer the **vertical** axis. That keeps mac top-right and Windows
+ *    bottom-right notification icons correct; a vertical-taskbar icon at the
+ *    top/bottom corner of the workArea may open above/below instead of beside
+ *    the taskbar (still fully on-screen).
+ * 4. On that axis, prefer the side with more free space (toward the interior).
+ * 5. Center on the secondary axis; clamp both axes into the workArea.
  */
 export function calculatePopoverBounds(
   trayBounds: Rectangle,
@@ -53,19 +75,20 @@ export function calculatePopoverBounds(
   const workRight = workArea.x + workArea.width;
   const workBottom = workArea.y + workArea.height;
 
-  // Clamp free space at 0 so a tray that slightly overflows a workArea edge
-  // (common for corner notification icons) does not look "closer" to that edge
-  // than the true taskbar edge. When top/bottom and left/right free space are
-  // both zero (corners), prefer the vertical axis so mac menu-bar and Windows
-  // bottom-taskbar placement stay correct.
   const spaceAbove = Math.max(0, trayTop - workTop);
   const spaceBelow = Math.max(0, workBottom - trayBottom);
   const spaceLeft = Math.max(0, trayLeft - workLeft);
   const spaceRight = Math.max(0, workRight - trayRight);
 
-  // Nearest edge to the tray decides primary axis (horizontal vs vertical placement).
-  const nearest = Math.min(spaceAbove, spaceBelow, spaceLeft, spaceRight);
-  const verticalAxis = nearest === spaceAbove || nearest === spaceBelow;
+  // Axis picking uses docked free space so small insets do not lose to a flush side.
+  const dockAbove = dockedFreeSpace(spaceAbove);
+  const dockBelow = dockedFreeSpace(spaceBelow);
+  const dockLeft = dockedFreeSpace(spaceLeft);
+  const dockRight = dockedFreeSpace(spaceRight);
+
+  const nearest = Math.min(dockAbove, dockBelow, dockLeft, dockRight);
+  // Vertical wins on dual-zero / dual-docked corners (see corner policy above).
+  const verticalAxis = nearest === dockAbove || nearest === dockBelow;
 
   const minX = workLeft + EDGE_PADDING;
   const maxX = workRight - size.width - EDGE_PADDING;
