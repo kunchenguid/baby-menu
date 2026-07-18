@@ -32,6 +32,7 @@ export function useAgentRuntime() {
   const [run, setRun] = useState<AgentRun | null>(null);
   const [pendingChange, setPendingChange] = useState<AgentSessionNotice | null>(null);
   const [notice, setNotice] = useState<AgentSessionNotice | null>(null);
+  const [assistantReply, setAssistantReply] = useState<string | null>(null);
 
   useEffect(() => {
     return window.babyMenu?.agent.onStatus((status) => {
@@ -102,6 +103,7 @@ export function useAgentRuntime() {
 
     const startedAt = Date.now();
     setNotice(null);
+    setAssistantReply(null);
     setRun({
       id: crypto.randomUUID(),
       title: trimmed,
@@ -112,6 +114,7 @@ export function useAgentRuntime() {
     try {
       if (!window.babyMenu) throw new Error(unavailableText);
       const result = await window.babyMenu.agent.send(trimmed);
+      setAssistantReply(result.assistantText.trim() || null);
       const nextChange = sessionNoticeForResult(result.session);
       setPendingChange(nextChange.kind === "pending" ? nextChange : null);
       setNotice(nextChange.kind === "pending" ? null : nextChange);
@@ -166,6 +169,7 @@ export function useAgentRuntime() {
     session: notice ?? pendingChange,
     pendingChange,
     notice,
+    assistantReply,
     send,
     keep,
     undo,

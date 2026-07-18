@@ -210,8 +210,9 @@ describe("AgentChat", () => {
     fireEvent.change(composer, { target: { value: "make the battery widget bigger" } });
     fireEvent.submit(composer.closest("form")!);
 
-    expect(await screen.findByText("Updated the battery extension")).toBeTruthy();
-    expect(screen.queryByText(/Added/)).toBeNull();
+    const changeNotice = await screen.findByText("Updated the battery extension");
+    expect(changeNotice).toBeTruthy();
+    expect(changeNotice.closest(".sessionbar")?.textContent).not.toContain("Added");
   });
 
   it("labels a layout-only change as Updated the layout", async () => {
@@ -250,6 +251,23 @@ describe("AgentChat", () => {
 
     expect(await screen.findByText("No changes were made")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+  });
+
+  it("keeps the agent's full answer visible as a readable MANA response", async () => {
+    installBabyMenuAgentMock();
+    window.babyMenu!.agent.send = vi.fn(async (): Promise<AgentChatResult> => ({
+      assistantText: "The browser is healthy. I checked the private session, and nothing needs your attention right now.\n\nNext, I can open the site you want to review.",
+      session: { startedClean: true, canSave: true, canRollback: true, head: null, dirty: false, changes: [] },
+    }));
+    render(<AgentChat />);
+
+    const composer = screen.getByPlaceholderText("talk to the baby");
+    fireEvent.change(composer, { target: { value: "what is happening with the browser?" } });
+    fireEvent.submit(composer.closest("form")!);
+
+    const response = await screen.findByRole("status", { name: "MANA response" });
+    expect(response.textContent).toContain("The browser is healthy");
+    expect(response.textContent).toContain("Next, I can open the site");
   });
 
   it("clears the session bar after Keep without a kept confirmation", async () => {

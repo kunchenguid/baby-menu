@@ -3,18 +3,30 @@ import { Button } from "../../ui";
 import { useAgentRuntime, type AgentRun, type AgentSessionNotice } from "./useAgentRuntime";
 
 export function AgentChat() {
-  const { run, session, pendingChange, notice, send, keep, undo, dismissNotice } = useAgentRuntime();
+  const { run, session, pendingChange, notice, assistantReply, send, keep, undo, dismissNotice } = useAgentRuntime();
 
   if (run) return <RunStrip run={run} />;
 
   return (
     <>
+      <AssistantReply text={assistantReply} />
       <SessionBar session={session} onKeep={keep} onUndo={undo} onDismiss={dismissNotice} />
       {notice && pendingChange ? (
         <SessionBar session={pendingChange} onKeep={keep} onUndo={undo} onDismiss={dismissNotice} />
       ) : null}
       <Composer onSend={send} />
     </>
+  );
+}
+
+function AssistantReply({ text }: { text: string | null }) {
+  if (!text) return null;
+
+  return (
+    <section className="assistant-reply" role="status" aria-label="MANA response">
+      <div className="assistant-reply-label">MANA</div>
+      <div className="assistant-reply-body">{text}</div>
+    </section>
   );
 }
 

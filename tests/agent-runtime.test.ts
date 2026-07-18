@@ -269,6 +269,17 @@ describe("agent runtime defaults", () => {
     expect(prompt).toContain("do not write README or other documentation files");
   });
 
+  it("asks the embedded agent to communicate like a thoughtful collaborator", () => {
+    const prompt = buildBabyMenuAgentPrompt("Explain what is happening");
+
+    expect(prompt).toContain("Talk to Laks like a thoughtful collaborator");
+    expect(prompt).toContain("Lead with the outcome");
+    expect(prompt).toContain("why it matters");
+    expect(prompt).toContain("what you verified");
+    expect(prompt).toContain("what happens next");
+    expect(prompt).toContain("Never answer only with Done");
+  });
+
   it("requires grounding live/system data widgets in the real source before writing code, and verifying against real data before reporting done", () => {
     const prompt = buildBabyMenuAgentPrompt("Build a Codex quota widget");
 

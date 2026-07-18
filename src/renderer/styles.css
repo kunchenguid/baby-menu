@@ -323,6 +323,32 @@ button:disabled,
   background: var(--bg-stage);
 }
 
+.assistant-reply {
+  flex: 0 1 auto;
+  max-height: 240px;
+  overflow: auto;
+  padding: 14px 16px 16px;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(106, 227, 182, 0.055), transparent 88%);
+}
+
+.assistant-reply-label {
+  margin-bottom: 7px;
+  color: var(--signal-live);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--tracking-caps);
+}
+
+.assistant-reply-body {
+  color: var(--ink-200);
+  font-family: var(--font-prose);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .sessionbar.pending,
 .sessionbar.saved {
   color: var(--signal-live);
