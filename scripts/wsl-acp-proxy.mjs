@@ -113,11 +113,17 @@ if (hintCwd) {
   script = `cd ${bashSingleQuote(windowsPathToWslPath(hintCwd))} && ${script}`;
 }
 
+// Strip Electron-as-node markers so WSL/grok never see them (same idea as adapters/child-env).
+const childEnv = { ...process.env };
+delete childEnv.ELECTRON_RUN_AS_NODE;
+delete childEnv.ELECTRON_NO_ATTACH_CONSOLE;
+delete childEnv.ELECTRON_NO_ASAR;
+
 const wslExe = resolveWslExecutable();
 const child = spawn(wslExe, ["-d", distro, "--", "bash", "-lc", script], {
   stdio: ["pipe", "pipe", "pipe"],
   windowsHide: true,
-  env: process.env,
+  env: childEnv,
 });
 
 child.on("error", (err) => {

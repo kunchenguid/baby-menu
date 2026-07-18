@@ -142,13 +142,15 @@ function shellJoin(tokens: readonly string[]): string {
  * Applies WSL wrapping to registry launch overrides.
  *
  * - Adapter agents (Claude/Codex): host Node adapter + nested CLI via WSL.
- * - Pure ACP (Grok, customs): host-side `wsl-acp-launch.cmd` + `wsl-acp-proxy.mjs`
- *   (session/new cwd rewrite). Avoid POSIX `env` and nested `cmd /c set` quoting —
- *   both break on Windows (spawn fail / "no se reconoce como un comando").
+ * - Pure ACP (Grok, customs): host Electron-as-node + `wsl-acp-proxy.mjs`
+ *   (session/new cwd rewrite). The spawn command **must** be an `.exe` (or other
+ *   non-batch file): acpx sets `shell: true` for `.cmd`/`.bat`, and Windows
+ *   `cmd.exe` then splits paths with spaces (e.g. `Baby Menu Dev.exe` → `Baby`)
+ *   with exit 9009 / "no se reconoce como un comando".
  *
- * @param pureAcpProxyLaunch typically
- *   `[launch.cmd, electronExe, proxy.mjs]` — remaining args filled here:
- *   `distro hostCwd -- agent tokens...`
+ * @param pureAcpProxyLaunch typically `[electronExe, proxy.mjs]`. Remaining args
+ *   filled here: `--distro <distro> -- <agent tokens...>`. Host cwd goes via
+ *   `BABY_MENU_WSL_PROXY_CWD` (see `applyAgentRuntimeModeEnv`), not argv.
  */
 export function applyWslModeToOverrides(
   overrides: Record<string, string>,
@@ -177,11 +179,12 @@ export function applyWslModeToOverrides(
     }
 
     if (options.pureAcpProxyLaunch && options.pureAcpProxyLaunch.length > 0) {
-      // launch.cmd exe proxy distro hostCwd grok agent stdio
+      // electron.exe proxy.mjs --distro Ubuntu -- grok agent stdio
       next[name] = shellJoin([
         ...options.pureAcpProxyLaunch,
+        "--distro",
         distro,
-        options.hostCwd ?? "",
+        "--",
         ...tokens,
       ]);
     } else {
@@ -192,23 +195,42 @@ export function applyWslModeToOverrides(
   return next;
 }
 
+export type ApplyAgentRuntimeModeEnvOptions = {
+  /** Host extensions cwd for pure-ACP proxy `cd` inside WSL. */
+  hostCwd?: string;
+};
+
 /**
- * Host process env mirror of the preference (adapters read these).
- * Prefs are the source of truth when applying - launch-time env is overwritten
- * at startup and whenever Settings changes mode/distro.
+ * Host process env mirror of the preference (adapters + pure-ACP proxy children
+ * inherit these via acpx spawn). Prefs are the source of truth when applying —
+ * launch-time env is overwritten at startup and whenever Settings changes mode/distro.
+ *
+ * On win32 WSL mode also sets `ELECTRON_RUN_AS_NODE=1` so acpx can spawn
+ * `process.execPath` + `wsl-acp-proxy.mjs` without a batch file (see
+ * `applyWslModeToOverrides`). Cleared when leaving WSL mode so a later
+ * `app.relaunch()` does not start the GUI under Electron-as-node.
  */
 export function applyAgentRuntimeModeEnv(
   prefs: AgentRuntimeModePrefs | null | undefined,
   env: NodeJS.ProcessEnv = process.env,
   platform: NodeJS.Platform = process.platform,
+  options: ApplyAgentRuntimeModeEnvOptions = {},
 ): void {
   if (platform === "win32" && prefs?.agentRuntimeMode === "wsl") {
     env.BABY_MENU_AGENT_RUNTIME = "wsl";
     env.BABY_MENU_WSL_DISTRO = sanitizeStoredWslDistro(prefs.wslDistro) || DEFAULT_WSL_DISTRO;
+    env.ELECTRON_RUN_AS_NODE = "1";
+    const hostCwd = options.hostCwd?.trim();
+    if (hostCwd) env.BABY_MENU_WSL_PROXY_CWD = hostCwd;
+    else delete env.BABY_MENU_WSL_PROXY_CWD;
     return;
   }
   env.BABY_MENU_AGENT_RUNTIME = "host";
   delete env.BABY_MENU_WSL_DISTRO;
+  delete env.BABY_MENU_WSL_PROXY_CWD;
+  if (platform === "win32") {
+    delete env.ELECTRON_RUN_AS_NODE;
+  }
 }
 
 function shellToken(value: string): string {

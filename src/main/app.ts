@@ -194,7 +194,9 @@ export async function startBabyMenuApp(): Promise<void> {
   const persistedPreferences = await preferences.apply();
   // Live copy used by command probes and WSL override wrapping (updated on Settings writes).
   let currentPreferences: BabyMenuPreferences = persistedPreferences;
-  applyAgentRuntimeModeEnv(currentPreferences);
+  applyAgentRuntimeModeEnv(currentPreferences, process.env, process.platform, {
+    hostCwd: paths.extensionsDir,
+  });
 
   function probeCommand(command: string): boolean {
     if (isWslMode(currentPreferences)) {
@@ -207,14 +209,14 @@ export async function startBabyMenuApp(): Promise<void> {
     const raw = agentCatalog.overrides;
     if (Object.keys(raw).length === 0) return undefined;
     if (!isWslMode(currentPreferences)) return raw;
-    // Pure-ACP agents (Grok): wsl-acp-launch.cmd sets ELECTRON_RUN_AS_NODE + BABY_MENU_*
-    // then runs Electron-as-node on wsl-acp-proxy.mjs (rewrites session cwd for Linux).
-    // Avoid POSIX `env` and nested cmd /c quoting — both break on Windows.
-    const wslAcpLaunchCmd = join(paths.adaptersDir, "wsl-acp-launch.cmd");
+    // Pure-ACP agents (Grok): spawn Electron .exe + wsl-acp-proxy.mjs (session cwd rewrite).
+    // Do NOT use a .cmd launcher — acpx sets shell:true for batch files and cmd.exe
+    // splits "Baby Menu Dev.exe" at the space (exit 9009). ELECTRON_RUN_AS_NODE and
+    // BABY_MENU_WSL_PROXY_CWD are set on process.env via applyAgentRuntimeModeEnv.
     const wslAcpProxyPath = join(paths.adaptersDir, "wsl-acp-proxy.mjs");
     return applyWslModeToOverrides(raw, agentCatalog.catalog, resolveWslDistro(currentPreferences), {
       hostCwd: paths.extensionsDir,
-      pureAcpProxyLaunch: [wslAcpLaunchCmd, process.execPath, wslAcpProxyPath],
+      pureAcpProxyLaunch: [process.execPath, wslAcpProxyPath],
     });
   }
 
@@ -229,7 +231,9 @@ export async function startBabyMenuApp(): Promise<void> {
    */
   async function applyAgentRuntimePreferenceChange(next: BabyMenuPreferences): Promise<void> {
     currentPreferences = next;
-    applyAgentRuntimeModeEnv(currentPreferences);
+    applyAgentRuntimeModeEnv(currentPreferences, process.env, process.platform, {
+      hostCwd: paths.extensionsDir,
+    });
     await pushRuntimeOverrides({ discardPersistentState: true });
     // When the user never picked an agent, re-probe with the new mode so we do
     // not stick on a host-only Claude while Grok is the only CLI in WSL.

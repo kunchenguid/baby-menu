@@ -259,27 +259,34 @@ describe("agent-runtime-mode", () => {
       expect(next.grok).toContain("'grok'");
     });
 
-    it("uses wsl-acp-launch.cmd for pure ACP proxy (no POSIX env / nested cmd)", () => {
+    it("uses electron.exe + wsl-acp-proxy.mjs for pure ACP (no .cmd / shell:true)", () => {
       const overrides = { grok: "grok agent stdio" };
       const next = applyWslModeToOverrides(overrides, catalog, "Ubuntu", {
         hostCwd: String.raw`C:\Users\frand\.baby-menu\extensions`,
         pureAcpProxyLaunch: [
-          String.raw`C:\App\resources\app.asar.unpacked\out\adapters\wsl-acp-launch.cmd`,
-          String.raw`C:\App\Baby Menu Dev.exe`,
-          String.raw`C:\App\resources\app.asar.unpacked\out\adapters\wsl-acp-proxy.mjs`,
+          String.raw`C:\Users\frand\AppData\Local\Temp\abc\Baby Menu Dev.exe`,
+          String.raw`C:\Users\frand\AppData\Local\Temp\abc\resources\app.asar.unpacked\out\adapters\wsl-acp-proxy.mjs`,
         ],
       });
-      expect(next.grok).toContain("wsl-acp-launch.cmd");
+      // First token must be .exe (acpx shell:false) — never .cmd (shell:true breaks spaces)
+      expect(next.grok).not.toContain("wsl-acp-launch.cmd");
+      expect(next.grok).not.toMatch(/\.cmd"/);
       expect(next.grok).toContain("Baby Menu Dev.exe");
       expect(next.grok).toContain("wsl-acp-proxy.mjs");
+      expect(next.grok).toContain("--distro");
       expect(next.grok).toContain("Ubuntu");
-      // shellJoin escapes backslashes for acpx tokens
-      expect(next.grok).toMatch(/Users\\+frand\\+\.baby-menu\\+extensions/);
-      expect(next.grok).toMatch(/\bgrok\b/);
-      expect(next.grok).toMatch(/\bagent\b/);
-      expect(next.grok).toMatch(/\bstdio\b/);
+      expect(next.grok).toMatch(/--\s+grok\s+agent\s+stdio/);
+      // host cwd is env-only, not argv (avoids another spaced-path surface)
+      expect(next.grok).not.toMatch(/baby-menu\\+extensions/);
       expect(next.grok).not.toMatch(/^env /);
-      expect(next.grok).not.toContain("cmd.exe /d /s /c");
+      expect(next.grok).not.toContain("cmd.exe");
+      // round-trip through acpx-style split keeps the spaced exe as one argv token
+      const parts = splitLaunchCommand(next.grok!);
+      expect(parts[0]).toMatch(/Baby Menu Dev\.exe$/);
+      expect(parts).toContain("--distro");
+      expect(parts).toContain("Ubuntu");
+      expect(parts).toContain("--");
+      expect(parts).toContain("grok");
     });
   });
 
@@ -293,13 +300,22 @@ describe("agent-runtime-mode", () => {
   describe("applyAgentRuntimeModeEnv", () => {
     it("sets and clears host process env mirrors on win32", () => {
       const env: NodeJS.ProcessEnv = {};
-      applyAgentRuntimeModeEnv({ agentRuntimeMode: "wsl", wslDistro: "Debian" }, env, "win32");
+      applyAgentRuntimeModeEnv(
+        { agentRuntimeMode: "wsl", wslDistro: "Debian" },
+        env,
+        "win32",
+        { hostCwd: String.raw`C:\Users\me\.baby-menu\extensions` },
+      );
       expect(env.BABY_MENU_AGENT_RUNTIME).toBe("wsl");
       expect(env.BABY_MENU_WSL_DISTRO).toBe("Debian");
+      expect(env.ELECTRON_RUN_AS_NODE).toBe("1");
+      expect(env.BABY_MENU_WSL_PROXY_CWD).toBe(String.raw`C:\Users\me\.baby-menu\extensions`);
 
       applyAgentRuntimeModeEnv({ agentRuntimeMode: "host" }, env, "win32");
       expect(env.BABY_MENU_AGENT_RUNTIME).toBe("host");
       expect(env.BABY_MENU_WSL_DISTRO).toBeUndefined();
+      expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
+      expect(env.BABY_MENU_WSL_PROXY_CWD).toBeUndefined();
     });
 
     it("forces host on non-win32 even when prefs say wsl", () => {
@@ -307,13 +323,19 @@ describe("agent-runtime-mode", () => {
       applyAgentRuntimeModeEnv({ agentRuntimeMode: "wsl" }, env, "linux");
       expect(env.BABY_MENU_AGENT_RUNTIME).toBe("host");
       expect(env.BABY_MENU_WSL_DISTRO).toBeUndefined();
+      expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
     });
 
     it("prefs overwrite a stale launch-time env", () => {
-      const env: NodeJS.ProcessEnv = { BABY_MENU_AGENT_RUNTIME: "wsl", BABY_MENU_WSL_DISTRO: "Old" };
+      const env: NodeJS.ProcessEnv = {
+        BABY_MENU_AGENT_RUNTIME: "wsl",
+        BABY_MENU_WSL_DISTRO: "Old",
+        ELECTRON_RUN_AS_NODE: "1",
+      };
       applyAgentRuntimeModeEnv({ agentRuntimeMode: "host" }, env, "win32");
       expect(env.BABY_MENU_AGENT_RUNTIME).toBe("host");
       expect(env.BABY_MENU_WSL_DISTRO).toBeUndefined();
+      expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
     });
   });
 });
