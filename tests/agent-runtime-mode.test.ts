@@ -6,6 +6,7 @@ import {
   isWslMode,
   resolveAgentProcessCwd,
   resolveWslDistro,
+  resolveWslExecutable,
   windowsPathToWslPath,
   wrapCliSpawnForWsl,
   wrapLaunchCommandForWsl,
@@ -164,12 +165,27 @@ describe("agent-runtime-mode", () => {
     });
   });
 
+  describe("resolveWslExecutable", () => {
+    it("prefers System32\\wsl.exe on win32 using SystemRoot then WINDIR", () => {
+      expect(resolveWslExecutable({ SystemRoot: "D:\\Windows" }, "win32")).toBe(
+        String.raw`D:\Windows\System32\wsl.exe`,
+      );
+      expect(resolveWslExecutable({ WINDIR: "E:\\Win" }, "win32")).toBe(String.raw`E:\Win\System32\wsl.exe`);
+      expect(resolveWslExecutable({}, "win32")).toBe(String.raw`C:\Windows\System32\wsl.exe`);
+    });
+
+    it("falls back to bare wsl outside win32", () => {
+      expect(resolveWslExecutable({}, "linux")).toBe("wsl");
+      expect(resolveWslExecutable({ SystemRoot: "C:\\Windows" }, "darwin")).toBe("wsl");
+    });
+  });
+
   describe("wrapCliSpawnForWsl", () => {
     it("returns wsl argv and embeds the CLI plus optional cwd", () => {
       const wrapped = wrapCliSpawnForWsl("claude", ["-p", "hi"], "Ubuntu", {
         cwd: String.raw`C:\Users\me\ext`,
       });
-      expect(wrapped.command).toBe("wsl");
+      expect(wrapped.command).toBe(resolveWslExecutable());
       expect(wrapped.args[0]).toBe("-d");
       expect(wrapped.args[1]).toBe("Ubuntu");
       expect(wrapped.args).toContain("bash");
@@ -186,6 +202,11 @@ describe("agent-runtime-mode", () => {
       expect(script).not.toContain("cd ");
       expect(script).toContain("codex");
     });
+
+    it("rejects invalid distro names before building argv", () => {
+      expect(() => wrapCliSpawnForWsl("claude", [], 'Ubuntu";rm')).toThrow(/distro/i);
+      expect(() => wrapCliSpawnForWsl("claude", [], "My Distro")).toThrow(/distro/i);
+    });
   });
 
   describe("wslCommandExists", () => {
@@ -193,7 +214,7 @@ describe("agent-runtime-mode", () => {
       const spawn = vi.fn(() => ({ status: 0 }));
       expect(wslCommandExists("grok", "Ubuntu", spawn)).toBe(true);
       expect(spawn).toHaveBeenCalledWith(
-        "wsl",
+        resolveWslExecutable(),
         ["-d", "Ubuntu", "--", "bash", "-lc", expect.stringContaining("command -v")],
         expect.objectContaining({ stdio: "ignore", timeout: 5_000 }),
       );

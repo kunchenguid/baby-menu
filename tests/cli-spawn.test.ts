@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { spawnAgentCli } from "../src/adapters/shared/cli-spawn";
+import { resolveWslExecutable } from "../src/shared/wsl-agent";
 
 type SpawnCall = [string, string[], { cwd?: string; env?: NodeJS.ProcessEnv; stdio?: unknown; windowsHide?: boolean }];
 
@@ -37,7 +38,7 @@ describe("spawnAgentCli", () => {
 
     expect(spawnImpl).toHaveBeenCalledTimes(1);
     const [command, args, opts] = spawnImpl.mock.calls[0] as SpawnCall;
-    expect(command).toBe("wsl");
+    expect(command).toBe(resolveWslExecutable());
     expect(args).toEqual(expect.arrayContaining(["-d", "Debian", "--", "bash", "-lc"]));
     expect(opts.cwd).toBeUndefined();
     expect(opts.stdio).toEqual(["pipe", "pipe", "pipe"]);
@@ -58,5 +59,20 @@ describe("spawnAgentCli", () => {
     });
     const [, args] = spawnImpl.mock.calls[0] as SpawnCall;
     expect(args).toEqual(expect.arrayContaining(["-d", "Ubuntu"]));
+  });
+
+  it("refuses an invalid WSL distro from env without spawning", () => {
+    const spawnImpl = vi.fn((_cmd: string, _args: readonly string[], _opts: object) => ({ pid: 1 }) as never);
+    expect(() =>
+      spawnAgentCli("claude", [], {
+        cwd: String.raw`C:\work`,
+        env: {
+          BABY_MENU_AGENT_RUNTIME: "wsl",
+          BABY_MENU_WSL_DISTRO: 'Ubuntu"; evil',
+        },
+        spawnImpl: spawnImpl as never,
+      }),
+    ).toThrow(/distro/i);
+    expect(spawnImpl).not.toHaveBeenCalled();
   });
 });

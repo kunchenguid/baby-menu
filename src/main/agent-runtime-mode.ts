@@ -5,6 +5,7 @@ import {
   bashSingleQuote,
   looksLikeWindowsPath,
   normalizeWslDistroName,
+  resolveWslExecutable,
   sanitizeStoredWslDistro,
   splitLaunchCommand,
   toWslCwd,
@@ -26,6 +27,7 @@ export {
   bashSingleQuote,
   looksLikeWindowsPath,
   normalizeWslDistroName,
+  resolveWslExecutable,
   sanitizeStoredWslDistro,
   toWslCwd,
   windowsPathToWslPath,
@@ -99,7 +101,7 @@ export function wslCommandExists(
   if (!/^[A-Za-z0-9._-]+$/.test(distro)) return false;
 
   const result = spawn(
-    "wsl",
+    resolveWslExecutable(),
     ["-d", distro, "--", "bash", "-lc", `command -v ${bashSingleQuote(name)} >/dev/null 2>&1`],
     { stdio: "ignore", windowsHide: true, timeout: WSL_PROBE_TIMEOUT_MS },
   );

@@ -4,10 +4,30 @@
  * so adapter esbuild can bundle it.
  */
 
+import { win32 as pathWin32 } from "node:path";
+
 export const DEFAULT_WSL_DISTRO = "Ubuntu";
 
 /** WSL distro names: letters, digits, dot, dash, underscore only. */
 export const WSL_DISTRO_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * Prefer `%SystemRoot%\System32\wsl.exe` on win32 so PATH never resolves a
+ * colliding `wsl` (e.g. openwsman). Non-Windows falls back to bare `"wsl"`
+ * (probes/tests; WSL mode is host-gated to win32).
+ *
+ * Uses `path.win32.join` so unit tests on Linux still get backslash Windows paths.
+ */
+export function resolveWslExecutable(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (platform === "win32") {
+    const root = env.SystemRoot || env.WINDIR || "C:\\Windows";
+    return pathWin32.join(root, "System32", "wsl.exe");
+  }
+  return "wsl";
+}
 
 /**
  * Translates a Windows absolute path to the WSL mount form.
@@ -85,6 +105,7 @@ export function toWslCwd(cwd: string): string {
 /**
  * Rewrites a CLI spawn (command + argv) so the child is launched via WSL.
  * Node's spawn cwd is not set to a /mnt path; bash applies cd when cwd is set.
+ * Distro is re-validated here so env-injected names cannot bypass the allowlist.
  */
 export function wrapCliSpawnForWsl(
   command: string,
@@ -92,6 +113,7 @@ export function wrapCliSpawnForWsl(
   distro: string,
   options: { cwd?: string } = {},
 ): { command: string; args: string[] } {
+  const safeDistro = normalizeWslDistroName(distro);
   const pathExport = 'export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"';
   const argv = [command, ...args].map((token) => bashSingleQuote(token)).join(" ");
   let script = `${pathExport}; exec ${argv}`;
@@ -101,8 +123,8 @@ export function wrapCliSpawnForWsl(
   }
 
   return {
-    command: "wsl",
-    args: ["-d", distro, "--", "bash", "-lc", script],
+    command: resolveWslExecutable(),
+    args: ["-d", safeDistro, "--", "bash", "-lc", script],
   };
 }
 
@@ -141,9 +163,12 @@ export function wrapLaunchCommandForWsl(
   if (options.cwd?.trim()) {
     script = `cd ${bashSingleQuote(toWslCwd(options.cwd))} && ${script}`;
   }
-  // Distro is allowlisted before call; quote for acpx outer split safety.
-  const distroToken = acpxDoubleQuote(distro);
-  return `wsl -d ${distroToken} -- bash -lc ${acpxDoubleQuote(script)}`;
+  // Re-validate distro at wrap time; quote for acpx outer split safety.
+  const distroToken = acpxDoubleQuote(normalizeWslDistroName(distro));
+  const wslExe = resolveWslExecutable();
+  // Absolute win32 paths need acpx double-quotes (backslashes + drive letter).
+  const wslToken = /^[A-Za-z0-9_./:=@%+-]+$/.test(wslExe) ? wslExe : acpxDoubleQuote(wslExe);
+  return `${wslToken} -d ${distroToken} -- bash -lc ${acpxDoubleQuote(script)}`;
 }
 
 /** Validate/normalize a WSL distro name. Throws on illegal characters. */

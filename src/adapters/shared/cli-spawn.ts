@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from "node:child_process";
-import { DEFAULT_WSL_DISTRO, wrapCliSpawnForWsl } from "../../shared/wsl-agent.js";
+import { DEFAULT_WSL_DISTRO, normalizeWslDistroName, wrapCliSpawnForWsl } from "../../shared/wsl-agent.js";
 import { childEnv } from "./child-env.js";
 
 /**
@@ -23,7 +23,6 @@ export function spawnAgentCli(
 ): ChildProcessWithoutNullStreams {
   const env = childEnv(options.env);
   const runtime = env.BABY_MENU_AGENT_RUNTIME?.trim().toLowerCase();
-  const distro = env.BABY_MENU_WSL_DISTRO?.trim() || DEFAULT_WSL_DISTRO;
   const spawnFn = options.spawnImpl ?? spawn;
 
   let spawnCommand = command;
@@ -31,6 +30,8 @@ export function spawnAgentCli(
   let spawnCwd: string | undefined = options.cwd;
 
   if (runtime === "wsl") {
+    // Re-validate allowlist at spawn so a poisoned env cannot inject shell metacharacters.
+    const distro = normalizeWslDistroName(env.BABY_MENU_WSL_DISTRO?.trim() || DEFAULT_WSL_DISTRO);
     const wrapped = wrapCliSpawnForWsl(command, args, distro, { cwd: options.cwd });
     spawnCommand = wrapped.command;
     spawnArgs = wrapped.args;
