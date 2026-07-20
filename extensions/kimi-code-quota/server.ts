@@ -23,7 +23,11 @@ async function getQuota(_input: unknown, context: BabyMenuServerContext): Promis
   }
 }
 
-export const actions = { getQuota };
+function getCachedQuota(_input: unknown, context: BabyMenuServerContext): KimiQuotaResult {
+  return context.kimiQuota?.readCached() ?? brokerUnavailable();
+}
+
+export const actions = { getQuota, getCachedQuota };
 
 export const background: BabyMenuBackgroundTask = {
   intervalMs: 300_000,

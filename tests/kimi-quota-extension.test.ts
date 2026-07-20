@@ -40,12 +40,13 @@ describe("Kimi Code quota extension host integration", () => {
   it("projects only the normalized broker result through its server capability", async () => {
     const db = createExtensionDatabase(":memory:");
     const acquire = vi.fn(async () => normalized);
+    const readCached = vi.fn(() => normalized);
     const registry = createServerActionRegistry({
       rootDir: repoRoot,
       actionRoots: [extensionDir],
       cacheDir: await cacheDir(),
       db,
-      kimiQuota: { acquire } satisfies BabyMenuKimiQuotaBroker,
+      kimiQuota: { acquire, readCached } satisfies BabyMenuKimiQuotaBroker,
     });
 
     const result = await registry.invoke("kimi-code-quota", "getQuota");
@@ -54,6 +55,24 @@ describe("Kimi Code quota extension host integration", () => {
     expect(result).toEqual(normalized);
     const serialized = JSON.stringify(result);
     expect(serialized).not.toMatch(/credential|authorization|bearer|raw|account|plan|fingerprint/i);
+    db.close();
+  });
+
+  it("reads a completed background result without starting another acquisition", async () => {
+    const db = createExtensionDatabase(":memory:");
+    const acquire = vi.fn(async () => normalized);
+    const readCached = vi.fn(() => normalized);
+    const registry = createServerActionRegistry({
+      rootDir: repoRoot,
+      actionRoots: [extensionDir],
+      cacheDir: await cacheDir(),
+      db,
+      kimiQuota: { acquire, readCached },
+    });
+
+    await expect(registry.invoke("kimi-code-quota", "getCachedQuota")).resolves.toEqual(normalized);
+    expect(readCached).toHaveBeenCalledOnce();
+    expect(acquire).not.toHaveBeenCalled();
     db.close();
   });
 
@@ -83,7 +102,7 @@ describe("Kimi Code quota extension host integration", () => {
         rootDir: repoRoot,
         db,
         notify: vi.fn(),
-        kimiQuota: { acquire },
+        kimiQuota: { acquire, readCached: vi.fn(() => normalized) },
       },
     });
 
@@ -146,6 +165,7 @@ describe("Kimi Code quota extension host integration", () => {
     expect(invoke).toHaveBeenCalledTimes(1);
     backgroundListener?.({ extensionId: "kimi-code-quota" });
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(2));
+    expect(invoke).toHaveBeenLastCalledWith("kimi-code-quota", "getCachedQuota");
     unsubscribe();
   });
 });

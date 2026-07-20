@@ -67,6 +67,7 @@ export type KimiQuotaLogEvent =
 
 export type KimiQuotaBroker = {
   acquire: (options?: { force?: boolean; maxAgeMs?: number }) => Promise<KimiQuotaResult>;
+  readCached: () => KimiQuotaResult | undefined;
 };
 
 type CreateKimiQuotaBrokerOptions = {
@@ -259,7 +260,10 @@ export function createKimiQuotaBroker(options: CreateKimiQuotaBrokerOptions): Ki
     return freshResult(snapshot, snapshot.refreshedAt);
   };
 
-  return { acquire };
+  return {
+    acquire,
+    readCached: () => readResult(options.db, CURRENT_RESULT_KEY),
+  };
 }
 
 async function readBoundedBody(response: Response, signal: AbortSignal): Promise<Uint8Array> {

@@ -377,6 +377,16 @@ describe("Kimi quota broker cache, freshness, and concurrency", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
+  it("returns the current cached result without acquiring", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse());
+    const quota = create(fetchMock);
+
+    expect(quota.readCached()).toBeUndefined();
+    const acquired = await quota.acquire({ force: true });
+    expect(quota.readCached()).toEqual(acquired);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("refreshes on view only when the last success is older than 60 seconds", async () => {
     const fetchMock = vi.fn(async () => jsonResponse());
     const quota = create(fetchMock);

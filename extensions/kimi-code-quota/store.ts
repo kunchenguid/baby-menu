@@ -15,6 +15,8 @@ type KimiQuotaViewStore = {
   connectBackground: () => () => void;
 };
 
+type QuotaAction = "getQuota" | "getCachedQuota";
+
 export function createKimiQuotaViewStore(api?: BabyMenuExtensionApi): KimiQuotaViewStore {
   let state: KimiQuotaViewState = { result: null, refreshing: false };
   let inFlight: Promise<void> | null = null;
@@ -26,7 +28,7 @@ export function createKimiQuotaViewStore(api?: BabyMenuExtensionApi): KimiQuotaV
     listeners.forEach((listener) => listener());
   };
 
-  const refresh = (): Promise<void> => {
+  const load = (action: QuotaAction): Promise<void> => {
     if (inFlight) return inFlight;
     publish({ ...state, refreshing: true });
     inFlight = (async () => {
@@ -36,7 +38,7 @@ export function createKimiQuotaViewStore(api?: BabyMenuExtensionApi): KimiQuotaV
         return;
       }
       try {
-        const result = await bridge.capabilities.invoke<KimiQuotaResult>(EXTENSION_ID, "getQuota");
+        const result = await bridge.capabilities.invoke<KimiQuotaResult>(EXTENSION_ID, action);
         publish({ result, refreshing: false });
       } catch {
         publish({ result: bridgeUnavailable(), refreshing: false });
@@ -47,6 +49,8 @@ export function createKimiQuotaViewStore(api?: BabyMenuExtensionApi): KimiQuotaV
     return inFlight;
   };
 
+  const refresh = (): Promise<void> => load("getQuota");
+
   return {
     getSnapshot: () => state,
     subscribe(listener) {
@@ -56,7 +60,7 @@ export function createKimiQuotaViewStore(api?: BabyMenuExtensionApi): KimiQuotaV
     refresh,
     connectBackground() {
       return getApi()?.background.onUpdate((event) => {
-        if (event.extensionId === EXTENSION_ID) void refresh();
+        if (event.extensionId === EXTENSION_ID) void load("getCachedQuota");
       }) ?? (() => undefined);
     },
   };

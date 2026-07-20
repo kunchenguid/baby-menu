@@ -179,6 +179,7 @@ export type KimiQuotaResult = {
 // normalized, non-secret result and does not expose Pi SDK objects or arbitrary providers.
 export type BabyMenuKimiQuotaBroker = {
   acquire: (options?: { force?: boolean; maxAgeMs?: number }) => Promise<KimiQuotaResult>;
+  readCached: () => KimiQuotaResult | undefined;
 };
 
 // Passed to every server action and background task. Privileged, main-process side.
