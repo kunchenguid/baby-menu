@@ -197,4 +197,31 @@ describe("Kimi credential source precedence", () => {
     await expect(chain.resolveCredential()).rejects.toBe(primaryFailure);
     expect(cli.resolveCredential).not.toHaveBeenCalled();
   });
+
+  it("does not start the CLI fallback when cancellation occurs during Pi resolution", async () => {
+    const controller = new AbortController();
+    let finishPi: ((resolution: { status: "unavailable" }) => void) | undefined;
+    const pi: KimiCredentialResolver = {
+      resolveCredential: vi.fn(() => new Promise((resolve) => {
+        finishPi = resolve;
+      })),
+    };
+    const readCredentialFile = vi.fn(async () => JSON.stringify({
+      access_token: ACCESS_TOKEN,
+      expires_at: NOW_MS / 1000 + 3600,
+    }));
+    const cli = createKimiCodeCliCredentialResolver({
+      environment: { KIMI_CODE_HOME: "/synthetic-kimi-home" },
+      now: () => NOW_MS,
+      readCredentialFile,
+    });
+    const chain = createKimiCredentialResolverChain([pi, cli]);
+    const resolution = chain.resolveCredential(controller.signal);
+
+    controller.abort();
+    finishPi?.({ status: "unavailable" });
+
+    await expect(resolution).rejects.toMatchObject({ name: "AbortError" });
+    expect(readCredentialFile).not.toHaveBeenCalled();
+  });
 });

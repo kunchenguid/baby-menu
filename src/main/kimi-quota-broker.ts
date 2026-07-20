@@ -59,7 +59,7 @@ export type KimiCredentialResolution =
   | { status: "unsupported" };
 
 export type KimiCredentialResolver = {
-  resolveCredential: () => Promise<KimiCredentialResolution>;
+  resolveCredential: (signal?: AbortSignal) => Promise<KimiCredentialResolution>;
 };
 
 export type KimiQuotaLogEvent =
@@ -164,8 +164,9 @@ export function createKimiQuotaBroker(options: CreateKimiQuotaBrokerOptions): Ki
   const attempt = async (signal: AbortSignal): Promise<KimiQuotaResult> => {
     let credential: KimiCredentialResolution;
     try {
-      credential = await options.credentialResolver.resolveCredential();
+      credential = await options.credentialResolver.resolveCredential(signal);
     } catch {
+      throwIfAborted(signal);
       throw new KimiAcquisitionFailure("credential_resolution_failed");
     }
     throwIfAborted(signal);

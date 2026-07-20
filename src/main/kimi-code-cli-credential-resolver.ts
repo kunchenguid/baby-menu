@@ -29,15 +29,18 @@ export function createKimiCodeCliCredentialResolver(
   const readCredentialFile = options.readCredentialFile ?? readBoundedCredentialFile;
 
   return {
-    async resolveCredential(): Promise<KimiCredentialResolution> {
+    async resolveCredential(signal?: AbortSignal): Promise<KimiCredentialResolution> {
+      signal?.throwIfAborted();
       const root = environment.KIMI_CODE_HOME || join(options.homeDir ?? homedir(), ".kimi-code");
       const path = join(root, ...CREDENTIAL_RELATIVE_PATH);
       let bytes: string | Uint8Array | undefined;
       try {
         bytes = await readCredentialFile(path);
       } catch {
+        signal?.throwIfAborted();
         return { status: "unavailable" };
       }
+      signal?.throwIfAborted();
       if (bytes === undefined) return { status: "unavailable" };
 
       let payload: unknown;
@@ -63,10 +66,12 @@ export function createKimiCredentialResolverChain(
   resolvers: readonly KimiCredentialResolver[],
 ): KimiCredentialResolver {
   return {
-    async resolveCredential(): Promise<KimiCredentialResolution> {
+    async resolveCredential(signal?: AbortSignal): Promise<KimiCredentialResolution> {
       let unsupported = false;
       for (const resolver of resolvers) {
-        const resolution = await resolver.resolveCredential();
+        signal?.throwIfAborted();
+        const resolution = await resolver.resolveCredential(signal);
+        signal?.throwIfAborted();
         if (resolution.status === "available") return resolution;
         if (resolution.status === "unsupported") unsupported = true;
       }

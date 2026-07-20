@@ -159,11 +159,12 @@ describe("Kimi quota broker transport and privacy", () => {
   });
 
   it("enforces the total deadline without switching credentials after cancellation", async () => {
-    const fetchMock = vi.fn((_input: string | URL | Request, init?: RequestInit) =>
-      new Promise<Response>((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
-      }),
-    );
+    let finishPrimary: ((resolution: { status: "unavailable" }) => void) | undefined;
+    const primary: KimiCredentialResolver = {
+      resolveCredential: vi.fn(() => new Promise((resolve) => {
+        finishPrimary = resolve;
+      })),
+    };
     const cliFallback = resolver({
       resolveCredential: vi.fn(async () => ({
         status: "available" as const,
@@ -171,11 +172,18 @@ describe("Kimi quota broker transport and privacy", () => {
         apiKey: "unused-cli-fallback",
       })),
     });
-    const credentialResolver = createKimiCredentialResolverChain([resolver(), cliFallback]);
-    const result = await broker({ credentialResolver, fetch: fetchMock, timeoutMs: 20 }).acquire({ force: true });
+    const credentialResolver = createKimiCredentialResolverChain([primary, cliFallback]);
+    const fetchMock = vi.fn<typeof fetch>();
+    const acquisition = broker({ credentialResolver, fetch: fetchMock, timeoutMs: 20 }).acquire({ force: true });
+    const result = await acquisition;
+
+    finishPrimary?.({ status: "unavailable" });
+    await Promise.resolve();
+    await Promise.resolve();
 
     expect(result).toMatchObject({ status: "error", error: { code: "request_timeout", category: "transport" } });
     expect(cliFallback.resolveCredential).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("rejects declared and streamed bodies over 262144 bytes", async () => {
