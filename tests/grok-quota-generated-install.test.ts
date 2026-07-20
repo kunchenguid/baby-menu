@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createExtensionDatabase, type ExtensionDatabase } from "../src/main/extension-database";
 import { createServerActionRegistry, type ServerActionRegistry } from "../src/main/server-action-registry";
@@ -767,68 +768,23 @@ describe("clean generated Grok quota installation", () => {
   });
 
   it("does not rethrow macOS EPERM when refresh termination double-signals a dead process group", async () => {
-    // Fixture contract: one hard group-kill, and EPERM only suppressed when no
-    // live owned member remains (never a blanket permission swallow).
     const source = await readFile(fixtureUrl, "utf8");
-    expect(source).toContain("function hasLiveOwnedProcessGroupMember");
-    expect(source).toContain("function signalRefreshProcessGroup");
-    expect(source).toContain("groupKillIssued");
-    expect(source).toContain("hasLiveOwnedProcessGroupMember(pid)");
-    expect(source).toMatch(/error\?\.code === "EPERM"/);
-    const helper = source.slice(
-      source.indexOf("function signalRefreshProcessGroup"),
-      source.indexOf("async function runOfficialRefresh"),
-    );
-    expect(helper).toContain('if (signal === "SIGKILL" && state.groupKillIssued)');
-    expect(helper).toContain('error?.code === "EPERM"');
-    expect(helper).toContain("hasLiveOwnedProcessGroupMember(pid)");
-
     if (process.platform === "win32") return;
 
     const { spawn, spawnSync } = await import("node:child_process");
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-grok-kill-race-"));
+    tempDirs.push(rootDir);
+    const executableFixture = join(rootDir, "server.mjs");
+    await writeFile(executableFixture, `${source}\nexport { signalRefreshProcessGroup };\n`);
+    const fixtureModule = await import(pathToFileURL(executableFixture).href) as {
+      signalRefreshProcessGroup: (
+        pid: number,
+        signal: NodeJS.Signals,
+        state: { groupKillIssued: boolean },
+      ) => void;
+    };
+    const { signalRefreshProcessGroup } = fixtureModule;
 
-    function hasLiveOwnedProcessGroupMember(pgid: number): boolean {
-      if (typeof process.getuid !== "function") return true;
-      const result = spawnSync("/bin/ps", ["-axo", "pgid=,uid=,state="], { encoding: "utf8" });
-      if (result.error || result.status !== 0) return true;
-      const uid = process.getuid();
-      return result.stdout.split("\n").some((line) => {
-        const parts = line.trim().split(/\s+/);
-        if (parts.length < 3) return false;
-        const [rawPgid, rawUid, state] = parts;
-        if (Number(rawPgid) !== pgid || Number(rawUid) !== uid) return false;
-        return !String(state).startsWith("Z");
-      });
-    }
-
-    type KillState = { groupKillIssued: boolean; successfulHardKillPgids: number[] };
-    function signalRefreshProcessGroup(
-      pid: number,
-      signal: NodeJS.Signals,
-      state: KillState,
-      liveOwned: (pgid: number) => boolean = hasLiveOwnedProcessGroupMember,
-    ): void {
-      if (signal === "SIGKILL" && state.groupKillIssued) return;
-      try {
-        process.kill(-pid, signal);
-        if (signal === "SIGKILL") {
-          state.groupKillIssued = true;
-          state.successfulHardKillPgids.push(pid);
-        }
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ESRCH") {
-          if (signal === "SIGKILL") state.groupKillIssued = true;
-          return;
-        }
-        if ((error as NodeJS.ErrnoException).code === "EPERM" && !liveOwned(pid)) {
-          if (signal === "SIGKILL") state.groupKillIssued = true;
-          return;
-        }
-        throw error;
-      }
-    }
-
-    // Pre-fix helper: only ESRCH is swallowed, so macOS EPERM escapes timers/close.
     function signalChildLegacy(pid: number, signal: NodeJS.Signals): void {
       try {
         process.kill(-pid, signal);
@@ -837,45 +793,44 @@ describe("clean generated Grok quota installation", () => {
       }
     }
 
-    // Deterministic contract: when kill(-pgid) yields EPERM and the group has no
-    // live owned member, legacy rethrows (suite-killing) and the fix does not.
-    // Still-live owned groups must keep throwing so we never mask real EPERM.
     const fakePgid = 424242;
-    const originalKill = process.kill.bind(process);
+    const originalKill = process.kill;
     const eperm = Object.assign(new Error("kill EPERM"), { code: "EPERM" }) as NodeJS.ErrnoException;
     (process as NodeJS.Process).kill = ((pid: number, signal?: NodeJS.Signals | number) => {
       if (pid === -fakePgid) throw eperm;
-      return originalKill(pid, signal as NodeJS.Signals);
+      return originalKill.call(process, pid, signal as NodeJS.Signals);
     }) as typeof process.kill;
     try {
       expect(() => signalChildLegacy(fakePgid, "SIGKILL")).toThrow(
         expect.objectContaining({ code: "EPERM" }),
       );
-      const deadGroupState: KillState = { groupKillIssued: false, successfulHardKillPgids: [] };
-      expect(() => signalRefreshProcessGroup(fakePgid, "SIGKILL", deadGroupState, () => false)).not.toThrow();
+      const deadGroupState = { groupKillIssued: false };
+      expect(() => signalRefreshProcessGroup(fakePgid, "SIGKILL", deadGroupState)).not.toThrow();
       expect(deadGroupState.groupKillIssued).toBe(true);
-      expect(deadGroupState.successfulHardKillPgids).toEqual([]);
-      // Second hard kill is a no-op: never touches a recycled pgid.
-      expect(() => signalRefreshProcessGroup(fakePgid, "SIGKILL", deadGroupState, () => false)).not.toThrow();
-
-      const liveGroupState: KillState = { groupKillIssued: false, successfulHardKillPgids: [] };
-      expect(() => signalRefreshProcessGroup(fakePgid, "SIGKILL", liveGroupState, () => true)).toThrow(
-        expect.objectContaining({ code: "EPERM" }),
-      );
-      expect(liveGroupState.groupKillIssued).toBe(false);
+      expect(() => signalRefreshProcessGroup(fakePgid, "SIGKILL", deadGroupState)).not.toThrow();
     } finally {
       process.kill = originalKill;
     }
 
-    async function spawnHangingGroup(script: string, descendantPidPath: string) {
+    type HangingGroup = {
+      child: ReturnType<typeof spawn>;
+      leaderPid: number;
+      descendantPid?: number;
+    };
+    const groups: HangingGroup[] = [];
+
+    async function spawnHangingGroup(script: string, descendantPidPath: string): Promise<HangingGroup> {
       const child = spawn(script, [], {
         detached: true,
+        env: { ...process.env, GROK_TEST_DESCENDANT_PID: descendantPidPath },
         stdio: ["ignore", "pipe", "pipe"] as const,
         shell: false,
       });
       const leaderPid = child.pid;
       expect(leaderPid).toBeTypeOf("number");
       if (!leaderPid) throw new Error("missing leader pid");
+      const group: HangingGroup = { child, leaderPid };
+      groups.push(group);
       let descendantPid = 0;
       await expect.poll(async () => {
         try {
@@ -885,7 +840,8 @@ describe("clean generated Grok quota installation", () => {
           return false;
         }
       }).toBe(true);
-      return { child, leaderPid, descendantPid };
+      group.descendantPid = descendantPid;
+      return group;
     }
 
     function expectProcessGone(pid: number) {
@@ -900,51 +856,81 @@ describe("clean generated Grok quota installation", () => {
       }).toBe(true);
     }
 
-    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-grok-kill-race-"));
-    tempDirs.push(rootDir);
     const script = join(rootDir, "hanging-cli.sh");
-    const descendantPidPath = join(rootDir, "descendant.pid");
     await writeFile(
       script,
       `#!/bin/sh
 trap "" TERM
 (trap "" TERM; while :; do sleep 1; done) &
-printf "%s" "$!" > "${descendantPidPath}"
+printf "%s" "$!" > "$GROK_TEST_DESCENDANT_PID"
 wait
 `,
     );
     await chmod(script, 0o755);
 
-    // Real process groups: fixed helper bounds leaders + descendants without
-    // signaling any pgid other than the one it started.
     const ownedLeaders: number[] = [];
     const ownedDescendants: number[] = [];
-    for (let i = 0; i < 8; i++) {
-      const { child, leaderPid, descendantPid } = await spawnHangingGroup(script, descendantPidPath);
-      ownedLeaders.push(leaderPid);
-      ownedDescendants.push(descendantPid);
+    const hardKillTargets: number[] = [];
+    (process as NodeJS.Process).kill = ((pid: number, signal?: NodeJS.Signals | number) => {
+      if (pid < 0 && signal === "SIGKILL") hardKillTargets.push(-pid);
+      return originalKill.call(process, pid, signal as NodeJS.Signals);
+    }) as typeof process.kill;
+    try {
+      const liveGroup = await spawnHangingGroup(script, join(rootDir, "live-descendant.pid"));
+      const liveEpermKill = process.kill;
+      process.kill = ((pid: number, signal?: NodeJS.Signals | number) => {
+        if (pid === -liveGroup.leaderPid) throw eperm;
+        return liveEpermKill.call(process, pid, signal as NodeJS.Signals);
+      }) as typeof process.kill;
+      const liveState = { groupKillIssued: false };
+      expect(() => signalRefreshProcessGroup(liveGroup.leaderPid, "SIGKILL", liveState)).toThrow(
+        expect.objectContaining({ code: "EPERM" }),
+      );
+      expect(liveState.groupKillIssued).toBe(false);
+      process.kill = liveEpermKill;
 
-      const state: KillState = { groupKillIssued: false, successfulHardKillPgids: [] };
-      expect(() => {
-        signalRefreshProcessGroup(leaderPid, "SIGTERM", state);
-        signalRefreshProcessGroup(leaderPid, "SIGKILL", state);
-        signalRefreshProcessGroup(leaderPid, "SIGKILL", state);
-      }).not.toThrow();
+      for (let i = 0; i < 8; i++) {
+        const descendantPidPath = join(rootDir, `descendant-${i}.pid`);
+        const { child, leaderPid, descendantPid } = await spawnHangingGroup(script, descendantPidPath);
+        if (!descendantPid) throw new Error("missing descendant pid");
+        ownedLeaders.push(leaderPid);
+        ownedDescendants.push(descendantPid);
 
-      child.stdout?.destroy();
-      child.stderr?.destroy();
-      await Promise.race([
-        new Promise<void>((resolve) => child.once("close", () => resolve())),
-        new Promise<void>((resolve) => setTimeout(resolve, 1_000)),
-      ]);
-      expect(() => signalRefreshProcessGroup(leaderPid, "SIGKILL", state)).not.toThrow();
+        const state = { groupKillIssued: false };
+        expect(() => {
+          signalRefreshProcessGroup(leaderPid, "SIGTERM", state);
+          signalRefreshProcessGroup(leaderPid, "SIGKILL", state);
+          signalRefreshProcessGroup(leaderPid, "SIGKILL", state);
+        }).not.toThrow();
 
-      expect(state.groupKillIssued).toBe(true);
-      // At most one successful hard kill, and only against this test's leader.
-      expect(state.successfulHardKillPgids.length).toBeLessThanOrEqual(1);
-      expect(state.successfulHardKillPgids.every((pgid) => pgid === leaderPid)).toBe(true);
-      await expectProcessGone(leaderPid);
-      await expectProcessGone(descendantPid);
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        await Promise.race([
+          new Promise<void>((resolve) => child.once("close", () => resolve())),
+          new Promise<void>((resolve) => setTimeout(resolve, 1_000)),
+        ]);
+        expect(() => signalRefreshProcessGroup(leaderPid, "SIGKILL", state)).not.toThrow();
+        expect(state.groupKillIssued).toBe(true);
+        expect(hardKillTargets.filter((pgid) => pgid === leaderPid)).toHaveLength(1);
+        await expectProcessGone(leaderPid);
+        await expectProcessGone(descendantPid);
+      }
+
+      expect(hardKillTargets.every((pgid) => ownedLeaders.includes(pgid))).toBe(true);
+      expect(new Set(ownedLeaders).size).toBe(ownedLeaders.length);
+      expect(ownedDescendants).toHaveLength(ownedLeaders.length);
+    } finally {
+      process.kill = originalKill;
+      for (const { child, leaderPid } of groups) {
+        try {
+          originalKill.call(process, -leaderPid, "SIGKILL");
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code !== "ESRCH" && code !== "EPERM") throw error;
+        }
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+      }
     }
 
     for (const leaderPid of ownedLeaders) {
@@ -961,9 +947,6 @@ wait
       });
       expect(live).toEqual([]);
     }
-    expect(ownedDescendants).toHaveLength(ownedLeaders.length);
-    // Every hard kill targeted an owned leader from this test, never an outsider.
-    expect(new Set(ownedLeaders).size).toBe(ownedLeaders.length);
   });
 
   it("uses currentPeriod.end and never the monetary billing period reset", async () => {
