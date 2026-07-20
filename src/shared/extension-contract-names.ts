@@ -24,6 +24,13 @@ export const EXTENSION_CONTRACT_NAMES = [
   "BabyMenuDatabase",
   "BabyMenuNotification",
   "BabyMenuBackgroundTask",
+  "BabyMenuKimiQuotaBroker",
+  "KimiQuotaWindow",
+  "KimiQuotaDiagnostic",
+  "KimiQuotaSnapshot",
+  "KimiQuotaErrorCode",
+  "KimiQuotaFailure",
+  "KimiQuotaResult",
   "SqlParams",
   "SqlRunResult",
   // Bridge data shapes widgets receive over window.babyMenu.

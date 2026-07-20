@@ -45,6 +45,7 @@ type CreateServerActionRegistryOptions = {
   cacheDir?: string;
   db?: ExtensionDatabase;
   notify?: ServerActionContext["notify"];
+  kimiQuota?: ServerActionContext["kimiQuota"];
 };
 
 type CreateBackgroundTaskSourceOptions = {
@@ -89,6 +90,7 @@ export function createServerActionRegistry(options: CreateServerActionRegistryOp
         rootDir: options.rootDir,
         db: getDatabase(),
         notify: options.notify ?? (() => undefined),
+        kimiQuota: options.kimiQuota,
       });
     },
   };

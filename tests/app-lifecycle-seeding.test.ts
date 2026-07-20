@@ -85,7 +85,16 @@ vi.mock("../src/main/server-action-registry", () => ({
 vi.mock("../src/main/background-task-scheduler", () => ({
   createBackgroundTaskScheduler: vi.fn(() => ({ start: vi.fn(async () => undefined), stop: vi.fn() })),
 }));
-vi.mock("../src/main/extension-database", () => ({ createExtensionDatabase: vi.fn(() => ({ close: vi.fn() })) }));
+vi.mock("../src/main/extension-database", () => ({
+  createExtensionDatabase: vi.fn(() => ({
+    query: vi.fn(() => []),
+    get: vi.fn(),
+    run: vi.fn(() => ({ changes: 0, lastInsertRowid: 0 })),
+    exec: vi.fn(),
+    transaction: vi.fn((fn: () => unknown) => fn()),
+    close: vi.fn(),
+  })),
+}));
 vi.mock("../src/main/notifier", () => ({ createNotifier: vi.fn(() => vi.fn()) }));
 vi.mock("../src/main/update-checker", () => ({
   createUpdateChecker: vi.fn(() => ({ getStatus: vi.fn(), openReleasePage: vi.fn() })),

@@ -18,7 +18,14 @@ export default defineConfig({
         // typescript + the Tailwind compiler are imported at runtime by the
         // extension/widget compile path, so they stay external (resolved from
         // node_modules in the packaged app) rather than bundled.
-        external: ["electron", "typescript", "tailwindcss", "@tailwindcss/postcss", "postcss"],
+        external: [
+          "electron",
+          "typescript",
+          "tailwindcss",
+          "@tailwindcss/postcss",
+          "postcss",
+          "@earendil-works/pi-coding-agent",
+        ],
         input: {
           index: resolve(__dirname, "src/main/app.ts"),
         },

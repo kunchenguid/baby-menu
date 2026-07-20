@@ -31,6 +31,12 @@ function prepareDevExtensions({ rootDir, devExtensionsDir, mkdirSyncFn, copyFile
   copyFileSyncFn(join(rootDir, "extensions", "AGENTS.md"), join(devExtensionsDir, "AGENTS.md"));
   copyFileSyncFn(join(rootDir, "extensions", "babymenu-env.d.ts"), join(devExtensionsDir, "babymenu-env.d.ts"));
   cpSyncFn(join(rootDir, "extensions", "recipes"), join(devExtensionsDir, "recipes"), { recursive: true });
+  // Kimi quota is a managed first-class extension, like the packaged defaults.
+  // Refresh the dev copy from source on launch so the real popover exercises it.
+  cpSyncFn(join(rootDir, "extensions", "kimi-code-quota"), join(devExtensionsDir, "kimi-code-quota"), {
+    recursive: true,
+    force: true,
+  });
 }
 
 export function runDev({

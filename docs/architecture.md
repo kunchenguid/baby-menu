@@ -20,6 +20,7 @@ For the at-a-glance picture, see the "How It Works" diagram in the [README](../R
 | Custom layouts | An optional root `layout.tsx` arranges the popover canvas. Without it, widgets stack in a column. |
 | Settings sections | Extensions export `BabyMenuSettingsSection` from `widget.tsx`; the host frames each body. |
 | Server actions | Privileged work (shell, network, credentials) lives in `<extension-id>/server.ts`, called via `window.babyMenu.capabilities.invoke(...)`. No per-widget IPC. |
+| Fixed host brokers | Narrow privileged operations can be exposed only to server code. `context.kimiQuota` resolves Pi's `kimi-coding` API key and returns normalized quota without exposing general Pi SDK access. |
 | Local storage | A shared SQLite store: `context.db` server-side, `window.babyMenu.db` in the renderer. Use it for anything that must survive reloads. |
 | Stable contracts | Extensions import host types with type-only `import ... from "@babymenu/contracts"`, shipped into each workspace. |
 
@@ -27,10 +28,12 @@ Recipes for live or system data are also verification contracts.
 They tell the agent to inspect the actual named source before writing parser or renderer code, avoid guessed field names and response shapes, and verify the finished server action or widget against that same live source before reporting done.
 The bundled quota recipe set covers Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
 Provider-specific acquisition and refresh contracts live in the matching recipe.
+Kimi Code quota ships directly as the managed `extensions/kimi-code-quota` extension. Its host broker fixes the origin and operation, enforces transport/parser/cache bounds, coalesces requests, and persists only normalized non-secret results in `kimi_quota_cache`.
 
 **Background vs view refresh.**
 `refreshView` / `viewRefreshIntervalMs` keeps a visible widget current and pauses while the popover is hidden.
 `export const background` in `server.ts` runs on a host-owned timer (60-second minimum) for work that must continue while the popover is closed.
+The managed Kimi widget uses a five-minute `runOnStart` background task and asks the same single-flight broker to refresh on popover open only when the last success is older than 60 seconds; it owns no renderer timer.
 
 **Module lifetime.**
 An unchanged `server.ts` module instance stays alive across invokes and background ticks, so module-scope values are only an ephemeral cache - they reset on code edits or app restarts.

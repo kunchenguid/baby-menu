@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "0.21.1",
+    "@earendil-works/pi-coding-agent": "0.80.3",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-progress": "^1.1.8",
@@ -56,8 +57,8 @@
     "acp-mock": "1.1.0",
     "electron": "42.2.0",
     "electron-builder": "26.8.2",
-    "esbuild": "0.28.0",
     "electron-vite": "5.0.0",
+    "esbuild": "0.28.0",
     "jsdom": "29.1.1",
     "vite": "8.0.13",
     "vitest": "4.1.6"

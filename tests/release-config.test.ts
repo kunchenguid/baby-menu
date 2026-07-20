@@ -12,6 +12,7 @@ describe("distribution config", () => {
     expect(packageJson.scripts?.["package:mac"]).toContain("electron-builder --mac dir --universal");
     expect(packageJson.scripts?.["dist:mac"]).toContain("scripts/create-dmg.mjs");
     expect(packageJson.dependencies?.typescript).toBe("6.0.3");
+    expect(packageJson.dependencies?.["@earendil-works/pi-coding-agent"]).toMatch(/^\d+\.\d+\.\d+$/);
     expect(packageJson.devDependencies?.["electron-builder"]).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
@@ -41,6 +42,8 @@ describe("distribution config", () => {
     expect(config).toContain("appId: com.kunchenguid.baby-menu");
     expect(config).toContain("to: extensions-template");
     expect(config).toContain("babymenu-env.d.ts");
+    expect(config).toContain("kimi-code-quota/**");
+    expect(config).toContain("@earendil-works/pi-tui/**");
     expect(config).toContain("to: tray");
     expect(config).toContain("baby_menuTemplate*.png");
     expect(config).toContain("identity: null");

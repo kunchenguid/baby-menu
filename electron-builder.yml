@@ -17,6 +17,7 @@ extraResources:
       - babymenu-env.d.ts
       - recipes/**
       - hello-world/**
+      - kimi-code-quota/**
   - from: assets/tray
     to: tray
     filter:
@@ -36,7 +37,7 @@ mac:
   identity: null
   hardenedRuntime: false
   gatekeeperAssess: false
-  x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/{@esbuild/**,esbuild/**,@tailwindcss/oxide-*/**,lightningcss-*/**,lightningcss/**}
+  x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/{@esbuild/**,esbuild/**,@tailwindcss/oxide-*/**,lightningcss-*/**,lightningcss/**,@earendil-works/pi-tui/**}
 
 dmg:
   artifactName: Baby-Menu-${version}-universal.dmg

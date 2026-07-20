@@ -90,6 +90,10 @@ describe("dev launcher", () => {
       source: join("/repo", "extensions", "recipes"),
       destination: join("/repo", "extensions-dev", "recipes"),
     });
+    expect(harness.copiedDirectories).toContainEqual({
+      source: join("/repo", "extensions", "kimi-code-quota"),
+      destination: join("/repo", "extensions-dev", "kimi-code-quota"),
+    });
     expect(harness.execCalls).toEqual([
       { command: "git", args: ["rev-parse", "--show-toplevel"], cwd: "/repo" },
       { command: "node", args: ["scripts/build-adapters.mjs"], cwd: "/repo" },
@@ -126,6 +130,10 @@ describe("dev launcher", () => {
     expect(harness.copiedDirectories).toContainEqual({
       source: join("/repo", "extensions", "recipes"),
       destination: join("/tmp/baby-menu-dev-extensions", "recipes"),
+    });
+    expect(harness.copiedDirectories).toContainEqual({
+      source: join("/repo", "extensions", "kimi-code-quota"),
+      destination: join("/tmp/baby-menu-dev-extensions", "kimi-code-quota"),
     });
     expect(harness.spawnCalls[0]?.env).toEqual(expect.objectContaining({
       [EXTENSIONS_DIR_ENV]: "/tmp/baby-menu-dev-extensions",

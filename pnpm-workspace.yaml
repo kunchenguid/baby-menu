@@ -1,7 +1,9 @@
 allowBuilds:
+  '@google/genai': false
   electron: true
   electron-winstaller: false
   esbuild: true
+  protobufjs: false
 
 overrides:
   postcss: ^8.5.15

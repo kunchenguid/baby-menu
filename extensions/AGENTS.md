@@ -55,6 +55,7 @@ When you need current details about a dependency, CLI, local credential layout, 
 Common recipes live in `recipes/*.html` inside this extension workspace.
 Bundled quota recipes currently cover Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
 Cursor, GitHub Copilot, and Grok quota recipes avoid `quota-axi` or similar helper CLIs; follow each recipe as the authoritative provider-owned state, API, and credential-refresh contract.
+Kimi Code quota is different: `kimi-code-quota` is a host-managed extension whose server action calls the fixed `context.kimiQuota` operation. Do not replace that operation with Pi SDK imports, direct auth-file access, Kimi CLI/browser auth, or renderer network calls.
 Read the matching recipe before implementing a widget that's relevant.
 Recipes are self-contained specs for the embedded agent and should be treated as technical reference.
 
@@ -389,11 +390,12 @@ When a product-native client owns credential refresh or selection, a local expir
 Carry structured failures through to accurate renderer copy, and preserve last-good data as visibly stale during refresh, launch, connectivity, rate-limit, service, and parser failures.
 
 Each action receives `(input, context)`.
-The `context` is `{ rootDir, db, notify }`:
+The `context` is `{ rootDir, db, notify, kimiQuota? }`:
 
 - `rootDir` is Baby Menu's app-data root, used for host-owned runtime state such as caches and local storage.
 - `db` is the shared SQL store (see "Storage").
 - `notify({ title, body })` shows a native system notification.
+- `kimiQuota.acquire(...)` is the optional fixed-operation Kimi Code quota broker. It returns only normalized non-secret quota state and must not be generalized into arbitrary Pi/provider access.
 
 ### Module-scope state in server.ts is not durable
 
