@@ -66,7 +66,17 @@ Applies to any packaged artifact (NSIS **or** portable): both run with `app.isPa
 - [ ] If `claude`, `codex`, or another catalog agent is installed and on the user PATH, open Settings and confirm the agent shows as available (or a turn can start).
 - [ ] If no agent CLI is installed, skip - CI images often lack them; PATH merge is still covered by unit tests.
 
-### 8. PR via **no-mistakes** (not the overnight loop)
+### 8. Optional: WSL agent mode (skip if WSL is not installed)
+
+Skip this entire section when WSL is not available on the machine. Details: [configuration.md](./configuration.md#wsl-mode-windows).
+
+- [ ] Open **Settings** and enable **Run agents via WSL**.
+- [ ] Confirm the distro field shows a sensible default (empty normalizes to **Ubuntu**) or pick an installed distro you use for agents.
+- [ ] Confirm a catalog agent (e.g. `claude`, `codex`, or `grok`) probes as available **inside** that distro (`command -v` via WSL), not only on the Windows host PATH.
+- [ ] Start one short turn (e.g. ask for a trivial widget tweak) and confirm the agent responds without host-only auth errors.
+- [ ] Remember credentials are **distro-local**: sign in inside the selected distro (`wsl -d <distro> -- claude` / `codex login` / `grok`) if the agent is missing or unauthenticated there. Host Windows installs are not used when WSL mode is on.
+
+### 9. PR via **no-mistakes** (not the overnight loop)
 
 - [ ] Do **not** merge to upstream `main` from the implement loop or from ad-hoc automation.
 - [ ] Open the human PR through **[`no-mistakes`](../CONTRIBUTING.md)** per `CONTRIBUTING.md` (signature required on PRs targeting `main`).
@@ -82,6 +92,7 @@ Applies to any packaged artifact (NSIS **or** portable): both run with `app.isPa
 | Popover | Opens on click; blur hides it |
 | Login item | Works when packaged (NSIS or portable); N/A for source/dev only |
 | Agent PATH | Optional; only if a CLI is present |
+| WSL mode | Optional; enable → distro → probe → one turn; credentials distro-local |
 | PR process | Human + no-mistakes; loop never merges `main` |
 
 ## Related

@@ -183,7 +183,7 @@ describe("shell-path Windows merge (G05)", () => {
     );
   });
 
-  it("resolves current path from Path then PATH; empty Path wins over PATH via ??", () => {
+  it("resolves current path from Path then PATH; empty Path falls through to PATH", () => {
     expect(
       mergeShellPath({
         platform: "win32",
@@ -200,11 +200,20 @@ describe("shell-path Windows merge (G05)", () => {
       }),
     ).toBe("C:\\FromPATHOnly");
 
-    // Empty string is not nullish, so ?? does not fall through to PATH.
+    // Empty Path must not wipe process PATH (some hosts set Path="").
     expect(
       mergeShellPath({
         platform: "win32",
-        env: { Path: "", PATH: "C:\\WouldBeIgnored" },
+        env: { Path: "", PATH: "C:\\FromPATH" },
+        pathExists: () => false,
+      }),
+    ).toBe("C:\\FromPATH");
+
+    // Both empty still yields empty (common dirs may still merge when present).
+    expect(
+      mergeShellPath({
+        platform: "win32",
+        env: { Path: "", PATH: "" },
         pathExists: () => false,
       }),
     ).toBe("");

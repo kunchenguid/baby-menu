@@ -62,6 +62,16 @@ function pathDelimiterFor(platform: NodeJS.Platform, override?: string): string 
 }
 
 /**
+ * Prefer non-empty `Path`, then non-empty `PATH`.
+ * Empty string must not shadow a populated sibling (GUI hosts sometimes set Path="").
+ */
+function firstNonEmptyEnvPath(env: NodeJS.ProcessEnv): string | undefined {
+  if (env.Path) return env.Path;
+  if (env.PATH) return env.PATH;
+  return undefined;
+}
+
+/**
  * Expand `%NAME%` tokens against env (case-insensitive key lookup).
  * Unknown tokens are left unchanged. Used for REG_EXPAND_SZ Path values from `reg query`.
  */
@@ -183,8 +193,8 @@ export function mergeShellPath(options: MergeShellPathOptions = {}): string {
 
   if (platform === "win32") {
     const env = options.env ?? process.env;
-    // `??` only falls through null/undefined — an empty Path string wins over PATH.
-    const currentPath = options.currentPath ?? env.Path ?? env.PATH ?? "";
+    // Treat empty Path as missing so a populated PATH is used (some hosts set Path="").
+    const currentPath = options.currentPath ?? firstNonEmptyEnvPath(env) ?? "";
     const pathExists = options.pathExists ?? existsSync;
     const commonCandidates = options.commonDirs ?? windowsCommonCliDirs(env, homeDir);
     const presentCommon = commonCandidates.filter((dir) => pathExists(dir));
@@ -235,8 +245,8 @@ export function expandProcessPathForGuiLaunch(options: ExpandProcessPathOptions 
   const env = options.env ?? process.env;
 
   if (platform === "win32") {
-    // `??` only falls through null/undefined — an empty Path string wins over PATH.
-    const currentPath = env.Path ?? env.PATH ?? "";
+    // Treat empty Path as missing so a populated PATH is used (some hosts set Path="").
+    const currentPath = firstNonEmptyEnvPath(env) ?? "";
     const registryPathSegments =
       options.readRegistryPathSegments?.() ??
       readWindowsRegistryPathSegments({ platform: "win32" });

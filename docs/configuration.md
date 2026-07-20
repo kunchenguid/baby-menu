@@ -36,9 +36,11 @@ On Windows, Settings can enable **Run agents via WSL**. When on:
 - Claude/Codex adapters still start as host Node processes; they spawn the nested CLI via WSL and pass `BABY_MENU_AGENT_RUNTIME=wsl` / `BABY_MENU_WSL_DISTRO=<distro>`.
 - The extension workspace stays on the Windows host (`~/.baby-menu/extensions`). Node/acpx always use a Windows host path for spawn and ACP session cwd (so `path.resolve` never sees `/mnt/...`). Linux process cwd inside the distro comes from wrap-script `cd '/mnt/<drive>/…'` (pure-ACP launches and adapter CLI spawns) and from WSL inheriting the Windows spawn directory.
 - **Credentials are distro-local.** Host Windows installs of `claude` / `codex` / `grok` and their auth stores are not used when WSL mode is on. Sign in inside the selected distro (for example `wsl -d Ubuntu -- claude` / `codex login` / `grok`) before expecting turns to succeed.
+- **Host environment may be visible in WSL.** Windows-spawned `wsl` children can inherit host process env vars (API keys, tokens, `PATH`, etc.). Prefer distro-local credentials and avoid relying on host secrets for agent auth. Baby Menu does not fully filter the host env matrix for every WSL child.
 
-Default distro is `Ubuntu` (letters, numbers, `.`, `-`, `_` only). WSL mode has no effect on macOS or Linux builds.
-Settings refuses mode/distro changes while an agent turn is running or Keep/Undo is pending.
+Default distro is `Ubuntu` (letters, numbers, `.`, `-`, `_` only). An empty or whitespace-only distro preference **normalizes to `Ubuntu`**. WSL mode has no effect on macOS or Linux builds.
+
+**Session reset on mode/distro change:** toggling WSL mode or changing the selected distro discards the active agent conversation / runtime session for that agent so the next turn starts cleanly against the new host-vs-WSL target. Settings confirms before applying when a conversation would be reset, and refuses mode/distro changes while an agent turn is running or Keep/Undo is pending.
 
 ### Codex model exception
 
