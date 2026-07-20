@@ -161,7 +161,7 @@ describe("Kimi quota broker transport and privacy", () => {
   it("enforces the total deadline without switching credentials after cancellation", async () => {
     let finishPrimary: ((resolution: { status: "unavailable" }) => void) | undefined;
     const primary: KimiCredentialResolver = {
-      resolveCredential: vi.fn(() => new Promise((resolve) => {
+      resolveCredential: vi.fn(() => new Promise<{ status: "unavailable" }>((resolve) => {
         finishPrimary = resolve;
       })),
     };

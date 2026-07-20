@@ -202,7 +202,7 @@ describe("Kimi credential source precedence", () => {
     const controller = new AbortController();
     let finishPi: ((resolution: { status: "unavailable" }) => void) | undefined;
     const pi: KimiCredentialResolver = {
-      resolveCredential: vi.fn(() => new Promise((resolve) => {
+      resolveCredential: vi.fn(() => new Promise<{ status: "unavailable" }>((resolve) => {
         finishPi = resolve;
       })),
     };

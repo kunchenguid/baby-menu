@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Baby Menu Kimi CLI quota evidence</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --color-surface: #111111;
+      --color-ink: #f7f7f5;
+      --color-muted: #a8a8a2;
+      --color-line: #343431;
+      --color-signal-live: #78d68b;
+      --text-micro: 0.6875rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#ecebe6] p-8 text-[#111]">
+  <main class="mx-auto grid max-w-4xl gap-6 md:grid-cols-[360px_1fr]">
+    <section class="rounded-[28px] bg-surface p-6 text-ink shadow-2xl" aria-label="Rendered Kimi Code widget">
+      <div class="flex min-w-0 flex-col gap-3" data-kimi-quota-state="fresh"><div class="flex min-w-0 items-center justify-between gap-3"><span class="truncate text-xxs uppercase tracking-caps text-ink-label">Kimi Code</span><span class="flex shrink-0 items-center gap-1.5 text-xxs uppercase tracking-caps text-signal-live" aria-live="polite"><span data-slot="status-dot" aria-hidden="true" class="inline-block size-1.5 rounded-full bg-signal-live shadow-[0_0_6px_currentColor] text-signal-live"></span>fresh</span></div><div class="flex flex-col gap-3"><div class="flex min-w-0 flex-col gap-2 " data-testid="kimi-quota-window"><div class="flex min-w-0 items-baseline justify-between gap-3"><span class="truncate text-xs uppercase tracking-caps text-ink-muted">5H</span><span class="shrink-0 text-xl font-light tracking-value text-ink-strong">76<span class="ml-0.5 text-xs text-ink-soft">%</span></span></div><div aria-valuemax="100" aria-valuemin="0" aria-valuenow="76" aria-valuetext="76%" role="progressbar" data-state="loading" data-value="76" data-max="100" data-slot="progress" class="h-px w-full overflow-hidden bg-line-faint" aria-label="5H 76% remaining"><div data-state="loading" data-value="76" data-max="100" data-slot="progress-indicator" class="h-full transition-[width] duration-300 bg-signal-live" style="width:76%"></div></div><div class="flex min-w-0 items-center justify-between gap-3 text-xxs text-ink-label"><span class="truncate">resets in 5h</span><span class="shrink-0">remaining</span></div></div><div class="flex min-w-0 flex-col gap-2 border-t border-line-faint pt-3" data-testid="kimi-quota-window"><div class="flex min-w-0 items-baseline justify-between gap-3"><span class="truncate text-xs uppercase tracking-caps text-ink-muted">7D</span><span class="shrink-0 text-xl font-light tracking-value text-ink-strong">75<span class="ml-0.5 text-xs text-ink-soft">%</span></span></div><div aria-valuemax="100" aria-valuemin="0" aria-valuenow="75" aria-valuetext="75%" role="progressbar" data-state="loading" data-value="75" data-max="100" data-slot="progress" class="h-px w-full overflow-hidden bg-line-faint" aria-label="7D 75% remaining"><div data-state="loading" data-value="75" data-max="100" data-slot="progress-indicator" class="h-full transition-[width] duration-300 bg-signal-live" style="width:75%"></div></div><div class="flex min-w-0 items-center justify-between gap-3 text-xxs text-ink-label"><span class="truncate">resets in 7d</span><span class="shrink-0">remaining</span></div></div></div><div class="flex min-w-0 items-center justify-between gap-3 text-xxs text-ink-label"><span class="truncate">last sync now</span><span class="shrink-0 uppercase tracking-caps text-ink-soft">API</span></div></div>
+    </section>
+    <section class="rounded-[28px] border border-[#cbc9c0] bg-white p-7 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-[0.16em] text-[#737168]">End-to-end evidence</p>
+      <h1 class="mt-2 text-2xl font-semibold">Official CLI fallback reached the real widget path</h1>
+      <dl class="mt-6 grid gap-4 text-sm">
+        <div><dt class="text-[#737168]">Credential source crossing the boundary</dt><dd class="mt-1 font-mono">kimi-code-cli</dd></div>
+        <div><dt class="text-[#737168]">Fixed host request</dt><dd class="mt-1 break-all font-mono">GET https://api.kimi.com/coding/v1/usages</dd></div>
+        <div><dt class="text-[#737168]">Normalized result</dt><dd class="mt-1">Five-hour quota 24% used, weekly quota 25% used</dd></div>
+        <div><dt class="text-[#737168]">Privacy assertion</dt><dd class="mt-1">Sensitive credential material and raw provider data are absent from widget, cache, and logs.</dd></div>
+      </dl>
+    </section>
+  </main>
+</body>
+</html>
