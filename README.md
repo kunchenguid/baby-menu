@@ -51,11 +51,11 @@ Open the popover header to reload the layout, reach Settings (an overlay that pr
 Reloading the layout remounts the widget canvas and root layout while preserving the agent conversation and Settings state.
 Settings lets you toggle launch-at-login, pick the embedded agent, and manage custom ACP agents.
 
-A managed Kimi Code widget is included. It reads five-hour, weekly, and future quota windows through Pi's supported `kimi-coding` API-key resolution, refreshes on a host-owned cadence, and sends only normalized non-secret percentages and reset times to the renderer.
+A managed Kimi Code widget is included for users already authenticated with Kimi Code through Pi. It shows the five-hour quota before the weekly quota, followed by any additional reported windows, and refreshes automatically.
 
 ## Install Details
 
-The packaged app stores extensions, the local database, caches, agent sessions, and preferences under `~/.baby-menu`, so upgrades preserve generated widgets and extension state.
+The packaged app stores extensions, the local database, caches, agent sessions, and preferences under `~/.baby-menu`, so upgrades preserve user-created widgets and extension state. Baby Menu refreshes its managed defaults, including the Kimi Code widget, from the release on each launch.
 If `~/.baby-menu/extensions` is a symlink, Baby Menu seeds bundled defaults and compiles widget or layout CSS from the resolved writable target while leaving the symlink itself in place.
 
 Update with Homebrew:

@@ -23,7 +23,7 @@ export async function seedExtensionWorkspace(options: SeedExtensionWorkspaceOpti
   try {
     await mkdir(target, { recursive: true });
     // Self-heal the bundled defaults: every file the template ships (AGENTS.md,
-    // babymenu-env.d.ts, recipes, starter extensions) is force-copied so a stale
+    // babymenu-env.d.ts, recipes, managed extensions) is force-copied so a stale
     // or edited managed file is restored on launch. cp only writes paths present
     // in the template, so user-created extensions the template does not ship are
     // left untouched and are never deleted.
