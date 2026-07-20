@@ -1,0 +1,710 @@
+focused regression run 1/10
+Already up to date
+Done in 162ms using pnpm v11.1.1
+Already up to date
+Done in 160ms using pnpm v11.1.1
+
+ RUN  v4.1.6 /Users/kunchen/.no-mistakes/worktrees/dfc47b02954f/01KY0VPMRYSTQ11GPDSC40TRYT
+
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > calls the exact bounded consumer gRPC-web operation without mutation headers or account data
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one provider request after local-expiry refresh even when it fails transiently
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one HTTP 401, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one gRPC unauthenticated, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one credential-classified gRPC permission failure, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one post-refresh transport attempt while ordinary transient acquisition retains one retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never runs the conditional refresh for a healthy successful bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not refresh a healthy bearer after HTTP 403
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > contains no direct OAuth, browser-cookie, proxy, or client-mode runtime path
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > prefers a current OIDC principal and falls back from a partial OIDC entry to legacy
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses ambiguous winning-class principals before any provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses a refreshed principal change before a gRPC retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good cache when conditional official refresh fails
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > bounds refresh termination when a descendant keeps inherited stdio open
+ ✓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not rethrow macOS EPERM when refresh termination double-signals a dead process group 775ms
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses currentPeriod.end and never the monetary billing period reset
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never turns monetary monthly spend into a quota percentage
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > accepts the bounded raw protobuf form and retries one transient response only
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 9 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 7 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects compressed frames and non-credential gRPC header errors before protobuf parsing
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > enforces one whole-request timeout without a second provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > reports exact source unavailable instead of falling back to CLI billing or monetary math
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during connectivity failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during parser failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during rate limit failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during service failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces the fabricated legacy row only after exact-source success
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unversioned cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a legacy version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a future version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong source cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong operation cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a different principal cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing percentage provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a percentage field mismatch cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a reset field without reset value cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing credits provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a duplicate product provenance index cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a gapped product provenance indexes cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > renders fresh unbound data but never writes or reuses a persistent cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves a trusted current-schema row byte-for-byte during a transient failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > writes schema 2 with exact operation, period, global, product, reset, and credit provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > applies protobuf scalar zero semantics only on the exact consumer operation
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > decodes an omitted product enum as UNSPECIFIED with indexed cache provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces an old reported snapshot when the exact source later reports proto3 zero
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good bytes during a transient transport failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects a response above 64 KiB without exposing or parsing its body
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > single-flights repeated manual and startup-equivalent refresh calls
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 56 skipped (57)
+   Start at  15:58:53
+   Duration  1.12s (transform 112ms, setup 0ms, import 276ms, tests 776ms, environment 0ms)
+
+focused regression run 2/10
+Already up to date
+Done in 162ms using pnpm v11.1.1
+Already up to date
+Done in 163ms using pnpm v11.1.1
+
+ RUN  v4.1.6 /Users/kunchen/.no-mistakes/worktrees/dfc47b02954f/01KY0VPMRYSTQ11GPDSC40TRYT
+
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > calls the exact bounded consumer gRPC-web operation without mutation headers or account data
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one provider request after local-expiry refresh even when it fails transiently
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one HTTP 401, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one gRPC unauthenticated, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one credential-classified gRPC permission failure, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one post-refresh transport attempt while ordinary transient acquisition retains one retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never runs the conditional refresh for a healthy successful bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not refresh a healthy bearer after HTTP 403
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > contains no direct OAuth, browser-cookie, proxy, or client-mode runtime path
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > prefers a current OIDC principal and falls back from a partial OIDC entry to legacy
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses ambiguous winning-class principals before any provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses a refreshed principal change before a gRPC retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good cache when conditional official refresh fails
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > bounds refresh termination when a descendant keeps inherited stdio open
+ ✓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not rethrow macOS EPERM when refresh termination double-signals a dead process group 784ms
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses currentPeriod.end and never the monetary billing period reset
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never turns monetary monthly spend into a quota percentage
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > accepts the bounded raw protobuf form and retries one transient response only
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 9 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 7 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects compressed frames and non-credential gRPC header errors before protobuf parsing
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > enforces one whole-request timeout without a second provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > reports exact source unavailable instead of falling back to CLI billing or monetary math
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during connectivity failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during parser failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during rate limit failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during service failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces the fabricated legacy row only after exact-source success
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unversioned cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a legacy version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a future version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong source cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong operation cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a different principal cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing percentage provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a percentage field mismatch cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a reset field without reset value cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing credits provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a duplicate product provenance index cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a gapped product provenance indexes cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > renders fresh unbound data but never writes or reuses a persistent cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves a trusted current-schema row byte-for-byte during a transient failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > writes schema 2 with exact operation, period, global, product, reset, and credit provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > applies protobuf scalar zero semantics only on the exact consumer operation
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > decodes an omitted product enum as UNSPECIFIED with indexed cache provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces an old reported snapshot when the exact source later reports proto3 zero
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good bytes during a transient transport failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects a response above 64 KiB without exposing or parsing its body
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > single-flights repeated manual and startup-equivalent refresh calls
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 56 skipped (57)
+   Start at  15:58:55
+   Duration  1.13s (transform 116ms, setup 0ms, import 280ms, tests 785ms, environment 0ms)
+
+focused regression run 3/10
+Already up to date
+Done in 165ms using pnpm v11.1.1
+Already up to date
+Done in 168ms using pnpm v11.1.1
+
+ RUN  v4.1.6 /Users/kunchen/.no-mistakes/worktrees/dfc47b02954f/01KY0VPMRYSTQ11GPDSC40TRYT
+
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > calls the exact bounded consumer gRPC-web operation without mutation headers or account data
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one provider request after local-expiry refresh even when it fails transiently
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one HTTP 401, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one gRPC unauthenticated, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one credential-classified gRPC permission failure, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one post-refresh transport attempt while ordinary transient acquisition retains one retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never runs the conditional refresh for a healthy successful bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not refresh a healthy bearer after HTTP 403
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > contains no direct OAuth, browser-cookie, proxy, or client-mode runtime path
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > prefers a current OIDC principal and falls back from a partial OIDC entry to legacy
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses ambiguous winning-class principals before any provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses a refreshed principal change before a gRPC retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good cache when conditional official refresh fails
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > bounds refresh termination when a descendant keeps inherited stdio open
+ ✓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not rethrow macOS EPERM when refresh termination double-signals a dead process group 789ms
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses currentPeriod.end and never the monetary billing period reset
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never turns monetary monthly spend into a quota percentage
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > accepts the bounded raw protobuf form and retries one transient response only
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 9 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 7 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects compressed frames and non-credential gRPC header errors before protobuf parsing
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > enforces one whole-request timeout without a second provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > reports exact source unavailable instead of falling back to CLI billing or monetary math
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during connectivity failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during parser failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during rate limit failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during service failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces the fabricated legacy row only after exact-source success
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unversioned cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a legacy version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a future version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong source cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong operation cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a different principal cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing percentage provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a percentage field mismatch cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a reset field without reset value cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing credits provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a duplicate product provenance index cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a gapped product provenance indexes cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > renders fresh unbound data but never writes or reuses a persistent cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves a trusted current-schema row byte-for-byte during a transient failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > writes schema 2 with exact operation, period, global, product, reset, and credit provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > applies protobuf scalar zero semantics only on the exact consumer operation
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > decodes an omitted product enum as UNSPECIFIED with indexed cache provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces an old reported snapshot when the exact source later reports proto3 zero
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good bytes during a transient transport failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects a response above 64 KiB without exposing or parsing its body
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > single-flights repeated manual and startup-equivalent refresh calls
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 56 skipped (57)
+   Start at  15:58:57
+   Duration  1.16s (transform 118ms, setup 0ms, import 297ms, tests 790ms, environment 0ms)
+
+focused regression run 4/10
+Already up to date
+Done in 169ms using pnpm v11.1.1
+Already up to date
+Done in 194ms using pnpm v11.1.1
+
+ RUN  v4.1.6 /Users/kunchen/.no-mistakes/worktrees/dfc47b02954f/01KY0VPMRYSTQ11GPDSC40TRYT
+
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > calls the exact bounded consumer gRPC-web operation without mutation headers or account data
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one provider request after local-expiry refresh even when it fails transiently
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one HTTP 401, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one gRPC unauthenticated, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one credential-classified gRPC permission failure, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one post-refresh transport attempt while ordinary transient acquisition retains one retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never runs the conditional refresh for a healthy successful bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not refresh a healthy bearer after HTTP 403
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > contains no direct OAuth, browser-cookie, proxy, or client-mode runtime path
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > prefers a current OIDC principal and falls back from a partial OIDC entry to legacy
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses ambiguous winning-class principals before any provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses a refreshed principal change before a gRPC retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good cache when conditional official refresh fails
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > bounds refresh termination when a descendant keeps inherited stdio open
+ ✓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not rethrow macOS EPERM when refresh termination double-signals a dead process group 808ms
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses currentPeriod.end and never the monetary billing period reset
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never turns monetary monthly spend into a quota percentage
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > accepts the bounded raw protobuf form and retries one transient response only
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 9 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 7 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects compressed frames and non-credential gRPC header errors before protobuf parsing
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > enforces one whole-request timeout without a second provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > reports exact source unavailable instead of falling back to CLI billing or monetary math
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during connectivity failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during parser failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during rate limit failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during service failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces the fabricated legacy row only after exact-source success
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unversioned cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a legacy version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a future version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong source cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong operation cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a different principal cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing percentage provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a percentage field mismatch cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a reset field without reset value cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing credits provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a duplicate product provenance index cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a gapped product provenance indexes cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > renders fresh unbound data but never writes or reuses a persistent cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves a trusted current-schema row byte-for-byte during a transient failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > writes schema 2 with exact operation, period, global, product, reset, and credit provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > applies protobuf scalar zero semantics only on the exact consumer operation
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > decodes an omitted product enum as UNSPECIFIED with indexed cache provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces an old reported snapshot when the exact source later reports proto3 zero
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good bytes during a transient transport failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects a response above 64 KiB without exposing or parsing its body
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > single-flights repeated manual and startup-equivalent refresh calls
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 56 skipped (57)
+   Start at  15:58:59
+   Duration  1.19s (transform 127ms, setup 0ms, import 310ms, tests 809ms, environment 0ms)
+
+focused regression run 5/10
+Already up to date
+Done in 182ms using pnpm v11.1.1
+Already up to date
+Done in 179ms using pnpm v11.1.1
+
+ RUN  v4.1.6 /Users/kunchen/.no-mistakes/worktrees/dfc47b02954f/01KY0VPMRYSTQ11GPDSC40TRYT
+
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > calls the exact bounded consumer gRPC-web operation without mutation headers or account data
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one provider request after local-expiry refresh even when it fails transiently
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one HTTP 401, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one gRPC unauthenticated, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one credential-classified gRPC permission failure, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one post-refresh transport attempt while ordinary transient acquisition retains one retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never runs the conditional refresh for a healthy successful bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not refresh a healthy bearer after HTTP 403
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > contains no direct OAuth, browser-cookie, proxy, or client-mode runtime path
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > prefers a current OIDC principal and falls back from a partial OIDC entry to legacy
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses ambiguous winning-class principals before any provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses a refreshed principal change before a gRPC retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good cache when conditional official refresh fails
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > bounds refresh termination when a descendant keeps inherited stdio open
+ ✓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not rethrow macOS EPERM when refresh termination double-signals a dead process group 797ms
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses currentPeriod.end and never the monetary billing period reset
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never turns monetary monthly spend into a quota percentage
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > accepts the bounded raw protobuf form and retries one transient response only
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 9 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 7 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects compressed frames and non-credential gRPC header errors before protobuf parsing
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > enforces one whole-request timeout without a second provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > reports exact source unavailable instead of falling back to CLI billing or monetary math
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during connectivity failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during parser failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during rate limit failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during service failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces the fabricated legacy row only after exact-source success
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unversioned cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a legacy version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a future version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong source cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong operation cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a different principal cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing percentage provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a percentage field mismatch cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a reset field without reset value cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing credits provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a duplicate product provenance index cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a gapped product provenance indexes cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > renders fresh unbound data but never writes or reuses a persistent cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves a trusted current-schema row byte-for-byte during a transient failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > writes schema 2 with exact operation, period, global, product, reset, and credit provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > applies protobuf scalar zero semantics only on the exact consumer operation
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > decodes an omitted product enum as UNSPECIFIED with indexed cache provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces an old reported snapshot when the exact source later reports proto3 zero
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good bytes during a transient transport failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects a response above 64 KiB without exposing or parsing its body
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > single-flights repeated manual and startup-equivalent refresh calls
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 56 skipped (57)
+   Start at  15:59:01
+   Duration  1.19s (transform 132ms, setup 0ms, import 318ms, tests 797ms, environment 0ms)
+
+focused regression run 6/10
+Already up to date
+Done in 178ms using pnpm v11.1.1
+Already up to date
+Done in 181ms using pnpm v11.1.1
+
+ RUN  v4.1.6 /Users/kunchen/.no-mistakes/worktrees/dfc47b02954f/01KY0VPMRYSTQ11GPDSC40TRYT
+
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > calls the exact bounded consumer gRPC-web operation without mutation headers or account data
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one provider request after local-expiry refresh even when it fails transiently
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one HTTP 401, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one gRPC unauthenticated, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one credential-classified gRPC permission failure, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one post-refresh transport attempt while ordinary transient acquisition retains one retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never runs the conditional refresh for a healthy successful bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not refresh a healthy bearer after HTTP 403
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > contains no direct OAuth, browser-cookie, proxy, or client-mode runtime path
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > prefers a current OIDC principal and falls back from a partial OIDC entry to legacy
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses ambiguous winning-class principals before any provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses a refreshed principal change before a gRPC retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good cache when conditional official refresh fails
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > bounds refresh termination when a descendant keeps inherited stdio open
+ ✓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not rethrow macOS EPERM when refresh termination double-signals a dead process group 798ms
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses currentPeriod.end and never the monetary billing period reset
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never turns monetary monthly spend into a quota percentage
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > accepts the bounded raw protobuf form and retries one transient response only
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 9 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 7 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects compressed frames and non-credential gRPC header errors before protobuf parsing
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > enforces one whole-request timeout without a second provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > reports exact source unavailable instead of falling back to CLI billing or monetary math
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during connectivity failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during parser failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during rate limit failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during service failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces the fabricated legacy row only after exact-source success
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unversioned cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a legacy version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a future version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong source cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong operation cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a different principal cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing percentage provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a percentage field mismatch cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a reset field without reset value cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing credits provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a duplicate product provenance index cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a gapped product provenance indexes cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > renders fresh unbound data but never writes or reuses a persistent cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves a trusted current-schema row byte-for-byte during a transient failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > writes schema 2 with exact operation, period, global, product, reset, and credit provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > applies protobuf scalar zero semantics only on the exact consumer operation
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > decodes an omitted product enum as UNSPECIFIED with indexed cache provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces an old reported snapshot when the exact source later reports proto3 zero
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good bytes during a transient transport failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects a response above 64 KiB without exposing or parsing its body
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > single-flights repeated manual and startup-equivalent refresh calls
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 56 skipped (57)
+   Start at  15:59:03
+   Duration  1.18s (transform 126ms, setup 0ms, import 311ms, tests 799ms, environment 0ms)
+
+focused regression run 7/10
+Already up to date
+Done in 180ms using pnpm v11.1.1
+Already up to date
+Done in 182ms using pnpm v11.1.1
+
+ RUN  v4.1.6 /Users/kunchen/.no-mistakes/worktrees/dfc47b02954f/01KY0VPMRYSTQ11GPDSC40TRYT
+
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > calls the exact bounded consumer gRPC-web operation without mutation headers or account data
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one provider request after local-expiry refresh even when it fails transiently
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one HTTP 401, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one gRPC unauthenticated, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one credential-classified gRPC permission failure, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one post-refresh transport attempt while ordinary transient acquisition retains one retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never runs the conditional refresh for a healthy successful bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not refresh a healthy bearer after HTTP 403
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > contains no direct OAuth, browser-cookie, proxy, or client-mode runtime path
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > prefers a current OIDC principal and falls back from a partial OIDC entry to legacy
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses ambiguous winning-class principals before any provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses a refreshed principal change before a gRPC retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good cache when conditional official refresh fails
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > bounds refresh termination when a descendant keeps inherited stdio open
+ ✓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not rethrow macOS EPERM when refresh termination double-signals a dead process group 800ms
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses currentPeriod.end and never the monetary billing period reset
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never turns monetary monthly spend into a quota percentage
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > accepts the bounded raw protobuf form and retries one transient response only
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 9 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 7 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects compressed frames and non-credential gRPC header errors before protobuf parsing
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > enforces one whole-request timeout without a second provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > reports exact source unavailable instead of falling back to CLI billing or monetary math
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during connectivity failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during parser failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during rate limit failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during service failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces the fabricated legacy row only after exact-source success
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unversioned cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a legacy version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a future version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong source cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong operation cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a different principal cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing percentage provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a percentage field mismatch cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a reset field without reset value cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing credits provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a duplicate product provenance index cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a gapped product provenance indexes cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > renders fresh unbound data but never writes or reuses a persistent cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves a trusted current-schema row byte-for-byte during a transient failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > writes schema 2 with exact operation, period, global, product, reset, and credit provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > applies protobuf scalar zero semantics only on the exact consumer operation
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > decodes an omitted product enum as UNSPECIFIED with indexed cache provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces an old reported snapshot when the exact source later reports proto3 zero
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good bytes during a transient transport failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects a response above 64 KiB without exposing or parsing its body
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > single-flights repeated manual and startup-equivalent refresh calls
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 56 skipped (57)
+   Start at  15:59:05
+   Duration  1.19s (transform 130ms, setup 0ms, import 312ms, tests 801ms, environment 0ms)
+
+focused regression run 8/10
+Already up to date
+Done in 180ms using pnpm v11.1.1
+Already up to date
+Done in 178ms using pnpm v11.1.1
+
+ RUN  v4.1.6 /Users/kunchen/.no-mistakes/worktrees/dfc47b02954f/01KY0VPMRYSTQ11GPDSC40TRYT
+
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > calls the exact bounded consumer gRPC-web operation without mutation headers or account data
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one provider request after local-expiry refresh even when it fails transiently
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one HTTP 401, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one gRPC unauthenticated, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one credential-classified gRPC permission failure, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one post-refresh transport attempt while ordinary transient acquisition retains one retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never runs the conditional refresh for a healthy successful bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not refresh a healthy bearer after HTTP 403
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > contains no direct OAuth, browser-cookie, proxy, or client-mode runtime path
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > prefers a current OIDC principal and falls back from a partial OIDC entry to legacy
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses ambiguous winning-class principals before any provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses a refreshed principal change before a gRPC retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good cache when conditional official refresh fails
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > bounds refresh termination when a descendant keeps inherited stdio open
+ ✓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not rethrow macOS EPERM when refresh termination double-signals a dead process group 798ms
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses currentPeriod.end and never the monetary billing period reset
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never turns monetary monthly spend into a quota percentage
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > accepts the bounded raw protobuf form and retries one transient response only
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 9 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 7 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects compressed frames and non-credential gRPC header errors before protobuf parsing
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > enforces one whole-request timeout without a second provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > reports exact source unavailable instead of falling back to CLI billing or monetary math
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during connectivity failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during parser failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during rate limit failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during service failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces the fabricated legacy row only after exact-source success
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unversioned cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a legacy version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a future version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong source cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong operation cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a different principal cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing percentage provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a percentage field mismatch cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a reset field without reset value cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing credits provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a duplicate product provenance index cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a gapped product provenance indexes cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > renders fresh unbound data but never writes or reuses a persistent cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves a trusted current-schema row byte-for-byte during a transient failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > writes schema 2 with exact operation, period, global, product, reset, and credit provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > applies protobuf scalar zero semantics only on the exact consumer operation
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > decodes an omitted product enum as UNSPECIFIED with indexed cache provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces an old reported snapshot when the exact source later reports proto3 zero
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good bytes during a transient transport failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects a response above 64 KiB without exposing or parsing its body
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > single-flights repeated manual and startup-equivalent refresh calls
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 56 skipped (57)
+   Start at  15:59:07
+   Duration  1.18s (transform 123ms, setup 0ms, import 307ms, tests 799ms, environment 0ms)
+
+focused regression run 9/10
+Already up to date
+Done in 174ms using pnpm v11.1.1
+Already up to date
+Done in 175ms using pnpm v11.1.1
+
+ RUN  v4.1.6 /Users/kunchen/.no-mistakes/worktrees/dfc47b02954f/01KY0VPMRYSTQ11GPDSC40TRYT
+
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > calls the exact bounded consumer gRPC-web operation without mutation headers or account data
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one provider request after local-expiry refresh even when it fails transiently
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one HTTP 401, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one gRPC unauthenticated, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one credential-classified gRPC permission failure, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one post-refresh transport attempt while ordinary transient acquisition retains one retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never runs the conditional refresh for a healthy successful bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not refresh a healthy bearer after HTTP 403
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > contains no direct OAuth, browser-cookie, proxy, or client-mode runtime path
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > prefers a current OIDC principal and falls back from a partial OIDC entry to legacy
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses ambiguous winning-class principals before any provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses a refreshed principal change before a gRPC retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good cache when conditional official refresh fails
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > bounds refresh termination when a descendant keeps inherited stdio open
+ ✓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not rethrow macOS EPERM when refresh termination double-signals a dead process group 795ms
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses currentPeriod.end and never the monetary billing period reset
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never turns monetary monthly spend into a quota percentage
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > accepts the bounded raw protobuf form and retries one transient response only
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 9 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 7 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects compressed frames and non-credential gRPC header errors before protobuf parsing
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > enforces one whole-request timeout without a second provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > reports exact source unavailable instead of falling back to CLI billing or monetary math
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during connectivity failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during parser failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during rate limit failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during service failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces the fabricated legacy row only after exact-source success
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unversioned cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a legacy version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a future version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong source cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong operation cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a different principal cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing percentage provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a percentage field mismatch cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a reset field without reset value cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing credits provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a duplicate product provenance index cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a gapped product provenance indexes cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > renders fresh unbound data but never writes or reuses a persistent cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves a trusted current-schema row byte-for-byte during a transient failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > writes schema 2 with exact operation, period, global, product, reset, and credit provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > applies protobuf scalar zero semantics only on the exact consumer operation
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > decodes an omitted product enum as UNSPECIFIED with indexed cache provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces an old reported snapshot when the exact source later reports proto3 zero
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good bytes during a transient transport failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects a response above 64 KiB without exposing or parsing its body
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > single-flights repeated manual and startup-equivalent refresh calls
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 56 skipped (57)
+   Start at  15:59:09
+   Duration  1.17s (transform 125ms, setup 0ms, import 299ms, tests 795ms, environment 0ms)
+
+focused regression run 10/10
+Already up to date
+Done in 180ms using pnpm v11.1.1
+Already up to date
+Done in 178ms using pnpm v11.1.1
+
+ RUN  v4.1.6 /Users/kunchen/.no-mistakes/worktrees/dfc47b02954f/01KY0VPMRYSTQ11GPDSC40TRYT
+
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > calls the exact bounded consumer gRPC-web operation without mutation headers or account data
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes a locally expired OIDC bearer once, rereads auth, and calls gRPC with the refreshed bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one provider request after local-expiry refresh even when it fails transiently
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one HTTP 401, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one gRPC unauthenticated, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refreshes after one credential-classified gRPC permission failure, rereads auth, and retries gRPC exactly once
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses one post-refresh transport attempt while ordinary transient acquisition retains one retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never runs the conditional refresh for a healthy successful bearer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not refresh a healthy bearer after HTTP 403
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > contains no direct OAuth, browser-cookie, proxy, or client-mode runtime path
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > prefers a current OIDC principal and falls back from a partial OIDC entry to legacy
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses ambiguous winning-class principals before any provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > refuses a refreshed principal change before a gRPC retry
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good cache when conditional official refresh fails
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > bounds refresh termination when a descendant keeps inherited stdio open
+ ✓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > does not rethrow macOS EPERM when refresh termination double-signals a dead process group 797ms
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > uses currentPeriod.end and never the monetary billing period reset
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > never turns monetary monthly spend into a quota percentage
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > accepts the bounded raw protobuf form and retries one transient response only
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 9 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > classifies non-credential gRPC status 7 without refreshing, retrying, or exposing the message
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the header
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects malformed or out-of-range gRPC status in the trailer
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects compressed frames and non-credential gRPC header errors before protobuf parsing
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > enforces one whole-request timeout without a second provider call
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > reports exact source unavailable instead of falling back to CLI billing or monetary math
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during connectivity failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during parser failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during rate limit failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects and clears the fabricated legacy row during service failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces the fabricated legacy row only after exact-source success
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unversioned cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a legacy version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a future version cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong source cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a wrong operation cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a different principal cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing percentage provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a percentage field mismatch cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a unknown reset provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a reset field without reset value cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a missing credits provenance cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a duplicate product provenance index cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > fails closed for a gapped product provenance indexes cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > renders fresh unbound data but never writes or reuses a persistent cache row
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves a trusted current-schema row byte-for-byte during a transient failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > writes schema 2 with exact operation, period, global, product, reset, and credit provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > applies protobuf scalar zero semantics only on the exact consumer operation
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > decodes an omitted product enum as UNSPECIFIED with indexed cache provenance
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > replaces an old reported snapshot when the exact source later reports proto3 zero
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > preserves same-principal last-good bytes during a transient transport failure
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > rejects a response above 64 KiB without exposing or parsing its body
+ ↓ tests/grok-quota-generated-install.test.ts > clean generated Grok quota installation > single-flights repeated manual and startup-equivalent refresh calls
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 56 skipped (57)
+   Start at  15:59:11
+   Duration  1.18s (transform 124ms, setup 0ms, import 304ms, tests 798ms, environment 0ms)
+

@@ -1,0 +1,14 @@
+Already up to date
+Done in 172ms using pnpm v11.1.1
+$ vitest run tests
+
+ RUN  v4.1.6 /Users/kunchen/.no-mistakes/worktrees/dfc47b02954f/01KY0VPMRYSTQ11GPDSC40TRYT
+
+[test-adapter] prompt failed AUTHENTICATION_FAILED Codex is not authenticated. Run `codex login` and try again.
+[test-adapter] prompt failed ADAPTER_FAILED The embedded agent failed while processing the request.
+
+ Test Files  68 passed | 1 skipped (69)
+      Tests  538 passed | 2 skipped (540)
+   Start at  15:59:22
+   Duration  14.13s (transform 6.13s, setup 0ms, import 20.69s, tests 46.81s, environment 20.16s)
+
