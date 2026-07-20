@@ -61,6 +61,19 @@ function currentDirname(): string {
   return typeof __dirname === "string" ? __dirname : fileURLToPath(new URL(".", import.meta.url));
 }
 
+/**
+ * Win32 adapter launches are `process.execPath + adapter.mjs` (no Unix `env`).
+ * acpx inherits process.env, so Electron-as-node requires ELECTRON_RUN_AS_NODE=1
+ * on the host process for Claude/Codex (and pure-ACP proxy in WSL). Call after
+ * applyAgentRuntimeModeEnv, which clears the flag in host mode for relaunch
+ * safety. Always clear before any future app.relaunch().
+ */
+function ensureWin32AdapterElectronAsNodeEnv(env: NodeJS.ProcessEnv = process.env): void {
+  if (process.platform === "win32") {
+    env.ELECTRON_RUN_AS_NODE = "1";
+  }
+}
+
 async function createPopoverWindow(): Promise<BrowserWindow> {
   if (popoverWindow && !popoverWindow.isDestroyed()) return popoverWindow;
 
@@ -197,6 +210,11 @@ export async function startBabyMenuApp(): Promise<void> {
   applyAgentRuntimeModeEnv(currentPreferences, process.env, process.platform, {
     hostCwd: paths.extensionsDir,
   });
+  // Win32 adapters spawn as `execPath adapter.mjs` (no Unix `env` binary). acpx
+  // inherits process.env, so ELECTRON_RUN_AS_NODE must stay set for Electron-as-node
+  // on both host and WSL. applyAgentRuntimeModeEnv clears it in host mode for pure-ACP
+  // relaunch safety; re-assert here so Claude/Codex adapters still run as Node.
+  ensureWin32AdapterElectronAsNodeEnv();
 
   function probeCommand(command: string): boolean {
     if (isWslMode(currentPreferences)) {
@@ -234,6 +252,7 @@ export async function startBabyMenuApp(): Promise<void> {
     applyAgentRuntimeModeEnv(currentPreferences, process.env, process.platform, {
       hostCwd: paths.extensionsDir,
     });
+    ensureWin32AdapterElectronAsNodeEnv();
     await pushRuntimeOverrides({ discardPersistentState: true });
     // When the user never picked an agent, re-probe with the new mode so we do
     // not stick on a host-only Claude while Grok is the only CLI in WSL.
@@ -249,7 +268,15 @@ export async function startBabyMenuApp(): Promise<void> {
   // adapters. Run them with the bundled Electron as Node (ELECTRON_RUN_AS_NODE)
   // so there is no dependency on a separately-installed `node` - the same class
   // of PATH fragility that made the agent look "unavailable" before.
-  const adapterLauncher = ["env", "ELECTRON_RUN_AS_NODE=1", process.execPath];
+  //
+  // Unix keeps `env VAR=value` so the flag is scoped to the child and never
+  // leaks into a later app.relaunch(). Win32 has no `env` binary; launch is
+  // just execPath and ELECTRON_RUN_AS_NODE lives on process.env (see
+  // ensureWin32AdapterElectronAsNodeEnv). Clear it before any app.relaunch().
+  const adapterLauncher =
+    process.platform === "win32"
+      ? [process.execPath]
+      : ["env", "ELECTRON_RUN_AS_NODE=1", process.execPath];
   // The catalog is a live runtime service: it owns agents.json and pushes
   // rebuilt registry overrides into the runtime so UI-added custom agents apply
   // immediately. agentRuntime is referenced through closures (assigned just below)

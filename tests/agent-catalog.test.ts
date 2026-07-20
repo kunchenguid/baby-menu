@@ -80,6 +80,44 @@ describe("agent-catalog", () => {
     );
   });
 
+  it("win32 launcher never prefixes env and escapes backslashes for acpx", () => {
+    // Mirrors production win32 wiring: [execPath] only; ELECTRON_RUN_AS_NODE is
+    // set on process.env (no Unix `env` binary on stock Windows).
+    const execPath = String.raw`C:\Users\me\AppData\Local\Programs\Baby Menu\Baby Menu.exe`;
+    const adapterRoot = String.raw`C:\Users\me\AppData\Local\Baby Menu\adapters`;
+    const wired = withAdapterLaunchCommands(
+      DEFAULT_AGENTS,
+      (adapter) => `${adapterRoot}\\${adapter}\\index.mjs`,
+      [execPath],
+    );
+    const claude = wired.find((a) => a.name === "claude")?.launchCommand ?? "";
+    const codex = wired.find((a) => a.name === "codex")?.launchCommand ?? "";
+
+    expect(claude.startsWith("env ")).toBe(false);
+    expect(codex.startsWith("env ")).toBe(false);
+    expect(claude).not.toContain("ELECTRON_RUN_AS_NODE");
+    // Spaces force quoting; backslashes must be doubled so acpx splitCommandLine
+    // restores single separators (same rules as agent-runtime-mode.shellJoinToken).
+    expect(claude).toBe(
+      [
+        `"${String.raw`C:\\Users\\me\\AppData\\Local\\Programs\\Baby Menu\\Baby Menu.exe`}"`,
+        `"${String.raw`C:\\Users\\me\\AppData\\Local\\Baby Menu\\adapters\\claude\\index.mjs`}"`,
+      ].join(" "),
+    );
+    expect(codex).toContain(String.raw`adapters\\codex\\index.mjs`);
+  });
+
+  it("escapes embedded quotes and backslashes in launch tokens", () => {
+    const wired = withAdapterLaunchCommands(
+      DEFAULT_AGENTS,
+      () => String.raw`C:\path\with "quotes"\adapter.js`,
+      [String.raw`C:\tools\node.exe`],
+    );
+    expect(wired.find((a) => a.name === "claude")?.launchCommand).toBe(
+      String.raw`"C:\\tools\\node.exe" "C:\\path\\with \"quotes\"\\adapter.js"`,
+    );
+  });
+
   it("does not override an explicit custom launchCommand", () => {
     const custom = [{ name: "claude", label: "Claude", command: "claude", adapter: "claude" as const, launchCommand: "my-claude" }];
     const wired = withAdapterLaunchCommands(custom, () => "/should/not/be/used");

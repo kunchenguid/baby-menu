@@ -146,8 +146,8 @@ export function resolveAgentCatalog(options: ResolveAgentCatalogOptions = {}): A
  * `resolveAdapterPath("claude")` returns the absolute path to the adapter's
  * bundled entry; the host resolves it differently in dev vs packaged mode.
  * `launcher` is the command + leading args that run the adapter as a Node
- * program (e.g. `["node"]`, or `["env", "ELECTRON_RUN_AS_NODE=1", electronPath]`
- * to run the bundled Electron as Node without depending on a separate install).
+ * program (e.g. `["node"]`, Unix `["env", "ELECTRON_RUN_AS_NODE=1", electronPath]`,
+ * or win32 `[electronPath]` with ELECTRON_RUN_AS_NODE on the spawn env).
  * Agents that already carry an explicit `launchCommand` (custom agents and
  * built-ins like Grok that speak ACP directly) are left untouched.
  */
@@ -163,9 +163,19 @@ export function withAdapterLaunchCommands(
   });
 }
 
-/** Joins command tokens into a single string, quoting tokens with whitespace. */
+/**
+ * Quote a single argv token for acpx space-separated launch strings.
+ * Mirrors agent-runtime-mode.shellJoinToken: backslashes and double-quotes must
+ * be escaped so Windows paths (C:\Users\...) survive acpx splitCommandLine.
+ */
+function shellJoinToken(token: string): string {
+  if (/^[A-Za-z0-9_./:=@%+-]+$/.test(token)) return token;
+  return `"${token.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/** Joins command tokens into a single acpx-safe launch string. */
 function shellJoin(tokens: string[]): string {
-  return tokens.map((token) => (/\s/.test(token) ? `"${token}"` : token)).join(" ");
+  return tokens.map(shellJoinToken).join(" ");
 }
 
 export function toAgentOptions(
