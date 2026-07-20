@@ -64,6 +64,7 @@
         <p>HTTP 403 remains a rejected credential or permission outcome but does not trigger refresh.</p>
         <p>Never invoke it before every acquisition, after permission or team-scope failures, or after the one post-refresh retry.</p>
         <p>Spawn the discovered executable with argument array <code>["models"]</code>, <code>shell: false</code>, ignored stdin, the complete inherited environment, a 20-second timeout, and 128 KiB bounded stdout and stderr held only in memory.</p>
+        <p>On timeout, terminate the detached non-Windows process group with <code>SIGTERM</code>, allow a one-second grace period, then issue at most one process-group <code>SIGKILL</code>. Suppress <code>ESRCH</code>; suppress <code>EPERM</code> only when a process-table check confirms that no live, same-uid, non-zombie member remains in the owned group. Otherwise propagate the signaling failure.</p>
         <p>Discover <code>$GROK_CLI_PATH</code>, <code>$GROK_HOME/bin/grok</code>, current <code>PATH</code>, home-local Grok locations, then Homebrew locations without a shell.</p>
         <p>After exit zero, reread the same resolved auth source, apply deterministic OIDC-over-legacy selection again, and require the new stable account binding to equal the pre-refresh binding.</p>
         <p>Return <code>auth_principal_changed</code> without a gRPC retry when the principal changes, and return <code>auth_expired</code> when official refresh leaves the selected bearer expired.</p>
@@ -300,7 +301,7 @@ type GrokQuotaResult =
         <ul>
           <li>The server sends the exact gRPC-web POST, headers, and five-byte body with no client-mode header, cookie, proxy, or ACP path.</li>
           <li>OIDC selection, legacy fallback, expiry, ambiguity, and unbound identity behavior are deterministic.</li>
-          <li>Local expiry and one credential-classified response run one bounded fake-CLI-tested official refresh, reread auth, verify principal continuity, and issue exactly one gRPC retry.</li>
+          <li>Local expiry and one credential-classified response run one bounded fake-CLI-tested official refresh, reread auth, verify principal continuity, and issue exactly one gRPC retry. Timeout coverage proves one owned-group hard kill, descendant cleanup, and narrow dead-group <code>EPERM</code> handling.</li>
           <li>A healthy successful bearer never launches the CLI, and deterministic tests never execute a real Grok binary.</li>
           <li>The bounded typed decoder covers framed and raw payloads, global and product percentages, current period, prepaid balance, proto3 zero, trailers, malformed data, and the response cap.</li>
           <li>Exact used values remain unrounded in state and cache, remaining is derived, and rounding occurs only in visible copy.</li>
