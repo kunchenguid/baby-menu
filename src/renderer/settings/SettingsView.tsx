@@ -31,6 +31,10 @@ type SettingsViewProps = {
   runtimeImporter?: RuntimeModuleImporter;
 };
 
+type PendingWslChange =
+  | { kind: "mode"; next: BabyMenuAgentRuntimeMode }
+  | { kind: "distro"; next: string };
+
 export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = {}) {
   const [openAtLogin, setOpenAtLogin] = useState(false);
   const [agents, setAgents] = useState<BabyMenuAgentOption[]>([]);
@@ -38,15 +42,19 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
   const [agentSwitchDisabledReason, setAgentSwitchDisabledReason] = useState<string | undefined>();
   const [agentRuntimeMode, setAgentRuntimeMode] = useState<BabyMenuAgentRuntimeMode>("host");
   const [wslDistro, setWslDistro] = useState("Ubuntu");
+  /** Last value applied from the server; used to skip no-op distro blur and restore on cancel. */
+  const [committedWslDistro, setCommittedWslDistro] = useState("Ubuntu");
   const [wslModeSupported, setWslModeSupported] = useState(false);
   const [wslError, setWslError] = useState<string | null>(null);
   const [pendingAgent, setPendingAgent] = useState<BabyMenuAgentOption | null>(null);
+  const [pendingWslChange, setPendingWslChange] = useState<PendingWslChange | null>(null);
   const [agentForm, setAgentForm] = useState<AgentFormState | null>(null);
   const [agentFormError, setAgentFormError] = useState<string | null>(null);
   const [savingAgent, setSavingAgent] = useState(false);
   const [agentListError, setAgentListError] = useState<string | null>(null);
   const runtimeSections = useRuntimeSettingsSections({ enabled: sections === undefined, importer: runtimeImporter });
   const visibleSections = sections ?? runtimeSections;
+  const wslControlsDisabled = Boolean(agentSwitchDisabledReason);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,7 +65,9 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
       setAgentName(settings.agentName);
       setAgentSwitchDisabledReason(settings.agentSwitchDisabledReason);
       setAgentRuntimeMode(settings.agentRuntimeMode ?? "host");
-      setWslDistro(settings.wslDistro ?? "Ubuntu");
+      const distro = settings.wslDistro ?? "Ubuntu";
+      setWslDistro(distro);
+      setCommittedWslDistro(distro);
       setWslModeSupported(settings.wslModeSupported ?? false);
     });
     return () => {
@@ -76,16 +86,43 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
     setAgents(result.agents);
     setAgentSwitchDisabledReason(result.agentSwitchDisabledReason);
     setAgentRuntimeMode(result.agentRuntimeMode ?? "host");
-    setWslDistro(result.wslDistro ?? "Ubuntu");
+    const distro = result.wslDistro ?? "Ubuntu";
+    setWslDistro(distro);
+    setCommittedWslDistro(distro);
     setWslModeSupported(result.wslModeSupported ?? false);
     if (options.clearWslError !== false) setWslError(null);
   }
 
-  async function toggleWslMode(next: boolean) {
+  function requestWslMode(next: boolean) {
+    if (wslControlsDisabled || !window.babyMenu?.settings) return;
+    const mode: BabyMenuAgentRuntimeMode = next ? "wsl" : "host";
+    if (mode === agentRuntimeMode) return;
+    setWslError(null);
+    setPendingWslChange({ kind: "mode", next: mode });
+  }
+
+  /**
+   * Commit path for the distro field (blur / Enter). Skips IPC when the trimmed
+   * value matches the last committed server distro so a no-op blur cannot discard
+   * the session. Real changes go through the same reset-confirm dialog as mode.
+   */
+  function requestWslDistro(next: string) {
+    if (wslControlsDisabled || !window.babyMenu?.settings) return;
+    const trimmed = next.trim();
+    if (trimmed === committedWslDistro) {
+      // Normalize any whitespace-only edits back to the committed value.
+      if (next !== committedWslDistro) setWslDistro(committedWslDistro);
+      return;
+    }
+    setWslError(null);
+    setPendingWslChange({ kind: "distro", next: trimmed });
+  }
+
+  async function applyWslMode(mode: BabyMenuAgentRuntimeMode) {
     if (!window.babyMenu?.settings) return;
     setWslError(null);
     try {
-      applySettings(await window.babyMenu.settings.setAgentRuntimeMode(next ? "wsl" : "host"));
+      applySettings(await window.babyMenu.settings.setAgentRuntimeMode(mode));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not change agent runtime mode.";
       try {
@@ -98,7 +135,7 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
     }
   }
 
-  async function commitWslDistro(next: string) {
+  async function applyWslDistro(next: string) {
     if (!window.babyMenu?.settings) return;
     setWslError(null);
     try {
@@ -112,6 +149,24 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
       }
       setWslError(message);
     }
+  }
+
+  async function confirmWslChange() {
+    if (!pendingWslChange) return;
+    const change = pendingWslChange;
+    setPendingWslChange(null);
+    if (change.kind === "mode") {
+      await applyWslMode(change.next);
+    } else {
+      await applyWslDistro(change.next);
+    }
+  }
+
+  function cancelWslChange() {
+    if (pendingWslChange?.kind === "distro") {
+      setWslDistro(committedWslDistro);
+    }
+    setPendingWslChange(null);
   }
 
   async function confirmSwitch() {
@@ -181,10 +236,14 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
                 <span className="text-xs text-ink-soft">
                   Discover and launch agent CLIs inside a WSL distro. Extension files stay on Windows.
                 </span>
+                {wslControlsDisabled ? (
+                  <span className="text-xs text-ink-soft">{agentSwitchDisabledReason}</span>
+                ) : null}
               </span>
               <Switch
                 checked={agentRuntimeMode === "wsl"}
-                onCheckedChange={(next) => void toggleWslMode(next)}
+                onCheckedChange={(next) => requestWslMode(next)}
+                disabled={wslControlsDisabled}
                 aria-label="run agents via WSL"
               />
             </div>
@@ -194,8 +253,9 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
                   value={wslDistro}
                   placeholder="Ubuntu"
                   aria-label="WSL distro"
+                  disabled={wslControlsDisabled}
                   onChange={(event) => setWslDistro(event.target.value)}
-                  onBlur={(event) => void commitWslDistro(event.target.value)}
+                  onBlur={(event) => requestWslDistro(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.currentTarget.blur();
@@ -324,6 +384,35 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
             </Button>
             <Button variant="primary" onClick={() => void confirmSwitch()}>
               switch and reset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pendingWslChange !== null} onOpenChange={(open) => !open && cancelWslChange()}>
+        <DialogContent className="max-w-sm">
+          <DialogTitle>
+            {pendingWslChange?.kind === "distro" ? "change WSL distro?" : "change runtime mode?"}
+          </DialogTitle>
+          <DialogDescription>
+            {pendingWslChange?.kind === "distro" ? (
+              <>
+                Changing the WSL distro to {pendingWslChange.next} will reset the current conversation. The agent starts
+                fresh with no memory of this chat.
+              </>
+            ) : (
+              <>
+                Changing the agent runtime mode will reset the current conversation. The agent starts fresh with no
+                memory of this chat.
+              </>
+            )}
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="ghost" onClick={cancelWslChange}>
+              cancel
+            </Button>
+            <Button variant="primary" onClick={() => void confirmWslChange()}>
+              change and reset
             </Button>
           </DialogFooter>
         </DialogContent>

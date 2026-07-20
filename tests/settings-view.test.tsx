@@ -294,23 +294,88 @@ describe("settings view", () => {
     expect(screen.queryByRole("switch", { name: "run agents via WSL" })).toBeNull();
   });
 
-  it("toggles WSL mode and edits the distro on win32", async () => {
+  it("toggles WSL mode and edits the distro on win32 after confirm", async () => {
     const api = installBabyMenuApi({ wslModeSupported: true, agentRuntimeMode: "host", wslDistro: "Ubuntu" });
     await openSettings();
 
     const toggle = await screen.findByRole("switch", { name: "run agents via WSL" });
     fireEvent.click(toggle);
+    // Confirmation must make the conversation-reset consequence clear before IPC.
+    expect(await screen.findByText(/will reset the current conversation/i)).toBeTruthy();
+    expect(api.settings.setAgentRuntimeMode).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /change and reset/i }));
     await waitFor(() => expect(api.settings.setAgentRuntimeMode).toHaveBeenCalledWith("wsl"));
     // setAgentRuntimeMode mock updates current mode; distro field mounts.
     await waitFor(() => expect(screen.getByLabelText("WSL distro")).toBeTruthy());
+
     fireEvent.change(screen.getByLabelText("WSL distro"), { target: { value: "Debian" } });
     fireEvent.blur(screen.getByLabelText("WSL distro"));
+    expect(await screen.findByText(/will reset the current conversation/i)).toBeTruthy();
+    expect(api.settings.setWslDistro).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /change and reset/i }));
     await waitFor(() => expect(api.settings.setWslDistro).toHaveBeenCalledWith("Debian"));
 
-    // Toggle off unmounts the distro field.
+    // Toggle off unmounts the distro field (after confirm).
     fireEvent.click(toggle);
+    fireEvent.click(await screen.findByRole("button", { name: /change and reset/i }));
     await waitFor(() => expect(api.settings.setAgentRuntimeMode).toHaveBeenCalledWith("host"));
     await waitFor(() => expect(screen.queryByLabelText("WSL distro")).toBeNull());
+  });
+
+  it("does not call setWslDistro when distro blur is a no-op", async () => {
+    const api = installBabyMenuApi({ wslModeSupported: true, agentRuntimeMode: "wsl", wslDistro: "Ubuntu" });
+    await openSettings();
+
+    const input = await screen.findByLabelText("WSL distro");
+    // Whitespace-only edit trims back to the committed value — no IPC, no confirm.
+    fireEvent.change(input, { target: { value: "Ubuntu  " } });
+    fireEvent.blur(input);
+    await waitFor(() => expect((input as HTMLInputElement).value).toBe("Ubuntu"));
+    expect(api.settings.setWslDistro).not.toHaveBeenCalled();
+    expect(screen.queryByText(/will reset the current conversation/i)).toBeNull();
+
+    // Pure no-op blur with the exact committed value.
+    fireEvent.blur(input);
+    expect(api.settings.setWslDistro).not.toHaveBeenCalled();
+  });
+
+  it("restores the distro field when the reset confirmation is cancelled", async () => {
+    const api = installBabyMenuApi({ wslModeSupported: true, agentRuntimeMode: "wsl", wslDistro: "Ubuntu" });
+    await openSettings();
+
+    const input = await screen.findByLabelText("WSL distro");
+    fireEvent.change(input, { target: { value: "Debian" } });
+    fireEvent.blur(input);
+    expect(await screen.findByText(/will reset the current conversation/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    await waitFor(() => expect(screen.queryByText(/will reset/i)).toBeNull());
+    expect(api.settings.setWslDistro).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("WSL distro") as HTMLInputElement).value).toBe("Ubuntu");
+  });
+
+  it("disables WSL controls with a visible reason when switching is blocked", async () => {
+    const api = installBabyMenuApi({
+      wslModeSupported: true,
+      agentRuntimeMode: "wsl",
+      wslDistro: "Ubuntu",
+      agentSwitchDisabledReason: "Save or Rollback the current agent changes before switching agents.",
+    });
+    await openSettings();
+
+    const toggle = await screen.findByRole("switch", { name: "run agents via WSL" });
+    expect((toggle as HTMLButtonElement).disabled).toBe(true);
+    const input = screen.getByLabelText("WSL distro") as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+    expect(screen.getByText("Save or Rollback the current agent changes before switching agents.")).toBeTruthy();
+
+    fireEvent.click(toggle);
+    expect(screen.queryByText(/will reset the current conversation/i)).toBeNull();
+    expect(api.settings.setAgentRuntimeMode).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "Debian" } });
+    fireEvent.blur(input);
+    expect(api.settings.setWslDistro).not.toHaveBeenCalled();
   });
 
   it("surfaces WSL mode errors without leaving optimistic state", async () => {
@@ -321,6 +386,7 @@ describe("settings view", () => {
     await openSettings();
 
     fireEvent.click(await screen.findByRole("switch", { name: "run agents via WSL" }));
+    fireEvent.click(await screen.findByRole("button", { name: /change and reset/i }));
     expect(
       await screen.findByText(/Save or Rollback the current agent changes before changing agent runtime mode/i),
     ).toBeTruthy();
