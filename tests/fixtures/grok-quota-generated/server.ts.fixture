@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { accessSync, constants, existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
@@ -187,6 +187,67 @@ function safeAuthRequiredMarker(text) {
         normalized.includes("run `grok login`");
 }
 
+/**
+ * True when this uid still owns a non-zombie member of pgid.
+ * Used only after kill(-pgid) returns EPERM so we never signal a recycled pid
+ * and never treat a still-running owned child as cleaned up.
+ */
+function hasLiveOwnedProcessGroupMember(pgid) {
+    if (typeof process.getuid !== "function")
+        return true;
+    const result = spawnSync("/bin/ps", ["-axo", "pgid=,uid=,state="], { encoding: "utf8" });
+    if (result.error || result.status !== 0)
+        return true;
+    const uid = process.getuid();
+    return result.stdout.split("\n").some((line) => {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 3)
+            return false;
+        const [rawPgid, rawUid, state] = parts;
+        if (Number(rawPgid) !== pgid || Number(rawUid) !== uid)
+            return false;
+        // Zombies cannot receive signals. On macOS, kill(-pgid) often returns
+        // EPERM (not ESRCH) while only zombies remain mid-reap.
+        return !String(state).startsWith("Z");
+    });
+}
+
+/**
+ * Signal a detached CLI process group once per hard-kill. Redundant SIGKILLs race
+ * the force-kill timer with the child "close" handler: after the first successful
+ * group kill, macOS may return EPERM for kill(-pgid) while zombies linger or the
+ * pgid is recycled, and rethrowing that from a timer/close handler aborts Vitest.
+ */
+function signalRefreshProcessGroup(pid, signal, state) {
+    if (!pid)
+        return;
+    if (signal === "SIGKILL" && state.groupKillIssued)
+        return;
+    try {
+        if (process.platform !== "win32")
+            process.kill(-pid, signal);
+        else
+            process.kill(pid, signal);
+        if (signal === "SIGKILL")
+            state.groupKillIssued = true;
+    }
+    catch (error) {
+        if (error?.code === "ESRCH") {
+            if (signal === "SIGKILL")
+                state.groupKillIssued = true;
+            return;
+        }
+        if (error?.code === "EPERM" &&
+            process.platform !== "win32" &&
+            !hasLiveOwnedProcessGroupMember(pid)) {
+            if (signal === "SIGKILL")
+                state.groupKillIssued = true;
+            return;
+        }
+        throw error;
+    }
+}
+
 async function runOfficialRefresh() {
     const executable = resolveGrokExecutable();
     if (!executable)
@@ -203,16 +264,18 @@ async function runOfficialRefresh() {
         let settled = false;
         let timeoutFailure;
         let forceKillTimer;
+        const killState = { groupKillIssued: false };
         const signalChild = (signal) => {
-            try {
-                if (child.pid && process.platform !== "win32")
-                    process.kill(-child.pid, signal);
-                else
+            if (child.pid && process.platform !== "win32")
+                signalRefreshProcessGroup(child.pid, signal, killState);
+            else {
+                try {
                     child.kill(signal);
-            }
-            catch (error) {
-                if (error?.code !== "ESRCH")
-                    throw error;
+                }
+                catch (error) {
+                    if (error?.code !== "ESRCH")
+                        throw error;
+                }
             }
         };
         const appendBounded = (current, chunk) => Buffer.concat([current, chunk])
