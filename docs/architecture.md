@@ -20,7 +20,7 @@ For the at-a-glance picture, see the "How It Works" diagram in the [README](../R
 | Custom layouts | An optional root `layout.tsx` arranges the popover canvas. Without it, widgets stack in a column. |
 | Settings sections | Extensions export `BabyMenuSettingsSection` from `widget.tsx`; the host frames each body. |
 | Server actions | Privileged work (shell, network, credentials) lives in `<extension-id>/server.ts`, called via `window.babyMenu.capabilities.invoke(...)`. No per-widget IPC. |
-| Fixed host brokers | Narrow privileged operations can be exposed only to server code. `context.kimiQuota` resolves Pi's `kimi-coding` API key and returns normalized quota without exposing general Pi SDK access. |
+| Fixed host brokers | Narrow privileged operations can be exposed only to server code. `context.kimiQuota` prefers Pi's supported `kimi-coding` credential, then reads a fresh official Kimi Code CLI access token as a read-only fallback, and returns normalized quota without exposing credential APIs. |
 | Local storage | A shared SQLite store: `context.db` server-side, `window.babyMenu.db` in the renderer. Use it for anything that must survive reloads. |
 | Stable contracts | Extensions import host types with type-only `import ... from "@babymenu/contracts"`, shipped into each workspace. |
 
@@ -28,7 +28,7 @@ Recipes for live or system data are also verification contracts.
 They tell the agent to inspect the actual named source before writing parser or renderer code, avoid guessed field names and response shapes, and verify the finished server action or widget against that same live source before reporting done.
 The bundled quota recipe set covers Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
 Provider-specific acquisition and refresh contracts live in the matching recipe.
-Kimi Code quota ships directly as the managed `extensions/kimi-code-quota` extension. Its host broker fixes the origin and operation, enforces transport/parser/cache bounds, coalesces requests, and persists only normalized non-secret results in `kimi_quota_cache`.
+Kimi Code quota ships directly as the managed `extensions/kimi-code-quota` extension. Its host broker fixes the origin and operation, enforces transport/parser/cache bounds, coalesces requests, and persists only normalized non-secret results in `kimi_quota_cache`. Credential discovery stays in the broker: Pi's supported source has priority, and only when it is unavailable or unsupported does Baby Menu inspect `$KIMI_CODE_HOME/credentials/kimi-code.json` (default `~/.kimi-code/credentials/kimi-code.json`) for a non-expiring-soon access token. The fallback never uses the refresh token, invokes the CLI, or mutates CLI state.
 
 **Background vs view refresh.**
 `refreshView` / `viewRefreshIntervalMs` keeps a visible widget current and pauses while the popover is hidden.

@@ -1,4 +1,4 @@
-import type { KimiQuotaDiagnostic, KimiQuotaSnapshot, KimiQuotaWindow } from "../shared/contracts";
+import type { KimiCredentialSource, KimiQuotaDiagnostic, KimiQuotaSnapshot, KimiQuotaWindow } from "../shared/contracts";
 
 const JSON_DECIMAL_PATTERN = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
 const RFC3339_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/;
@@ -22,7 +22,11 @@ export class KimiQuotaParseError extends Error {
 
 type NormalizedDetail = Pick<KimiQuotaWindow, "percentUsed" | "percentRemaining" | "resetsAt">;
 
-export function normalizeKimiUsage(payload: unknown, refreshedAt: string): KimiQuotaSnapshot {
+export function normalizeKimiUsage(
+  payload: unknown,
+  refreshedAt: string,
+  credentialSource: KimiCredentialSource = "pi-kimi-coding",
+): KimiQuotaSnapshot {
   if (!isRecord(payload)) throw new KimiQuotaParseError();
 
   const weeklyDetail = normalizeDetail(payload.usage);
@@ -83,6 +87,7 @@ export function normalizeKimiUsage(payload: unknown, refreshedAt: string): KimiQ
     provider: "kimi",
     label: "Kimi",
     source: "api",
+    credentialSource,
     refreshedAt,
     windows,
     ...(diagnostics.length > 0 ? { diagnostics } : {}),

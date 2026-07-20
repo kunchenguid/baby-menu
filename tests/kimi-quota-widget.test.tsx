@@ -11,6 +11,7 @@ const snapshot: KimiQuotaSnapshot = {
   provider: "kimi",
   label: "Kimi",
   source: "api",
+  credentialSource: "pi-kimi-coding",
   refreshedAt: "2026-07-19T11:57:00.000Z",
   windows: [
     { id: "weekly", label: "week", kind: "weekly", percentUsed: 61.25, percentRemaining: 38.75, resetsAt: "2026-07-21T12:00:00.000Z" },
@@ -23,6 +24,7 @@ const fresh: KimiQuotaResult = {
   status: "fresh",
   stale: false,
   source: "api",
+  credentialSource: "pi-kimi-coding",
   checkedAt: "2026-07-19T12:00:00.000Z",
   snapshot,
 };
@@ -98,12 +100,17 @@ describe("Kimi Code quota widget", () => {
     [
       { status: "auth_required", stale: false, source: "api", checkedAt: "2026-07-19T12:00:00.000Z", error: { code: "kimi_credential_unavailable", category: "credential", message: "Kimi credential is unavailable" } },
       "credential needed",
-      "add kimi-coding to Pi",
+      "sign in with Pi or Kimi CLI",
     ],
     [
-      { status: "auth_required", stale: false, source: "api", checkedAt: "2026-07-19T12:00:00.000Z", error: { code: "provider_auth_rejected", category: "credential", message: "Kimi rejected the credential" } },
+      { status: "auth_required", stale: false, source: "api", credentialSource: "pi-kimi-coding", checkedAt: "2026-07-19T12:00:00.000Z", error: { code: "provider_auth_rejected", category: "credential", message: "Kimi rejected the credential" } },
       "credential rejected",
       "check kimi-coding in Pi",
+    ],
+    [
+      { status: "auth_required", stale: false, source: "api", credentialSource: "kimi-code-cli", checkedAt: "2026-07-19T12:00:00.000Z", error: { code: "provider_auth_rejected", category: "credential", message: "Kimi rejected the credential" } },
+      "credential rejected",
+      "sign in again with Kimi CLI",
     ],
     [
       { status: "error", stale: false, source: "api", checkedAt: "2026-07-19T12:00:00.000Z", error: { code: "provider_unavailable", category: "service", message: "Kimi quota service is unavailable" } },

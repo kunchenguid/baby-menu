@@ -15,6 +15,7 @@ describe("Kimi quota response normalization", () => {
       provider: "kimi",
       label: "Kimi",
       source: "api",
+      credentialSource: "pi-kimi-coding",
       refreshedAt: REFRESHED_AT,
       windows: [
         {

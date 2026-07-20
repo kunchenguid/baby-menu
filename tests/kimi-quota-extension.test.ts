@@ -15,11 +15,13 @@ const normalized: KimiQuotaResult = {
   status: "fresh",
   stale: false,
   source: "api",
+  credentialSource: "pi-kimi-coding",
   checkedAt: "2026-07-19T12:00:00.000Z",
   snapshot: {
     provider: "kimi",
     label: "Kimi",
     source: "api",
+    credentialSource: "pi-kimi-coding",
     refreshedAt: "2026-07-19T12:00:00.000Z",
     windows: [{ id: "weekly", label: "week", kind: "weekly", percentUsed: 33, percentRemaining: 67 }],
   },
@@ -54,7 +56,7 @@ describe("Kimi Code quota extension host integration", () => {
     expect(acquire).toHaveBeenCalledWith({ maxAgeMs: 60_000 });
     expect(result).toEqual(normalized);
     const serialized = JSON.stringify(result);
-    expect(serialized).not.toMatch(/credential|authorization|bearer|raw|account|plan|fingerprint/i);
+    expect(serialized).not.toMatch(/access_token|refresh_token|authorization|bearer|raw|account|plan|fingerprint/i);
     db.close();
   });
 
@@ -129,7 +131,7 @@ describe("Kimi Code quota extension host integration", () => {
     const rendererSource = `${storeSource}\n${componentsSource}\n${widgetSource}`;
 
     expect(rendererSource).toContain("capabilities.invoke");
-    expect(rendererSource).not.toMatch(/KIMI_API_KEY|auth\.json|Authorization|Bearer|api\.kimi\.com|\bfetch\s*\(|\.db\.|setInterval|setTimeout|child_process|spawn\s*\(/);
+    expect(rendererSource).not.toMatch(/KIMI_API_KEY|KIMI_CODE_HOME|kimi-code\.json|auth\.json|access_token|refresh_token|Authorization|Bearer|api\.kimi\.com|\bfetch\s*\(|\.db\.|setInterval|setTimeout|child_process|spawn\s*\(/);
   });
 
   it("coalesces renderer capability calls and re-reads after a host background update", async () => {

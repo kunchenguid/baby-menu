@@ -1,4 +1,5 @@
 import type {
+  KimiCredentialSource,
   KimiQuotaDiagnostic,
   KimiQuotaErrorCode,
   KimiQuotaFailure,
@@ -52,14 +53,18 @@ const TLS_ERROR_CODES = new Set([
   "EPROTO",
 ]);
 
+export type KimiCredentialResolution =
+  | { status: "available"; apiKey: string; source: KimiCredentialSource }
+  | { status: "unavailable" }
+  | { status: "unsupported" };
+
 export type KimiCredentialResolver = {
-  inspectStoredCredentialType: () => Promise<string | undefined>;
-  resolveApiKey: () => Promise<string | undefined>;
+  resolveCredential: () => Promise<KimiCredentialResolution>;
 };
 
 export type KimiQuotaLogEvent =
   | { event: "acquisition_started" }
-  | { event: "credential_state"; available: boolean }
+  | { event: "credential_state"; available: boolean; source?: KimiCredentialSource }
   | { event: "request_completed"; httpStatus: number }
   | { event: "normalization_succeeded"; windowIds: string[] }
   | { event: "normalization_failed"; code: KimiQuotaErrorCode }
@@ -85,6 +90,7 @@ class KimiAcquisitionFailure extends Error {
     readonly code: KimiQuotaErrorCode,
     readonly httpStatus?: number,
     readonly retryAt?: string,
+    readonly credentialSource?: KimiCredentialSource,
   ) {
     super(code);
     this.name = "KimiAcquisitionFailure";
@@ -156,30 +162,27 @@ export function createKimiQuotaBroker(options: CreateKimiQuotaBrokerOptions): Ki
   };
 
   const attempt = async (signal: AbortSignal): Promise<KimiQuotaResult> => {
-    let storedType: string | undefined;
+    let credential: KimiCredentialResolution;
     try {
-      storedType = await options.credentialResolver.inspectStoredCredentialType();
+      credential = await options.credentialResolver.resolveCredential();
     } catch {
       throw new KimiAcquisitionFailure("credential_resolution_failed");
     }
     throwIfAborted(signal);
-    if (storedType && storedType !== "api_key") {
+    if (credential.status === "unsupported") {
       emit({ event: "credential_state", available: false });
       return failureResult(new KimiAcquisitionFailure("unsupported_credential_type"), now());
     }
-
-    let apiKey: string | undefined;
-    try {
-      apiKey = await options.credentialResolver.resolveApiKey();
-    } catch {
-      throw new KimiAcquisitionFailure("credential_resolution_failed");
-    }
-    throwIfAborted(signal);
-    if (!apiKey || !apiKey.trim()) {
+    if (credential.status === "unavailable" || !credential.apiKey.trim()) {
       emit({ event: "credential_state", available: false });
       return failureResult(new KimiAcquisitionFailure("kimi_credential_unavailable"), now());
     }
-    emit({ event: "credential_state", available: true });
+
+    const apiKey = credential.apiKey;
+    const credentialSource = credential.source;
+    const failure = (code: KimiQuotaErrorCode, httpStatus?: number, retryAt?: string) =>
+      new KimiAcquisitionFailure(code, httpStatus, retryAt, credentialSource);
+    emit({ event: "credential_state", available: true, source: credentialSource });
 
     let response: Response;
     try {
@@ -195,66 +198,68 @@ export function createKimiQuotaBroker(options: CreateKimiQuotaBrokerOptions): Ki
         },
       });
     } catch (error) {
-      if (signal.aborted) throw new KimiAcquisitionFailure("request_timeout");
-      throw new KimiAcquisitionFailure(classifyTransportError(error));
+      if (signal.aborted) throw failure("request_timeout");
+      throw failure(classifyTransportError(error));
     }
 
     emit({ event: "request_completed", httpStatus: response.status });
     if (response.status >= 300 && response.status < 400) {
-      throw new KimiAcquisitionFailure("redirect_rejected", response.status);
+      throw failure("redirect_rejected", response.status);
     }
     if (response.status === 401 || response.status === 403) {
-      throw new KimiAcquisitionFailure("provider_auth_rejected", response.status);
+      throw failure("provider_auth_rejected", response.status);
     }
-    if (response.status === 408) throw new KimiAcquisitionFailure("provider_timeout", response.status);
+    if (response.status === 408) throw failure("provider_timeout", response.status);
     if (response.status === 429) {
-      throw new KimiAcquisitionFailure("provider_rate_limited", response.status, parseRetryAfter(response.headers.get("retry-after"), now()));
+      throw failure("provider_rate_limited", response.status, parseRetryAfter(response.headers.get("retry-after"), now()));
     }
     if (response.status >= 500 && response.status <= 599) {
-      throw new KimiAcquisitionFailure("provider_unavailable", response.status);
+      throw failure("provider_unavailable", response.status);
     }
     if (response.status >= 400 && response.status <= 499) {
-      throw new KimiAcquisitionFailure("provider_request_rejected", response.status);
+      throw failure("provider_request_rejected", response.status);
     }
-    if (response.status !== 200) throw new KimiAcquisitionFailure("provider_request_rejected", response.status);
+    if (response.status !== 200) throw failure("provider_request_rejected", response.status);
 
     const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
-    if (mediaType !== "application/json") throw new KimiAcquisitionFailure("unexpected_content_type", response.status);
+    if (mediaType !== "application/json") throw failure("unexpected_content_type", response.status);
     const declaredLength = response.headers.get("content-length");
     if (declaredLength && /^\d+$/.test(declaredLength.trim()) && Number(declaredLength) > RESPONSE_LIMIT_BYTES) {
       await cancelBody(response);
-      throw new KimiAcquisitionFailure("response_too_large", response.status);
+      throw failure("response_too_large", response.status);
     }
 
     let body: Uint8Array;
     try {
       body = await readBoundedBody(response, signal);
     } catch (error) {
-      if (error instanceof KimiAcquisitionFailure) throw error;
-      if (signal.aborted) throw new KimiAcquisitionFailure("request_timeout");
-      throw new KimiAcquisitionFailure(classifyTransportError(error));
+      if (error instanceof KimiAcquisitionFailure) {
+        throw failure(error.code, error.httpStatus, error.retryAt);
+      }
+      if (signal.aborted) throw failure("request_timeout");
+      throw failure(classifyTransportError(error));
     }
 
     let text: string;
     try {
       text = new TextDecoder("utf-8", { fatal: true }).decode(body);
     } catch {
-      throw new KimiAcquisitionFailure("response_invalid_utf8", response.status);
+      throw failure("response_invalid_utf8", response.status);
     }
 
     let payload: unknown;
     try {
       payload = JSON.parse(text);
     } catch {
-      throw new KimiAcquisitionFailure("malformed_json", response.status);
+      throw failure("malformed_json", response.status);
     }
 
     let snapshot: KimiQuotaSnapshot;
     try {
-      snapshot = normalizeKimiUsage(payload, new Date(now()).toISOString());
+      snapshot = normalizeKimiUsage(payload, new Date(now()).toISOString(), credentialSource);
     } catch (error) {
       emit({ event: "normalization_failed", code: error instanceof KimiQuotaParseError ? error.code : "schema_invalid" });
-      throw new KimiAcquisitionFailure("schema_invalid", response.status);
+      throw failure("schema_invalid", response.status);
     }
     emit({ event: "normalization_succeeded", windowIds: snapshot.windows.map((window) => window.id) });
     return freshResult(snapshot, snapshot.refreshedAt);
@@ -337,6 +342,7 @@ function applyCachePolicy(
           status: "stale",
           stale: true,
           source: "cache",
+          ...(current.credentialSource ? { credentialSource: current.credentialSource } : {}),
           checkedAt: current.checkedAt,
           snapshot: { ...cached, windows },
           error: current.error,
@@ -363,7 +369,14 @@ function eligibleStaleWindows(snapshot: KimiQuotaSnapshot, nowMs: number): KimiQ
 }
 
 function freshResult(snapshot: KimiQuotaSnapshot, checkedAt: string): KimiQuotaResult {
-  return { status: "fresh", stale: false, source: "api", checkedAt, snapshot };
+  return {
+    status: "fresh",
+    stale: false,
+    source: "api",
+    credentialSource: snapshot.credentialSource,
+    checkedAt,
+    snapshot,
+  };
 }
 
 function failureResult(failure: KimiAcquisitionFailure, nowMs: number): KimiQuotaResult {
@@ -377,6 +390,7 @@ function failureResult(failure: KimiAcquisitionFailure, nowMs: number): KimiQuot
     status,
     stale: false,
     source: "api",
+    ...(failure.credentialSource ? { credentialSource: failure.credentialSource } : {}),
     checkedAt: new Date(nowMs).toISOString(),
     error,
     ...(failure.retryAt ? { retryAt: failure.retryAt } : {}),
@@ -475,6 +489,7 @@ function readResult(db: ExtensionDatabase, key: string): KimiQuotaResult | undef
   const checkedAt = normalizedInstant(value.checkedAt);
   if (!checkedAt) return undefined;
   const snapshot = sanitizeSnapshot(value.snapshot);
+  const credentialSource = sanitizeCredentialSource(value.credentialSource) ?? snapshot?.credentialSource;
   const error = sanitizeFailure(value.error);
   const retryAt = normalizedInstant(value.retryAt);
   if (value.status === "fresh" && !snapshot) return undefined;
@@ -483,6 +498,7 @@ function readResult(db: ExtensionDatabase, key: string): KimiQuotaResult | undef
     status: value.status as KimiQuotaResult["status"],
     stale: value.stale,
     source: value.source,
+    ...(credentialSource ? { credentialSource } : {}),
     checkedAt,
     ...(snapshot ? { snapshot } : {}),
     ...(error ? { error } : {}),
@@ -502,6 +518,7 @@ function readCacheJson(db: ExtensionDatabase, key: string): unknown {
 
 function sanitizeSnapshot(value: unknown): KimiQuotaSnapshot | undefined {
   if (!isRecord(value) || value.provider !== "kimi" || value.label !== "Kimi" || value.source !== "api") return undefined;
+  const credentialSource = sanitizeCredentialSource(value.credentialSource) ?? "pi-kimi-coding";
   const refreshedAt = normalizedInstant(value.refreshedAt);
   if (!refreshedAt || !Array.isArray(value.windows)) return undefined;
   const windows = value.windows.map(sanitizeWindow).filter((window): window is KimiQuotaWindow => Boolean(window));
@@ -516,7 +533,19 @@ function sanitizeSnapshot(value: unknown): KimiQuotaSnapshot | undefined {
       }
     }
   }
-  return { provider: "kimi", label: "Kimi", source: "api", refreshedAt, windows, ...(diagnostics.length ? { diagnostics } : {}) };
+  return {
+    provider: "kimi",
+    label: "Kimi",
+    source: "api",
+    credentialSource,
+    refreshedAt,
+    windows,
+    ...(diagnostics.length ? { diagnostics } : {}),
+  };
+}
+
+function sanitizeCredentialSource(value: unknown): KimiCredentialSource | undefined {
+  return value === "pi-kimi-coding" || value === "kimi-code-cli" ? value : undefined;
 }
 
 function sanitizeWindow(value: unknown): KimiQuotaWindow | undefined {

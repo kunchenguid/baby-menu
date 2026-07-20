@@ -23,8 +23,11 @@ describe("Pi-backed Kimi credential resolver", () => {
     const createAuthStorage = vi.fn(() => storage);
     const resolver = createPiKimiCredentialResolver({ createAuthStorage });
 
-    await expect(resolver.inspectStoredCredentialType()).resolves.toBe("api_key");
-    await expect(resolver.resolveApiKey()).resolves.toBe("managed-synthetic-key");
+    await expect(resolver.resolveCredential()).resolves.toEqual({
+      status: "available",
+      source: "pi-kimi-coding",
+      apiKey: "managed-synthetic-key",
+    });
     expect(createAuthStorage).toHaveBeenCalledWith();
     expect(storage.get).toHaveBeenCalledWith("kimi-coding");
     expect(storage.getApiKey).toHaveBeenCalledWith("kimi-coding", { includeFallback: false });
@@ -39,8 +42,11 @@ describe("Pi-backed Kimi credential resolver", () => {
     const storage = authStorage({ getApiKey: vi.fn(async () => "environment-synthetic-key") });
     const resolver = createPiKimiCredentialResolver({ createAuthStorage: () => storage });
 
-    await expect(resolver.inspectStoredCredentialType()).resolves.toBeUndefined();
-    await expect(resolver.resolveApiKey()).resolves.toBe("environment-synthetic-key");
+    await expect(resolver.resolveCredential()).resolves.toEqual({
+      status: "available",
+      source: "pi-kimi-coding",
+      apiKey: "environment-synthetic-key",
+    });
     expect(storage.getApiKey).toHaveBeenCalledOnce();
   });
 
@@ -51,10 +57,10 @@ describe("Pi-backed Kimi credential resolver", () => {
     });
     const resolver = createPiKimiCredentialResolver({ createAuthStorage: () => storage });
 
-    const metadata = await resolver.inspectStoredCredentialType();
+    const resolution = await resolver.resolveCredential();
 
-    expect(metadata).toBe("oauth");
-    expect(JSON.stringify(metadata)).not.toContain(sentinel);
+    expect(resolution).toEqual({ status: "unsupported" });
+    expect(JSON.stringify(resolution)).not.toContain(sentinel);
     expect(storage.getApiKey).not.toHaveBeenCalled();
   });
 
@@ -62,7 +68,7 @@ describe("Pi-backed Kimi credential resolver", () => {
     const storage = authStorage({ getApiKey: vi.fn(async () => "synthetic-key") });
     const resolver = createPiKimiCredentialResolver({ createAuthStorage: () => storage });
 
-    await resolver.resolveApiKey();
+    await resolver.resolveCredential();
 
     expect(Object.keys(storage)).not.toContain("modelRegistry");
     expect(storage.setRuntimeApiKey).not.toHaveBeenCalled();

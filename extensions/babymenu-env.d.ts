@@ -55,10 +55,13 @@ declare module "@babymenu/contracts" {
     index?: number;
   };
 
+  export type KimiCredentialSource = "pi-kimi-coding" | "kimi-code-cli";
+
   export type KimiQuotaSnapshot = {
     provider: "kimi";
     label: "Kimi";
     source: "api";
+    credentialSource: KimiCredentialSource;
     refreshedAt: string;
     windows: KimiQuotaWindow[];
     diagnostics?: KimiQuotaDiagnostic[];
@@ -94,14 +97,15 @@ declare module "@babymenu/contracts" {
     status: "fresh" | "stale" | "auth_required" | "rate_limited" | "error";
     stale: boolean;
     source: "api" | "cache";
+    credentialSource?: KimiCredentialSource;
     checkedAt: string;
     snapshot?: KimiQuotaSnapshot;
     error?: KimiQuotaFailure;
     retryAt?: string;
   };
 
-  // The only Pi-backed operation exposed to extension server code. It returns a
-  // normalized, non-secret result and does not expose Pi SDK objects or arbitrary providers.
+  // The only Kimi credential-backed operation exposed to extension server code. It
+  // returns a normalized, non-secret result and exposes no credential or provider API.
   export type BabyMenuKimiQuotaBroker = {
     acquire: (options?: { force?: boolean; maxAgeMs?: number }) => Promise<KimiQuotaResult>;
     readCached: () => KimiQuotaResult | undefined;

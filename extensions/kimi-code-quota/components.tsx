@@ -1,5 +1,5 @@
 import { Progress, Skeleton, StatusDot } from "@babymenu/ui";
-import type { KimiQuotaErrorCode, KimiQuotaResult, KimiQuotaWindow } from "@babymenu/contracts";
+import type { KimiCredentialSource, KimiQuotaErrorCode, KimiQuotaResult, KimiQuotaWindow } from "@babymenu/contracts";
 import { useKimiQuotaView, type KimiQuotaViewState } from "./store";
 
 export function KimiQuotaView() {
@@ -93,7 +93,7 @@ function LoadingState() {
 }
 
 function FailureState({ result, now }: { result: KimiQuotaResult; now: number }) {
-  const copy = failureCopy(result.error?.code);
+  const copy = failureCopy(result.error?.code, result.credentialSource);
   const retry = result.retryAt ? formatRetry(result.retryAt, now) : undefined;
   return (
     <div className="flex min-w-0 flex-col gap-3" data-kimi-quota-state={result.status}>
@@ -137,17 +137,18 @@ function snapshotStatus(result: KimiQuotaResult, refreshing: boolean): {
   return { label: "fresh", tone: "live", className: "text-signal-live", pulse: false };
 }
 
-function failureCopy(code: KimiQuotaErrorCode | undefined): {
+function failureCopy(code: KimiQuotaErrorCode | undefined, credentialSource?: KimiCredentialSource): {
   title: string;
   detail: string;
   tone: "warn" | "danger";
   className: string;
 } {
   if (code === "kimi_credential_unavailable" || code === "unsupported_credential_type") {
-    return { title: "credential needed", detail: "add kimi-coding to Pi", tone: "warn", className: "text-signal-warn" };
+    return { title: "credential needed", detail: "sign in with Pi or Kimi CLI", tone: "warn", className: "text-signal-warn" };
   }
   if (code === "provider_auth_rejected") {
-    return { title: "credential rejected", detail: "check kimi-coding in Pi", tone: "danger", className: "text-signal-danger" };
+    const detail = credentialSource === "kimi-code-cli" ? "sign in again with Kimi CLI" : "check kimi-coding in Pi";
+    return { title: "credential rejected", detail, tone: "danger", className: "text-signal-danger" };
   }
   if (code === "provider_rate_limited") {
     return { title: "rate limited", detail: "Kimi quota could not refresh", tone: "warn", className: "text-signal-warn" };

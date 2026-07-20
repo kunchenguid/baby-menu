@@ -20,14 +20,14 @@ export function createPiKimiCredentialResolver(
   ));
 
   return {
-    async inspectStoredCredentialType() {
-      const credential = (await getStorage()).get(KIMI_PROVIDER_ID);
-      return credential?.type;
-    },
-    async resolveApiKey() {
-      const resolved = await (await getStorage()).getApiKey(KIMI_PROVIDER_ID, { includeFallback: false });
-      if (typeof resolved !== "string" || !resolved.trim()) return undefined;
-      return resolved;
+    async resolveCredential() {
+      const authStorage = await getStorage();
+      const credential = authStorage.get(KIMI_PROVIDER_ID);
+      if (credential?.type && credential.type !== "api_key") return { status: "unsupported" } as const;
+
+      const resolved = await authStorage.getApiKey(KIMI_PROVIDER_ID, { includeFallback: false });
+      if (typeof resolved !== "string" || !resolved.trim()) return { status: "unavailable" } as const;
+      return { status: "available", source: "pi-kimi-coding", apiKey: resolved } as const;
     },
   };
 }

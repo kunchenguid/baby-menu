@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createKimiCredentialResolverChain } from "../src/main/kimi-code-cli-credential-resolver";
 import { createExtensionDatabase, type ExtensionDatabase } from "../src/main/extension-database";
 import {
   createKimiQuotaBroker,
@@ -31,8 +32,11 @@ function jsonResponse(payload: unknown = validPayload(), init: ResponseInit = {}
 
 function resolver(overrides: Partial<KimiCredentialResolver> = {}): KimiCredentialResolver {
   return {
-    inspectStoredCredentialType: vi.fn(async () => "api_key" as const),
-    resolveApiKey: vi.fn(async () => SYNTHETIC_KEY),
+    resolveCredential: vi.fn(async () => ({
+      status: "available" as const,
+      source: "pi-kimi-coding" as const,
+      apiKey: SYNTHETIC_KEY,
+    })),
     ...overrides,
   };
 }
@@ -98,8 +102,8 @@ describe("Kimi quota broker transport and privacy", () => {
 
   it("does not request quota when the credential is missing or has an unsupported stored type", async () => {
     for (const credentialResolver of [
-      resolver({ inspectStoredCredentialType: vi.fn(async () => undefined), resolveApiKey: vi.fn(async () => undefined) }),
-      resolver({ inspectStoredCredentialType: vi.fn(async () => "oauth"), resolveApiKey: vi.fn(async () => SYNTHETIC_KEY) }),
+      resolver({ resolveCredential: vi.fn(async () => ({ status: "unavailable" as const })) }),
+      resolver({ resolveCredential: vi.fn(async () => ({ status: "unsupported" as const })) }),
     ]) {
       const fetchMock = vi.fn(async () => jsonResponse());
       const result = await broker({ credentialResolver, fetch: fetchMock }).acquire({ force: true });
@@ -107,15 +111,35 @@ describe("Kimi quota broker transport and privacy", () => {
       expect(result.status).toBe("auth_required");
       expect(result.error?.code).toMatch(/kimi_credential_unavailable|unsupported_credential_type/);
       expect(fetchMock).not.toHaveBeenCalled();
-      if (result.error?.code === "unsupported_credential_type") {
-        expect(credentialResolver.resolveApiKey).not.toHaveBeenCalled();
-      }
     }
+  });
+
+  it.each([
+    ["transport", vi.fn(async () => Promise.reject(new TypeError("offline"))), "network_unavailable"],
+    ["decoding", vi.fn(async () => new Response("not json", { headers: { "content-type": "text/plain" } })), "unexpected_content_type"],
+    ["server", vi.fn(async () => new Response("", { status: 503 })), "provider_unavailable"],
+  ])("does not switch credentials after a %s failure", async (_kind, fetchMock, errorCode) => {
+    const primary = resolver();
+    const cliFallback = resolver({
+      resolveCredential: vi.fn(async () => ({
+        status: "available" as const,
+        source: "kimi-code-cli" as const,
+        apiKey: "unused-cli-fallback",
+      })),
+    });
+    const credentialResolver = createKimiCredentialResolverChain([primary, cliFallback]);
+
+    const result = await broker({ credentialResolver, fetch: fetchMock }).acquire({ force: true });
+
+    expect(result.error?.code).toBe(errorCode);
+    expect(result.credentialSource).toBe("pi-kimi-coding");
+    expect(cliFallback.resolveCredential).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("bounds unexpected resolver failures without exposing their message", async () => {
     const credentialResolver = resolver({
-      resolveApiKey: vi.fn(async () => {
+      resolveCredential: vi.fn(async () => {
         throw new Error(`resolver leaked ${SYNTHETIC_KEY} /private/path`);
       }),
     });
@@ -134,15 +158,24 @@ describe("Kimi quota broker transport and privacy", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
-  it("enforces the total deadline and aborts the request", async () => {
+  it("enforces the total deadline without switching credentials after cancellation", async () => {
     const fetchMock = vi.fn((_input: string | URL | Request, init?: RequestInit) =>
       new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
       }),
     );
-    const result = await broker({ fetch: fetchMock, timeoutMs: 20 }).acquire({ force: true });
+    const cliFallback = resolver({
+      resolveCredential: vi.fn(async () => ({
+        status: "available" as const,
+        source: "kimi-code-cli" as const,
+        apiKey: "unused-cli-fallback",
+      })),
+    });
+    const credentialResolver = createKimiCredentialResolverChain([resolver(), cliFallback]);
+    const result = await broker({ credentialResolver, fetch: fetchMock, timeoutMs: 20 }).acquire({ force: true });
 
     expect(result).toMatchObject({ status: "error", error: { code: "request_timeout", category: "transport" } });
+    expect(cliFallback.resolveCredential).not.toHaveBeenCalled();
   });
 
   it("rejects declared and streamed bodies over 262144 bytes", async () => {
@@ -334,7 +367,7 @@ describe("Kimi quota broker cache, freshness, and concurrency", () => {
   });
 
   it.each([
-    [resolver({ resolveApiKey: vi.fn(async () => undefined) }), undefined],
+    [resolver({ resolveCredential: vi.fn(async () => ({ status: "unavailable" as const })) }), undefined],
     [resolver(), 401],
     [resolver(), 403],
   ])("retires cache after definitive auth loss or rejection", async (nextResolver, status) => {

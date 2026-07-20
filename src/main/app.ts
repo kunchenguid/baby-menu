@@ -20,6 +20,10 @@ import { createBackgroundTaskScheduler } from "./background-task-scheduler";
 import { createExtensionDatabase } from "./extension-database";
 import { createNotifier } from "./notifier";
 import { createPiKimiCredentialResolver } from "./pi-kimi-credential-resolver";
+import {
+  createKimiCodeCliCredentialResolver,
+  createKimiCredentialResolverChain,
+} from "./kimi-code-cli-credential-resolver";
 import { createKimiQuotaBroker } from "./kimi-quota-broker";
 import { createPreferencesService } from "./preferences";
 import { createBackgroundTaskSource, createServerActionRegistry } from "./server-action-registry";
@@ -219,7 +223,10 @@ export async function startBabyMenuApp(): Promise<void> {
   const notify = createNotifier();
   const kimiQuota = createKimiQuotaBroker({
     db: database,
-    credentialResolver: createPiKimiCredentialResolver(),
+    credentialResolver: createKimiCredentialResolverChain([
+      createPiKimiCredentialResolver(),
+      createKimiCodeCliCredentialResolver(),
+    ]),
     userAgent: `baby-menu/${app.getVersion()}`,
   });
 

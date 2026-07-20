@@ -25,6 +25,7 @@ export const EXTENSION_CONTRACT_NAMES = [
   "BabyMenuNotification",
   "BabyMenuBackgroundTask",
   "BabyMenuKimiQuotaBroker",
+  "KimiCredentialSource",
   "KimiQuotaWindow",
   "KimiQuotaDiagnostic",
   "KimiQuotaSnapshot",
