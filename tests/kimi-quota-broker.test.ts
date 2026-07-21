@@ -236,6 +236,141 @@ describe("Kimi quota broker transport and privacy", () => {
     expect(JSON.stringify(result)).not.toContain(SYNTHETIC_KEY);
   });
 
+  /**
+   * Negative control: body stays open forever unless the broker cancels it.
+   * Proves early terminal paths release the response body before acquire settles.
+   */
+  function indefinitelyOpenBody() {
+    let live = true;
+    const cancel = vi.fn((_reason?: unknown) => {
+      live = false;
+    });
+    const stream = new ReadableStream<Uint8Array>({
+      start() {
+        // Intentionally never enqueue, close, or error - body stays open until cancel.
+      },
+      cancel(reason) {
+        cancel(reason);
+      },
+    });
+    return {
+      stream,
+      cancel,
+      isLive: () => live,
+    };
+  }
+  it.each([
+    [301, "redirect_rejected", "error", { location: "https://elsewhere.invalid/" }],
+    [302, "redirect_rejected", "error", { location: "https://elsewhere.invalid/" }],
+    [307, "redirect_rejected", "error", { location: "https://elsewhere.invalid/" }],
+    [308, "redirect_rejected", "error", { location: "https://elsewhere.invalid/" }],
+    [401, "provider_auth_rejected", "auth_required", {}],
+    [403, "provider_auth_rejected", "auth_required", {}],
+    [408, "provider_timeout", "error", {}],
+    [429, "provider_rate_limited", "rate_limited", { "retry-after": "12" }],
+    [418, "provider_request_rejected", "error", {}],
+    [422, "provider_request_rejected", "error", {}],
+    [500, "provider_unavailable", "error", {}],
+    [503, "provider_unavailable", "error", {}],
+  ] as const)(
+    "cancels indefinitely open body for HTTP %s before acquire completes",
+    async (httpStatus, code, status, headers) => {
+      const open = indefinitelyOpenBody();
+      const result = await broker({
+        fetch: vi.fn(async () => new Response(open.stream, { status: httpStatus, headers })),
+      }).acquire({ force: true });
+
+      expect(result).toMatchObject({ status, error: { code, httpStatus } });
+      expect(open.cancel).toHaveBeenCalled();
+      expect(open.isLive()).toBe(false);
+    },
+  );
+
+  it("cancels indefinitely open body for unexpected content type", async () => {
+    const open = indefinitelyOpenBody();
+    const result = await broker({
+      fetch: vi.fn(async () => new Response(open.stream, {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      })),
+    }).acquire({ force: true });
+
+    expect(result).toMatchObject({ status: "error", error: { code: "unexpected_content_type", httpStatus: 200 } });
+    expect(open.cancel).toHaveBeenCalled();
+    expect(open.isLive()).toBe(false);
+  });
+
+  it("cancels indefinitely open body for declared oversized content-length", async () => {
+    const open = indefinitelyOpenBody();
+    const result = await broker({
+      fetch: vi.fn(async () => new Response(open.stream, {
+        status: 200,
+        headers: { "content-type": "application/json", "content-length": "262145" },
+      })),
+    }).acquire({ force: true });
+
+    expect(result).toMatchObject({ status: "error", error: { code: "response_too_large", httpStatus: 200 } });
+    expect(open.cancel).toHaveBeenCalled();
+    expect(open.isLive()).toBe(false);
+  });
+
+  it("cancels body and settles when the deadline expires during an open stream", async () => {
+    const open = indefinitelyOpenBody();
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal;
+      if (signal) {
+        const onAbort = () => {
+          void open.stream.cancel(signal.reason).catch(() => undefined);
+        };
+        if (signal.aborted) onAbort();
+        else signal.addEventListener("abort", onAbort, { once: true });
+      }
+      return new Response(open.stream, { status: 200, headers: { "content-type": "application/json" } });
+    });
+
+    const result = await broker({ fetch: fetchMock, timeoutMs: 25 }).acquire({ force: true });
+
+    expect(result).toMatchObject({ status: "error", error: { code: "request_timeout", category: "transport" } });
+    expect(open.cancel).toHaveBeenCalled();
+    expect(open.isLive()).toBe(false);
+  });
+
+  it("releases the body after a successful bounded JSON parse", async () => {
+    const encoder = new TextEncoder();
+    const payload = encoder.encode(JSON.stringify(validPayload()));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(payload);
+        controller.close();
+      },
+    });
+
+    const result = await broker({
+      fetch: vi.fn(async () => new Response(stream, { status: 200, headers: { "content-type": "application/json" } })),
+    }).acquire({ force: true });
+
+    expect(result).toMatchObject({ status: "fresh", stale: false, source: "api" });
+    // Fully consumed (and lifecycle-cancelled) streams must not remain locked or open for further reads.
+    expect(stream.locked).toBe(false);
+    await expect(stream.getReader().read()).resolves.toEqual({ done: true, value: undefined });
+  });
+
+  it("cancels the body when a streamed success payload exceeds the byte bound", async () => {
+    const cancel = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(180_000));
+        controller.enqueue(new Uint8Array(100_000));
+      },
+      cancel,
+    });
+    const result = await broker({
+      fetch: vi.fn(async () => new Response(stream, { headers: { "content-type": "application/json" } })),
+    }).acquire({ force: true });
+    expect(result.error?.code).toBe("response_too_large");
+    expect(cancel).toHaveBeenCalled();
+  });
+
   it.each([
     ["73", "2026-07-19T12:01:13.000Z"],
     ["Sun, 19 Jul 2026 12:04:00 GMT", "2026-07-19T12:04:00.000Z"],

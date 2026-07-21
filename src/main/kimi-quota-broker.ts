@@ -146,10 +146,15 @@ export function createKimiQuotaBroker(options: CreateKimiQuotaBrokerOptions): Ki
       timeout.unref?.();
     });
 
+    const attemptPromise = attempt(controller.signal);
     let result: KimiQuotaResult;
     try {
-      result = await Promise.race([attempt(controller.signal), deadline]);
+      result = await Promise.race([attemptPromise, deadline]);
     } catch (error) {
+      // Abort and drain the attempt so response-body cleanup always finishes before
+      // acquire is considered complete, even when the deadline wins the race first.
+      if (!controller.signal.aborted) controller.abort();
+      await attemptPromise.catch(() => undefined);
       const failure = error instanceof KimiAcquisitionFailure
         ? error
         : new KimiAcquisitionFailure(deadlineReached || error instanceof KimiDeadlineError ? "request_timeout" : classifyTransportError(error));
@@ -164,9 +169,15 @@ export function createKimiQuotaBroker(options: CreateKimiQuotaBrokerOptions): Ki
   const attempt = async (signal: AbortSignal): Promise<KimiQuotaResult> => {
     let credential: KimiCredentialResolution;
     try {
-      credential = await options.credentialResolver.resolveCredential(signal);
-    } catch {
+      // Race against abort so a hung resolver that ignores AbortSignal cannot pin
+      // acquire after the deadline (and so body-drain on timeout always completes).
+      credential = await Promise.race([
+        options.credentialResolver.resolveCredential(signal),
+        abortRejection(signal),
+      ]);
+    } catch (error) {
       throwIfAborted(signal);
+      if (error instanceof KimiAcquisitionFailure) throw error;
       throw new KimiAcquisitionFailure("credential_resolution_failed");
     }
     throwIfAborted(signal);
@@ -203,67 +214,13 @@ export function createKimiQuotaBroker(options: CreateKimiQuotaBrokerOptions): Ki
       throw failure(classifyTransportError(error));
     }
 
-    emit({ event: "request_completed", httpStatus: response.status });
-    if (response.status >= 300 && response.status < 400) {
-      throw failure("redirect_rejected", response.status);
-    }
-    if (response.status === 401 || response.status === 403) {
-      throw failure("provider_auth_rejected", response.status);
-    }
-    if (response.status === 408) throw failure("provider_timeout", response.status);
-    if (response.status === 429) {
-      throw failure("provider_rate_limited", response.status, parseRetryAfter(response.headers.get("retry-after"), now()));
-    }
-    if (response.status >= 500 && response.status <= 599) {
-      throw failure("provider_unavailable", response.status);
-    }
-    if (response.status >= 400 && response.status <= 499) {
-      throw failure("provider_request_rejected", response.status);
-    }
-    if (response.status !== 200) throw failure("provider_request_rejected", response.status);
-
-    const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
-    if (mediaType !== "application/json") throw failure("unexpected_content_type", response.status);
-    const declaredLength = response.headers.get("content-length");
-    if (declaredLength && /^\d+$/.test(declaredLength.trim()) && Number(declaredLength) > RESPONSE_LIMIT_BYTES) {
+    // One lifecycle rule: every terminal path cancels/closes the response body so a
+    // malicious or broken endpoint cannot keep streaming after the broker settles.
+    try {
+      return await consumeQuotaResponse(response, signal, credentialSource, failure, emit, now);
+    } finally {
       await cancelBody(response);
-      throw failure("response_too_large", response.status);
     }
-
-    let body: Uint8Array;
-    try {
-      body = await readBoundedBody(response, signal);
-    } catch (error) {
-      if (error instanceof KimiAcquisitionFailure) {
-        throw failure(error.code, error.httpStatus, error.retryAt);
-      }
-      if (signal.aborted) throw failure("request_timeout");
-      throw failure(classifyTransportError(error));
-    }
-
-    let text: string;
-    try {
-      text = new TextDecoder("utf-8", { fatal: true }).decode(body);
-    } catch {
-      throw failure("response_invalid_utf8", response.status);
-    }
-
-    let payload: unknown;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      throw failure("malformed_json", response.status);
-    }
-
-    let snapshot: KimiQuotaSnapshot;
-    try {
-      snapshot = normalizeKimiUsage(payload, new Date(now()).toISOString(), credentialSource);
-    } catch (error) {
-      emit({ event: "normalization_failed", code: error instanceof KimiQuotaParseError ? error.code : "schema_invalid" });
-      throw failure("schema_invalid", response.status);
-    }
-    emit({ event: "normalization_succeeded", windowIds: snapshot.windows.map((window) => window.id) });
-    return freshResult(snapshot, snapshot.refreshedAt);
   };
 
   return {
@@ -272,11 +229,99 @@ export function createKimiQuotaBroker(options: CreateKimiQuotaBrokerOptions): Ki
   };
 }
 
+type KimiFailureFactory = (code: KimiQuotaErrorCode, httpStatus?: number, retryAt?: string) => KimiAcquisitionFailure;
+
+async function consumeQuotaResponse(
+  response: Response,
+  signal: AbortSignal,
+  credentialSource: KimiCredentialSource,
+  failure: KimiFailureFactory,
+  emit: (event: KimiQuotaLogEvent) => void,
+  now: () => number,
+): Promise<KimiQuotaResult> {
+  emit({ event: "request_completed", httpStatus: response.status });
+  if (response.status >= 300 && response.status < 400) {
+    throw failure("redirect_rejected", response.status);
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw failure("provider_auth_rejected", response.status);
+  }
+  if (response.status === 408) throw failure("provider_timeout", response.status);
+  if (response.status === 429) {
+    throw failure("provider_rate_limited", response.status, parseRetryAfter(response.headers.get("retry-after"), now()));
+  }
+  if (response.status >= 500 && response.status <= 599) {
+    throw failure("provider_unavailable", response.status);
+  }
+  if (response.status >= 400 && response.status <= 499) {
+    throw failure("provider_request_rejected", response.status);
+  }
+  if (response.status !== 200) throw failure("provider_request_rejected", response.status);
+
+  const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (mediaType !== "application/json") throw failure("unexpected_content_type", response.status);
+  const declaredLength = response.headers.get("content-length");
+  if (declaredLength && /^\d+$/.test(declaredLength.trim()) && Number(declaredLength) > RESPONSE_LIMIT_BYTES) {
+    throw failure("response_too_large", response.status);
+  }
+
+  let body: Uint8Array;
+  try {
+    body = await readBoundedBody(response, signal);
+    // Abort during a hanging read may cancel the stream as an empty body; prefer timeout
+    // over treating that cancelled empty payload as a parse failure.
+    throwIfAborted(signal);
+  } catch (error) {
+    if (error instanceof KimiAcquisitionFailure) {
+      throw failure(error.code, error.httpStatus, error.retryAt);
+    }
+    if (signal.aborted) throw failure("request_timeout");
+    throw failure(classifyTransportError(error));
+  }
+
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(body);
+  } catch {
+    throw failure("response_invalid_utf8", response.status);
+  }
+  let payload: unknown;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw failure("malformed_json", response.status);
+  }
+
+  let snapshot: KimiQuotaSnapshot;
+  try {
+    snapshot = normalizeKimiUsage(payload, new Date(now()).toISOString(), credentialSource);
+  } catch (error) {
+    emit({ event: "normalization_failed", code: error instanceof KimiQuotaParseError ? error.code : "schema_invalid" });
+    throw failure("schema_invalid", response.status);
+  }
+  emit({ event: "normalization_succeeded", windowIds: snapshot.windows.map((window) => window.id) });
+  return freshResult(snapshot, snapshot.refreshedAt);
+}
+
 async function readBoundedBody(response: Response, signal: AbortSignal): Promise<Uint8Array> {
   if (!response.body) return new Uint8Array();
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
+  // Abort must cancel through the locked reader; response.body.cancel() throws while locked
+  // and a pending reader.read() would otherwise hang past the broker deadline.
+  const onAbort = (): void => {
+    void reader.cancel(signal.reason).catch(() => undefined);
+  };
+  if (signal.aborted) {
+    try {
+      await reader.cancel(signal.reason);
+    } catch {
+      // Already closed.
+    }
+    throw new KimiAcquisitionFailure("request_timeout");
+  }
+  signal.addEventListener("abort", onAbort, { once: true });
   try {
     while (true) {
       throwIfAborted(signal);
@@ -285,13 +330,24 @@ async function readBoundedBody(response: Response, signal: AbortSignal): Promise
       if (!value) continue;
       total += value.byteLength;
       if (total > RESPONSE_LIMIT_BYTES) {
-        await reader.cancel().catch(() => undefined);
         throw new KimiAcquisitionFailure("response_too_large", response.status);
       }
       chunks.push(value);
     }
   } finally {
-    reader.releaseLock();
+    signal.removeEventListener("abort", onAbort);
+    // Cancel through the locked reader so abort/error paths release the socket even when
+    // response.body.cancel() would throw TypeError on a locked stream.
+    try {
+      await reader.cancel();
+    } catch {
+      // Stream may already be closed or released.
+    }
+    try {
+      reader.releaseLock();
+    } catch {
+      // cancel() may already have released the lock.
+    }
   }
 
   const body = new Uint8Array(total);
@@ -302,15 +358,20 @@ async function readBoundedBody(response: Response, signal: AbortSignal): Promise
   }
   return body;
 }
-
 async function cancelBody(response: Response): Promise<void> {
   try {
-    await response.body?.cancel();
+    const body = response.body;
+    if (!body) return;
+    // Prefer cancelling when unlocked; if a reader still holds the lock, release is
+    // handled by readBoundedBody's finally. Double-cancel after unlock is a no-op.
+    if (!body.locked) {
+      await body.cancel();
+      return;
+    }
   } catch {
-    // Size rejection is authoritative even if cancelling the stream fails.
+    // Terminal result is authoritative even if cancelling the stream fails.
   }
 }
-
 function applyCachePolicy(
   db: ExtensionDatabase,
   current: KimiQuotaResult,
@@ -457,6 +518,21 @@ function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) throw new KimiAcquisitionFailure("request_timeout");
 }
 
+function abortRejection(signal: AbortSignal): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    if (signal.aborted) {
+      reject(new KimiAcquisitionFailure("request_timeout"));
+      return;
+    }
+    signal.addEventListener(
+      "abort",
+      () => {
+        reject(new KimiAcquisitionFailure("request_timeout"));
+      },
+      { once: true },
+    );
+  });
+}
 function normalizeUserAgent(value: string | undefined): string {
   const candidate = value?.trim();
   return candidate && /^[A-Za-z][A-Za-z0-9._-]*\/[A-Za-z0-9._-]+$/.test(candidate) ? candidate : "baby-menu/unknown";
