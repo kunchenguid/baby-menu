@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.20](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.19...baby-menu-v0.1.20) (2026-07-21)
+
+
+### Features
+
+* add privacy-safe Kimi Code quota widget ([#84](https://github.com/kunchenguid/baby-menu/issues/84)) ([4786712](https://github.com/kunchenguid/baby-menu/commit/47867121d3a0ed2da96374fdf59b145673daafe1))
+* **main:** add official Kimi CLI quota fallback ([#86](https://github.com/kunchenguid/baby-menu/issues/86)) ([9c0a970](https://github.com/kunchenguid/baby-menu/commit/9c0a970dca92b86e1275add9213aeb20eeda1780))
+
+
+### Bug Fixes
+
+* **main:** close Kimi quota responses on every terminal path ([#87](https://github.com/kunchenguid/baby-menu/issues/87)) ([a306559](https://github.com/kunchenguid/baby-menu/commit/a3065597eff27428fdd0a2152d7f4b8104954696))
+* tighten Grok popover observability ([#80](https://github.com/kunchenguid/baby-menu/issues/80)) ([34df1ee](https://github.com/kunchenguid/baby-menu/commit/34df1ee5b8a21f91ac34ef4c6582ca983f628b22))
+
 ## [0.1.19](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.18...baby-menu-v0.1.19) (2026-07-15)
 
 
