@@ -14,6 +14,7 @@ import type {
   UpdateStatus,
 } from "../shared/contracts";
 import { getExtensionsDir, getRecipesDir } from "../shared/paths";
+import { normalizeWslDistroName } from "../shared/wsl-agent";
 import { BabyMenuAgentRuntime, type BabyMenuAgentRuntimeSendOptions } from "./agent-runtime";
 import { createExtensionDatabase, type ExtensionDatabase } from "./extension-database";
 import { loadRecipes } from "./recipe-loader";
@@ -200,8 +201,14 @@ export function registerIpcHandlers(
     return settings.setAgentRuntimeMode(mode);
   });
 
-  ipcMain.handle("baby-menu:settings:set-wsl-distro", async (_event, distro: string) => {
-    return settings.setWslDistro(distro);
+  ipcMain.handle("baby-menu:settings:set-wsl-distro", async (_event, distro: unknown) => {
+    if (typeof distro !== "string") {
+      throw new Error("WSL distro must be a string.");
+    }
+    // Allowlist/normalize at the IPC boundary so non-string or metachar payloads
+    // never reach preferences or spawn paths (stable errors for the renderer).
+    const normalized = normalizeWslDistroName(distro);
+    return settings.setWslDistro(normalized);
   });
 
   ipcMain.handle("baby-menu:app:quit", async () => {

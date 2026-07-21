@@ -337,12 +337,16 @@ If inspecting a source that can contain secrets, print only non-secret metadata 
 Before reporting the work done, verify the finished widget against that same live data yourself: run the server action (or an equivalent one-off check) against the real source and confirm the exact value you expect actually renders - reasoning about the return shape on paper is not enough.`;
 }
 
+export type AgentRuntimeLaunchChangeKind = "mode" | "distro";
+
 export class BabyMenuAgentRuntime {
   private runtime: AcpxRuntime | null = null;
   private handle: AcpRuntimeHandle | null = null;
   private activeSession: AgentChangeSession | null = null;
   private activeTurn = false;
   private activeTurnInfo: AgentActiveTurn | null = null;
+  /** True while WSL mode/distro apply is mid-flight (spans awaits). Blocks send(). */
+  private launchConfigChanging = false;
   private agentName: string;
   private registryOverrides: Record<string, string> | undefined;
   private registryOverridesStale = false;
@@ -421,6 +425,9 @@ export class BabyMenuAgentRuntime {
   }
 
   get agentSwitchDisabledReason(): string | undefined {
+    if (this.launchConfigChanging) {
+      return "Agent runtime launch configuration is changing. Wait for it to finish before switching agents.";
+    }
     if (this.activeTurn) return "Agent is running. Wait for it to finish before switching agents.";
     if (this.activeSession?.canSave || this.activeSession?.canRollback) {
       return "Save or Rollback the current agent changes before switching agents.";
@@ -428,17 +435,43 @@ export class BabyMenuAgentRuntime {
     return undefined;
   }
 
+  private launchChangeSubject(kind: AgentRuntimeLaunchChangeKind): string {
+    return kind === "distro" ? "WSL distro" : "agent runtime mode";
+  }
+
   /**
-   * Throws when a turn is running or Keep/Undo is pending. Used to gate WSL
-   * mode/distro changes so Settings cannot claim WSL while the live runtime still
-   * runs a host launch.
+   * Throws when a turn is running, Keep/Undo is pending, or another launch-config
+   * apply is already in flight. Used to gate WSL mode/distro changes so Settings
+   * cannot claim WSL while the live runtime still runs a host launch.
    */
-  assertCanChangeAgentRuntimeLaunch(): void {
+  assertCanChangeAgentRuntimeLaunch(kind: AgentRuntimeLaunchChangeKind = "mode"): void {
+    const subject = this.launchChangeSubject(kind);
+    if (this.launchConfigChanging) {
+      throw new Error("Agent runtime launch configuration is already changing.");
+    }
     if (this.activeTurn) {
-      throw new Error("Agent is running. Wait for it to finish before changing agent runtime mode.");
+      throw new Error(`Agent is running. Wait for it to finish before changing ${subject}.`);
     }
     if (this.activeSession?.canSave || this.activeSession?.canRollback) {
-      throw new Error("Save or Rollback the current agent changes before changing agent runtime mode.");
+      throw new Error(`Save or Rollback the current agent changes before changing ${subject}.`);
+    }
+  }
+
+  /**
+   * Runs a WSL mode/distro apply under an exclusive launch-config lock so `send()`
+   * cannot interleave across the awaits (prefs write + override rebuild).
+   * Asserts idle before setting the flag; always clears it in `finally`.
+   */
+  async withAgentRuntimeLaunchChange<T>(
+    kind: AgentRuntimeLaunchChangeKind,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    this.assertCanChangeAgentRuntimeLaunch(kind);
+    this.launchConfigChanging = true;
+    try {
+      return await fn();
+    } finally {
+      this.launchConfigChanging = false;
     }
   }
 
@@ -461,6 +494,12 @@ export class BabyMenuAgentRuntime {
   }
 
   async send(prompt: string, options: BabyMenuAgentRuntimeSendOptions = {}): Promise<AgentChatResult> {
+    if (this.launchConfigChanging) {
+      return {
+        assistantText:
+          "Agent runtime launch configuration is changing. Wait for it to finish before asking again.",
+      };
+    }
     if (this.activeTurn) {
       return {
         assistantText: "An agent turn is already running. Wait for it to finish before asking again.",

@@ -359,20 +359,22 @@ export async function startBabyMenuApp(): Promise<void> {
       if (mode !== "host" && mode !== "wsl") {
         throw new Error('Agent runtime mode must be "host" or "wsl".');
       }
-      // Gate before any disk write so a refused toggle leaves preferences unchanged.
-      agentRuntime.assertCanChangeAgentRuntimeLaunch();
       // Non-Windows hosts cannot enable WSL mode; keep preference host-only.
       const nextMode: BabyMenuAgentRuntimeMode = process.platform === "win32" ? mode : "host";
-      const next = await preferences.setAgentRuntimeMode(nextMode);
-      await applyAgentRuntimePreferenceChange(next);
-      return buildSettings();
+      // Exclusive lock spans prefs write + override rebuild so send() cannot race.
+      // A refused toggle (busy turn / pending review) never reaches disk.
+      return agentRuntime.withAgentRuntimeLaunchChange("mode", async () => {
+        const next = await preferences.setAgentRuntimeMode(nextMode);
+        await applyAgentRuntimePreferenceChange(next);
+        return buildSettings();
+      });
     },
     async setWslDistro(distro: string) {
-      // Gate before any disk write so a refused edit leaves preferences unchanged.
-      agentRuntime.assertCanChangeAgentRuntimeLaunch();
-      const next = await preferences.setWslDistro(distro);
-      await applyAgentRuntimePreferenceChange(next);
-      return buildSettings();
+      return agentRuntime.withAgentRuntimeLaunchChange("distro", async () => {
+        const next = await preferences.setWslDistro(distro);
+        await applyAgentRuntimePreferenceChange(next);
+        return buildSettings();
+      });
     },
   };
 

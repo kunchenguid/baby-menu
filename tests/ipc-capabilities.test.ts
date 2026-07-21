@@ -333,4 +333,51 @@ describe("capabilities IPC", () => {
 
     await expect(handlers.get("baby-menu:settings:set-agent-runtime-mode")?.({}, "docker")).rejects.toThrow(/host.*wsl/i);
   });
+
+  it("validates WSL distro type and allowlist at the IPC boundary", async () => {
+    const { registerIpcHandlers } = await import("../src/main/ipc");
+    const agentRuntime = { send: vi.fn(), save: vi.fn(), rollback: vi.fn(), currentSessionSnapshot: vi.fn(), currentTurn: vi.fn() };
+    const settings = {
+      get: vi.fn(),
+      setOpenAtLogin: vi.fn(),
+      setAgent: vi.fn(),
+      addAgent: vi.fn(),
+      updateAgent: vi.fn(),
+      removeAgent: vi.fn(),
+      setAgentRuntimeMode: vi.fn(),
+      setWslDistro: vi.fn(async (wslDistro: string) => ({
+        openAtLogin: false,
+        agentName: "claude",
+        agents: [],
+        agentRuntimeMode: "wsl" as const,
+        wslDistro,
+        wslModeSupported: true,
+      })),
+    };
+
+    registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, settings);
+
+    await expect(handlers.get("baby-menu:settings:set-wsl-distro")?.({}, 42)).rejects.toThrow(
+      /WSL distro must be a string/,
+    );
+    await expect(handlers.get("baby-menu:settings:set-wsl-distro")?.({}, null)).rejects.toThrow(
+      /WSL distro must be a string/,
+    );
+    await expect(handlers.get("baby-menu:settings:set-wsl-distro")?.({}, { name: "Ubuntu" })).rejects.toThrow(
+      /WSL distro must be a string/,
+    );
+    await expect(handlers.get("baby-menu:settings:set-wsl-distro")?.({}, 'bad;rm -rf')).rejects.toThrow(
+      /letters, numbers, dot, dash, or underscore/i,
+    );
+    await expect(handlers.get("baby-menu:settings:set-wsl-distro")?.({}, "My Distro")).rejects.toThrow(
+      /letters, numbers, dot, dash, or underscore/i,
+    );
+    expect(settings.setWslDistro).not.toHaveBeenCalled();
+
+    // Trims and forwards an allowlisted name (prefs layer may re-normalize).
+    await expect(handlers.get("baby-menu:settings:set-wsl-distro")?.({}, "  Fedora  ")).resolves.toMatchObject({
+      wslDistro: "Fedora",
+    });
+    expect(settings.setWslDistro).toHaveBeenCalledWith("Fedora");
+  });
 });

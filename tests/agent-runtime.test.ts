@@ -511,6 +511,122 @@ describe("agent runtime switching", () => {
   });
 });
 
+describe("agent runtime launch-config lock", () => {
+  function buildRuntime() {
+    const runtime = new BabyMenuAgentRuntime("/repo", { agentName: "claude" });
+    const internals = runtime as unknown as {
+      activeTurn: boolean;
+      activeSession: { canSave?: boolean; canRollback?: boolean } | null;
+      launchConfigChanging: boolean;
+    };
+    return { runtime, internals };
+  }
+
+  it("assertCanChangeAgentRuntimeLaunch parameterizes mode vs distro errors", () => {
+    const { runtime, internals } = buildRuntime();
+    internals.activeTurn = true;
+    expect(() => runtime.assertCanChangeAgentRuntimeLaunch("mode")).toThrow(
+      /before changing agent runtime mode/,
+    );
+    expect(() => runtime.assertCanChangeAgentRuntimeLaunch("distro")).toThrow(/before changing WSL distro/);
+
+    internals.activeTurn = false;
+    internals.activeSession = { canSave: true, canRollback: true };
+    expect(() => runtime.assertCanChangeAgentRuntimeLaunch("mode")).toThrow(
+      /Save or Rollback.*agent runtime mode/,
+    );
+    expect(() => runtime.assertCanChangeAgentRuntimeLaunch("distro")).toThrow(
+      /Save or Rollback.*WSL distro/,
+    );
+  });
+
+  it("withAgentRuntimeLaunchChange sets the lock across awaits and clears it in finally", async () => {
+    const { runtime, internals } = buildRuntime();
+    let midFlight = false;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const apply = runtime.withAgentRuntimeLaunchChange("mode", async () => {
+      midFlight = internals.launchConfigChanging;
+      await gate;
+      return "applied";
+    });
+
+    await waitUntil(() => midFlight);
+    expect(internals.launchConfigChanging).toBe(true);
+    expect(runtime.agentSwitchDisabledReason).toMatch(/launch configuration is changing/i);
+
+    release();
+    await expect(apply).resolves.toBe("applied");
+    expect(internals.launchConfigChanging).toBe(false);
+    expect(runtime.agentSwitchDisabledReason).toBeUndefined();
+  });
+
+  it("clears the lock when the apply callback throws", async () => {
+    const { runtime, internals } = buildRuntime();
+    await expect(
+      runtime.withAgentRuntimeLaunchChange("distro", async () => {
+        throw new Error("prefs write failed");
+      }),
+    ).rejects.toThrow(/prefs write failed/);
+    expect(internals.launchConfigChanging).toBe(false);
+  });
+
+  it("rejects a nested launch-config change while one is already applying", async () => {
+    const { runtime } = buildRuntime();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const first = runtime.withAgentRuntimeLaunchChange("mode", async () => {
+      await gate;
+    });
+    await waitUntil(() => runtime.agentSwitchDisabledReason != null);
+
+    await expect(runtime.withAgentRuntimeLaunchChange("distro", async () => "nope")).rejects.toThrow(
+      /already changing/,
+    );
+    expect(() => runtime.assertCanChangeAgentRuntimeLaunch("mode")).toThrow(/already changing/);
+
+    release();
+    await first;
+  });
+
+  it("rejects send while launch configuration is changing", async () => {
+    const { runtime, internals } = buildRuntime();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const apply = runtime.withAgentRuntimeLaunchChange("mode", async () => {
+      await gate;
+    });
+    await waitUntil(() => internals.launchConfigChanging);
+
+    const sendResult = await runtime.send("hello while applying");
+    expect(sendResult.assistantText).toMatch(/launch configuration is changing/i);
+
+    release();
+    await apply;
+  });
+
+  it("does not enter send while locked (assert refuses turn mid-apply)", async () => {
+    const { runtime, internals } = buildRuntime();
+    internals.activeTurn = true;
+    expect(() => runtime.assertCanChangeAgentRuntimeLaunch("mode")).toThrow(/Agent is running/);
+    // Lock is never set when assert throws.
+    expect(internals.launchConfigChanging).toBe(false);
+    await expect(
+      runtime.withAgentRuntimeLaunchChange("mode", async () => "should-not-run"),
+    ).rejects.toThrow(/Agent is running/);
+    expect(internals.launchConfigChanging).toBe(false);
+  });
+});
+
 describe("agent runtime change-session snapshot", () => {
   function buildRuntime() {
     const runtime = new BabyMenuAgentRuntime("/repo", { agentName: "claude" });
