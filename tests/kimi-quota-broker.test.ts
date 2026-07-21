@@ -51,7 +51,7 @@ function allCacheBytes(db: ExtensionDatabase): string {
 type LoopbackResponse = {
   status?: number;
   headers?: Record<string, string>;
-  chunks?: Array<string | Uint8Array>;
+  chunks?: ReadonlyArray<string | Uint8Array>;
   keepOpen?: boolean;
 };
 
