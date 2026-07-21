@@ -1,3 +1,6 @@
+import { createServer, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+import type { Socket } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createKimiCredentialResolverChain } from "../src/main/kimi-code-cli-credential-resolver";
 import { createExtensionDatabase, type ExtensionDatabase } from "../src/main/extension-database";
@@ -43,6 +46,112 @@ function resolver(overrides: Partial<KimiCredentialResolver> = {}): KimiCredenti
 
 function allCacheBytes(db: ExtensionDatabase): string {
   return JSON.stringify(db.query("SELECT key, value, updated_at FROM kimi_quota_cache ORDER BY key"));
+}
+
+type LoopbackResponse = {
+  status?: number;
+  headers?: Record<string, string>;
+  chunks?: Array<string | Uint8Array>;
+  keepOpen?: boolean;
+};
+
+async function throughLoopback<T>(
+  response: LoopbackResponse,
+  run: (fetchImpl: typeof fetch) => Promise<T>,
+): Promise<{
+  value: T;
+  requestedUrl: string;
+  activeResponsesAtCompletion: number;
+  liveSocketsAtCompletion: number;
+}> {
+  const sockets = new Set<Socket>();
+  const activeResponses = new Set<ServerResponse>();
+  const transportClosedWaiters = new Set<() => void>();
+  let requestedUrl = "";
+  const settleTransportClosed = (): void => {
+    if (sockets.size > 0 || activeResponses.size > 0) return;
+    for (const resolve of transportClosedWaiters) resolve();
+    transportClosedWaiters.clear();
+  };
+  const waitForTransportClosed = (): Promise<void> => {
+    if (sockets.size === 0 && activeResponses.size === 0) return Promise.resolve();
+    return new Promise((resolve) => transportClosedWaiters.add(resolve));
+  };
+  const server = createServer((_request, serverResponse) => {
+    activeResponses.add(serverResponse);
+    serverResponse.once("close", () => {
+      activeResponses.delete(serverResponse);
+      settleTransportClosed();
+    });
+    serverResponse.writeHead(response.status ?? 200, {
+      connection: "close",
+      ...response.headers,
+    });
+    serverResponse.flushHeaders();
+    for (const chunk of response.chunks ?? []) serverResponse.write(chunk);
+    if (!response.keepOpen) serverResponse.end();
+  });
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.once("close", () => {
+      sockets.delete(socket);
+      settleTransportClosed();
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error): void => reject(error);
+    server.once("error", onError);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", onError);
+      resolve();
+    });
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      requestedUrl = String(input);
+      const { signal: _signal, ...upstreamInit } = init ?? {};
+      const upstream = await fetch(`http://127.0.0.1:${address.port}/coding/v1/usages`, upstreamInit);
+      if (!upstream.body) return upstream;
+      const reader = upstream.body.getReader();
+      const body = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          const chunk = await reader.read();
+          if (chunk.done) {
+            await waitForTransportClosed();
+            controller.close();
+          } else {
+            controller.enqueue(chunk.value);
+          }
+        },
+        async cancel(reason) {
+          try {
+            await reader.cancel(reason);
+          } finally {
+            await waitForTransportClosed();
+          }
+        },
+      });
+      return new Response(body, {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers: upstream.headers,
+      });
+    };
+    let activeResponsesAtCompletion = -1;
+    let liveSocketsAtCompletion = -1;
+    const value = await run(fetchImpl).then((completed) => {
+      activeResponsesAtCompletion = activeResponses.size;
+      liveSocketsAtCompletion = sockets.size;
+      return completed;
+    });
+    return { value, requestedUrl, activeResponsesAtCompletion, liveSocketsAtCompletion };
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 }
 
 describe("Kimi quota broker transport and privacy", () => {
@@ -236,29 +345,6 @@ describe("Kimi quota broker transport and privacy", () => {
     expect(JSON.stringify(result)).not.toContain(SYNTHETIC_KEY);
   });
 
-  /**
-   * Negative control: body stays open forever unless the broker cancels it.
-   * Proves early terminal paths release the response body before acquire settles.
-   */
-  function indefinitelyOpenBody() {
-    let live = true;
-    const cancel = vi.fn((_reason?: unknown) => {
-      live = false;
-    });
-    const stream = new ReadableStream<Uint8Array>({
-      start() {
-        // Intentionally never enqueue, close, or error - body stays open until cancel.
-      },
-      cancel(reason) {
-        cancel(reason);
-      },
-    });
-    return {
-      stream,
-      cancel,
-      isLive: () => live,
-    };
-  }
   it.each([
     [301, "redirect_rejected", "error", { location: "https://elsewhere.invalid/" }],
     [302, "redirect_rejected", "error", { location: "https://elsewhere.invalid/" }],
@@ -273,102 +359,69 @@ describe("Kimi quota broker transport and privacy", () => {
     [500, "provider_unavailable", "error", {}],
     [503, "provider_unavailable", "error", {}],
   ] as const)(
-    "cancels indefinitely open body for HTTP %s before acquire completes",
+    "closes an indefinitely streaming HTTP %s response before acquire completes",
     async (httpStatus, code, status, headers) => {
-      const open = indefinitelyOpenBody();
-      const result = await broker({
-        fetch: vi.fn(async () => new Response(open.stream, { status: httpStatus, headers })),
-      }).acquire({ force: true });
+      const transport = await throughLoopback(
+        { status: httpStatus, headers, chunks: ["still streaming"], keepOpen: true },
+        (fetchImpl) => broker({ fetch: fetchImpl }).acquire({ force: true }),
+      );
 
-      expect(result).toMatchObject({ status, error: { code, httpStatus } });
-      expect(open.cancel).toHaveBeenCalled();
-      expect(open.isLive()).toBe(false);
+      expect(transport.value).toMatchObject({ status, error: { code, httpStatus } });
+      expect(transport.requestedUrl).toBe("https://api.kimi.com/coding/v1/usages");
+      expect(transport.activeResponsesAtCompletion).toBe(0);
+      expect(transport.liveSocketsAtCompletion).toBe(0);
     },
   );
 
-  it("cancels indefinitely open body for unexpected content type", async () => {
-    const open = indefinitelyOpenBody();
-    const result = await broker({
-      fetch: vi.fn(async () => new Response(open.stream, {
-        status: 200,
-        headers: { "content-type": "text/plain" },
-      })),
-    }).acquire({ force: true });
+  it.each([
+    ["unexpected content type", { headers: { "content-type": "text/plain" }, chunks: ["still streaming"], keepOpen: true }, "unexpected_content_type"],
+    ["declared oversized body", { headers: { "content-type": "application/json", "content-length": "262145" }, keepOpen: true }, "response_too_large"],
+    ["streamed oversized body", { headers: { "content-type": "application/json" }, chunks: [new Uint8Array(262_145)], keepOpen: true }, "response_too_large"],
+  ] as const)("closes the socket for an %s before acquire completes", async (_label, response, code) => {
+    const transport = await throughLoopback(response, (fetchImpl) => broker({ fetch: fetchImpl }).acquire({ force: true }));
 
-    expect(result).toMatchObject({ status: "error", error: { code: "unexpected_content_type", httpStatus: 200 } });
-    expect(open.cancel).toHaveBeenCalled();
-    expect(open.isLive()).toBe(false);
+    expect(transport.value).toMatchObject({ status: "error", error: { code, httpStatus: 200 } });
+    expect(transport.requestedUrl).toBe("https://api.kimi.com/coding/v1/usages");
+    expect(transport.activeResponsesAtCompletion).toBe(0);
+    expect(transport.liveSocketsAtCompletion).toBe(0);
   });
 
-  it("cancels indefinitely open body for declared oversized content-length", async () => {
-    const open = indefinitelyOpenBody();
-    const result = await broker({
-      fetch: vi.fn(async () => new Response(open.stream, {
-        status: 200,
-        headers: { "content-type": "application/json", "content-length": "262145" },
-      })),
-    }).acquire({ force: true });
+  it.each([
+    ["malformed", "{broken", "malformed_json"],
+    ["valid", JSON.stringify(validPayload()), undefined],
+  ] as const)("finishes a bounded %s JSON response with no live body, socket, or deadline timer", async (_label, body, code) => {
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const transport = await throughLoopback(
+      { headers: { "content-type": "application/json" }, chunks: [body] },
+      (fetchImpl) => broker({ fetch: fetchImpl, timeoutMs: 2_000 }).acquire({ force: true }),
+    );
+    const deadlineCall = setTimeoutSpy.mock.calls.findIndex((call) => call[1] === 2_000);
+    const deadlineTimer = setTimeoutSpy.mock.results[deadlineCall]?.value;
 
-    expect(result).toMatchObject({ status: "error", error: { code: "response_too_large", httpStatus: 200 } });
-    expect(open.cancel).toHaveBeenCalled();
-    expect(open.isLive()).toBe(false);
+    if (code) expect(transport.value).toMatchObject({ status: "error", error: { code, httpStatus: 200 } });
+    else expect(transport.value).toMatchObject({ status: "fresh", stale: false, source: "api" });
+    expect(transport.activeResponsesAtCompletion).toBe(0);
+    expect(transport.liveSocketsAtCompletion).toBe(0);
+    expect(deadlineCall).toBeGreaterThanOrEqual(0);
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(deadlineTimer);
   });
 
-  it("cancels body and settles when the deadline expires during an open stream", async () => {
-    const open = indefinitelyOpenBody();
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      const signal = init?.signal;
-      if (signal) {
-        const onAbort = () => {
-          void open.stream.cancel(signal.reason).catch(() => undefined);
-        };
-        if (signal.aborted) onAbort();
-        else signal.addEventListener("abort", onAbort, { once: true });
-      }
-      return new Response(open.stream, { status: 200, headers: { "content-type": "application/json" } });
-    });
+  it("closes an indefinitely streaming success body and clears its timer when the deadline expires", async () => {
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const transport = await throughLoopback(
+      { headers: { "content-type": "application/json" }, chunks: ["{"], keepOpen: true },
+      (fetchImpl) => broker({ fetch: fetchImpl, timeoutMs: 25 }).acquire({ force: true }),
+    );
+    const deadlineCall = setTimeoutSpy.mock.calls.findIndex((call) => call[1] === 25);
+    const deadlineTimer = setTimeoutSpy.mock.results[deadlineCall]?.value;
 
-    const result = await broker({ fetch: fetchMock, timeoutMs: 25 }).acquire({ force: true });
-
-    expect(result).toMatchObject({ status: "error", error: { code: "request_timeout", category: "transport" } });
-    expect(open.cancel).toHaveBeenCalled();
-    expect(open.isLive()).toBe(false);
-  });
-
-  it("releases the body after a successful bounded JSON parse", async () => {
-    const encoder = new TextEncoder();
-    const payload = encoder.encode(JSON.stringify(validPayload()));
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(payload);
-        controller.close();
-      },
-    });
-
-    const result = await broker({
-      fetch: vi.fn(async () => new Response(stream, { status: 200, headers: { "content-type": "application/json" } })),
-    }).acquire({ force: true });
-
-    expect(result).toMatchObject({ status: "fresh", stale: false, source: "api" });
-    // Fully consumed (and lifecycle-cancelled) streams must not remain locked or open for further reads.
-    expect(stream.locked).toBe(false);
-    await expect(stream.getReader().read()).resolves.toEqual({ done: true, value: undefined });
-  });
-
-  it("cancels the body when a streamed success payload exceeds the byte bound", async () => {
-    const cancel = vi.fn();
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new Uint8Array(180_000));
-        controller.enqueue(new Uint8Array(100_000));
-      },
-      cancel,
-    });
-    const result = await broker({
-      fetch: vi.fn(async () => new Response(stream, { headers: { "content-type": "application/json" } })),
-    }).acquire({ force: true });
-    expect(result.error?.code).toBe("response_too_large");
-    expect(cancel).toHaveBeenCalled();
+    expect(transport.value).toMatchObject({ status: "error", error: { code: "request_timeout", category: "transport" } });
+    expect(transport.activeResponsesAtCompletion).toBe(0);
+    expect(transport.liveSocketsAtCompletion).toBe(0);
+    expect(deadlineCall).toBeGreaterThanOrEqual(0);
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(deadlineTimer);
   });
 
   it.each([

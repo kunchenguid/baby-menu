@@ -308,10 +308,11 @@ async function readBoundedBody(response: Response, signal: AbortSignal): Promise
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
+  let abortCancellation: Promise<void> | undefined;
   // Abort must cancel through the locked reader; response.body.cancel() throws while locked
   // and a pending reader.read() would otherwise hang past the broker deadline.
   const onAbort = (): void => {
-    void reader.cancel(signal.reason).catch(() => undefined);
+    abortCancellation ??= reader.cancel(signal.reason).catch(() => undefined);
   };
   if (signal.aborted) {
     try {
@@ -339,7 +340,7 @@ async function readBoundedBody(response: Response, signal: AbortSignal): Promise
     // Cancel through the locked reader so abort/error paths release the socket even when
     // response.body.cancel() would throw TypeError on a locked stream.
     try {
-      await reader.cancel();
+      await (abortCancellation ?? reader.cancel());
     } catch {
       // Stream may already be closed or released.
     }
