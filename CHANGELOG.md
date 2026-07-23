@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.21](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.20...baby-menu-v0.1.21) (2026-07-23)
+
+
+### Bug Fixes
+
+* execute every PR body compliance event ([#88](https://github.com/kunchenguid/baby-menu/issues/88)) ([ec086cf](https://github.com/kunchenguid/baby-menu/commit/ec086cf3db178ca1c0496d51185ee25c952e18d8))
+* make bundled extensions provider-neutral ([#90](https://github.com/kunchenguid/baby-menu/issues/90)) ([11ed9aa](https://github.com/kunchenguid/baby-menu/commit/11ed9aa6e94b056094526ffe87faebd8cf30bf53))
+
 ## [0.1.20](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.19...baby-menu-v0.1.20) (2026-07-21)
 
 
