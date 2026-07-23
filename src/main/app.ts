@@ -19,12 +19,6 @@ import {
 import { createBackgroundTaskScheduler } from "./background-task-scheduler";
 import { createExtensionDatabase } from "./extension-database";
 import { createNotifier } from "./notifier";
-import { createPiKimiCredentialResolver } from "./pi-kimi-credential-resolver";
-import {
-  createKimiCodeCliCredentialResolver,
-  createKimiCredentialResolverChain,
-} from "./kimi-code-cli-credential-resolver";
-import { createKimiQuotaBroker } from "./kimi-quota-broker";
 import { createPreferencesService } from "./preferences";
 import { createBackgroundTaskSource, createServerActionRegistry } from "./server-action-registry";
 import { getDefaultTelemetry, initDefaultTelemetry } from "./telemetry";
@@ -221,14 +215,6 @@ export async function startBabyMenuApp(): Promise<void> {
   });
   const database = createExtensionDatabase(paths.databasePath);
   const notify = createNotifier();
-  const kimiQuota = createKimiQuotaBroker({
-    db: database,
-    credentialResolver: createKimiCredentialResolverChain([
-      createPiKimiCredentialResolver(),
-      createKimiCodeCliCredentialResolver(),
-    ]),
-    userAgent: `baby-menu/${app.getVersion()}`,
-  });
 
   async function buildSettings(): Promise<BabyMenuSettings> {
     const current = await preferences.get();
@@ -271,7 +257,6 @@ export async function startBabyMenuApp(): Promise<void> {
     cacheDir: paths.serverActionCacheDir,
     db: database,
     notify,
-    kimiQuota,
   });
   const widgetRegistryOptions = {
     rootDir: paths.appDataRoot,
@@ -327,7 +312,7 @@ export async function startBabyMenuApp(): Promise<void> {
       actionRoots: [paths.extensionsDir],
       cacheDir: paths.serverActionCacheDir,
     }),
-    context: { rootDir: paths.appDataRoot, db: database, notify, kimiQuota },
+    context: { rootDir: paths.appDataRoot, db: database, notify },
     watchDir: paths.extensionsDir,
     onTaskRun: (extensionId) => {
       if (!popoverWindow?.isVisible()) return;

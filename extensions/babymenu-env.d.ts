@@ -40,77 +40,6 @@ declare module "@babymenu/contracts" {
     body?: string;
   };
 
-  export type KimiQuotaWindow = {
-    id: string;
-    label: string;
-    kind: "session" | "weekly" | "unknown";
-    percentUsed: number;
-    percentRemaining: number;
-    resetsAt?: string;
-    windowSeconds?: number;
-  };
-
-  export type KimiQuotaDiagnostic = {
-    code: "limits_invalid" | "limit_detail_invalid";
-    index?: number;
-  };
-
-  export type KimiCredentialSource = "pi-kimi-coding" | "kimi-code-cli";
-
-  export type KimiQuotaSnapshot = {
-    provider: "kimi";
-    label: "Kimi";
-    source: "api";
-    credentialSource: KimiCredentialSource;
-    refreshedAt: string;
-    windows: KimiQuotaWindow[];
-    diagnostics?: KimiQuotaDiagnostic[];
-  };
-
-  export type KimiQuotaErrorCode =
-    | "kimi_credential_unavailable"
-    | "unsupported_credential_type"
-    | "credential_resolution_failed"
-    | "request_timeout"
-    | "network_unavailable"
-    | "tls_failed"
-    | "redirect_rejected"
-    | "provider_auth_rejected"
-    | "provider_timeout"
-    | "provider_rate_limited"
-    | "provider_unavailable"
-    | "provider_request_rejected"
-    | "unexpected_content_type"
-    | "response_too_large"
-    | "response_invalid_utf8"
-    | "malformed_json"
-    | "schema_invalid";
-
-  export type KimiQuotaFailure = {
-    code: KimiQuotaErrorCode;
-    category: "credential" | "rate_limit" | "service" | "transport" | "parser" | "request";
-    message: string;
-    httpStatus?: number;
-  };
-
-  export type KimiQuotaResult = {
-    status: "fresh" | "stale" | "auth_required" | "rate_limited" | "error";
-    stale: boolean;
-    source: "api" | "cache";
-    credentialSource?: KimiCredentialSource;
-    checkedAt: string;
-    snapshot?: KimiQuotaSnapshot;
-    error?: KimiQuotaFailure;
-    retryAt?: string;
-  };
-
-  // The only Kimi credential-backed operation exposed to extension server code. It
-  // returns a normalized, non-secret result and exposes no credential or provider API.
-  export type BabyMenuKimiQuotaBroker = {
-    acquire: (options?: { force?: boolean; maxAgeMs?: number }) => Promise<KimiQuotaResult>;
-    readCached: () => KimiQuotaResult | undefined;
-  };
-
   // Passed to every server action and background task. Privileged, main-process side.
   export type BabyMenuServerContext = {
     rootDir: string;
@@ -118,9 +47,6 @@ declare module "@babymenu/contracts" {
     // Show a native system notification. The main reason a background task is worth
     // having: it can alert the user (e.g. a threshold breach) while the popover is closed.
     notify: (notification: BabyMenuNotification) => void;
-    // Host-owned fixed-operation Kimi broker. Optional for compatibility with older
-    // hosts and isolated extension tests; production Baby Menu always provides it.
-    kimiQuota?: BabyMenuKimiQuotaBroker;
   };
 
   // Declared as `export const background` in an extension's server.ts. The host runs

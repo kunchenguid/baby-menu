@@ -27,7 +27,6 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "0.21.1",
-    "@earendil-works/pi-coding-agent": "0.80.3",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-progress": "^1.1.8",

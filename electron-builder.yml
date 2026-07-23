@@ -17,7 +17,6 @@ extraResources:
       - babymenu-env.d.ts
       - recipes/**
       - hello-world/**
-      - kimi-code-quota/**
   - from: assets/tray
     to: tray
     filter:

@@ -24,7 +24,6 @@ export default defineConfig({
           "tailwindcss",
           "@tailwindcss/postcss",
           "postcss",
-          "@earendil-works/pi-coding-agent",
         ],
         input: {
           index: resolve(__dirname, "src/main/app.ts"),

@@ -5,7 +5,7 @@ Embedded agents launched from baby-menu should work from the active extension wo
 
 ## Commands
 
-- `pnpm dev` - runs `scripts/dev.mjs`, prepares a gitignored `extensions-dev/` workspace by copying `extensions/AGENTS.md`, `extensions/babymenu-env.d.ts`, `extensions/recipes/`, and the managed `kimi-code-quota` extension, builds bundled ACP adapters into `out/adapters/`, and runs `electron-vite dev` from the current checkout. The app itself sees current uncommitted changes, while the embedded agent is launched inside `extensions-dev/`.
+- `pnpm dev` - runs `scripts/dev.mjs`, prepares a gitignored `extensions-dev/` workspace by copying `extensions/AGENTS.md`, `extensions/babymenu-env.d.ts`, and `extensions/recipes/`, builds bundled ACP adapters into `out/adapters/`, and runs `electron-vite dev` from the current checkout. The app itself sees current uncommitted changes, while the embedded agent is launched inside `extensions-dev/`.
 - `pnpm dev:reset` - removes `extensions-dev/` and `.cache/baby-menu/acp-sessions`, recreates the dev workspace with the latest managed extension templates, and starts dev mode.
 - `pnpm build` - build main, preload, renderer, and bundled ACP adapter bundles into `out/`.
 - `pnpm generate:contracts` - regenerates `extensions/babymenu-env.d.ts` (the `@babymenu/contracts` surface) from `src/shared/contracts.ts`. Run after changing any extension-facing type or `src/shared/extension-contract-names.ts`, then commit the result; CI fails on a stale file.
@@ -84,7 +84,6 @@ The extension-facing slice of that contract is a generated public surface, treat
 - `background-task-scheduler.ts` - runs discovered extension background tasks on host-owned timers, hot-reloads changed tasks, and enforces the 60-second minimum interval.
 - `extension-database.ts` - owns the shared local SQLite database exposed to extension server actions, background tasks, and widgets through the bridge.
 - `notifier.ts` - backs `context.notify` for server actions and background tasks with native notifications.
-- `pi-kimi-credential-resolver.ts`, `kimi-code-cli-credential-resolver.ts`, `kimi-quota-broker.ts`, and `kimi-quota-parser.ts` - the fixed-operation Kimi Code quota path: Pi-supported `kimi-coding` resolution first, fresh read-only official CLI access-token fallback, bounded fixed-origin acquisition/normalization, single-flight freshness, and normalized non-secret SQLite caching exposed only to server code as `context.kimiQuota`.
 - `telemetry.ts` - anonymous, best-effort usage telemetry to a self-hosted Umami instance. One fire-and-forget POST per event or page view to `/api/send`, no user/device id and no prompt or file contents, every network error swallowed. The Umami host and website id are injected at build time by the `define` block in `electron.vite.config.ts` (CI release sets `BABY_MENU_UMAMI_HOST` inline and reads `BABY_MENU_UMAMI_WEBSITE_ID` from the `vars.*` Actions variable - not a secret, since the website id is sent in plaintext in every payload and baked into the shipped bundle); when unset (source/dev/test) the build website id is empty and the client is a no-op, so the app never phones home outside packaged release builds. `app.ts` initializes the default client, fires `app_start`, and records each popover open as both the `/popover` page view and the `popover_open` event; `agent-runtime.ts` fires `agent_turn` (status `success` / `error` / `timeout` / `blocked_dirty`) and `agent_switch`. Set `BABY_MENU_TELEMETRY=0` (or `false`/`off`) to opt out, or override the target at runtime with `BABY_MENU_UMAMI_HOST` / `BABY_MENU_UMAMI_WEBSITE_ID`.
 
 `src/adapters/` contains the bundled clean-room ACP adapters for built-in agents.
@@ -110,8 +109,7 @@ The Codex adapter makes one narrow exception: because `--ignore-user-config` als
 Packaged builds keep `out/adapters/**` in `app.asar.unpacked` because adapter processes are spawned as standalone Node programs and cannot execute from inside `app.asar`.
 
 `typescript` is intentionally externalized from the production main bundle because `extension-module-compiler.ts` imports it at runtime to compile packaged extensions.
-`@earendil-works/pi-coding-agent` is also externalized and lazily imported only by the privileged Kimi credential resolver, avoiding its model/provider graph in the main startup chunk while keeping the supported credential API available at runtime.
-Keep both packages in runtime dependencies unless those paths change.
+Keep it in runtime dependencies unless that path changes.
 `tailwindcss`, `@tailwindcss/postcss`, and `postcss` are externalized for the same reason: `widget-tailwind-css.ts` runs Tailwind in the main process to compile widget and layout CSS in packaged mode, including workspaces whose `~/.baby-menu/extensions` path is a symlink.
 Keep them in runtime dependencies, and keep the single pinned `postcss` (`pnpm-workspace.yaml` `overrides`) so the Tailwind plugin and the processor share one version.
 Universal macOS packages must run on both Intel and Apple Silicon Macs, so `pnpm-workspace.yaml` keeps Darwin `x64` and `arm64` native prebuilt dependencies installed, and `electron-builder.yml` `x64ArchFiles` must preserve architecture-specific native package files during the universal merge, including Pi TUI's architecture-named prebuild directories.
@@ -158,8 +156,8 @@ Do not write generated extension files, the local extension database, compiled m
 
 - Recipes are HTML files in `recipes/` inside the active extension workspace. `recipe-loader.ts` discovers `*.html`, sorts them, and extracts the title from `<title>` or first `<h1>`. They are intentionally HTML so the embedded agent can read them from its cwd and use embedded interactive demos.
 - Bundled quota recipes currently cover Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
-- Kimi Code quota is a managed first-class extension under `extensions/kimi-code-quota`, backed by the host's fixed `context.kimiQuota` broker. Keep Pi and official CLI credential discovery, provider responses, and authenticated network work inside that broker; renderer and extension storage receive normalized non-secret results only.
 - Each recipe owns its provider-specific acquisition and refresh contract.
+- Baby Menu ships a neutral extension platform, not opinionated third-party or provider widgets. The authoritative bundled default inventory is the `extensions` `extraResources` filter in `electron-builder.yml`; provider-specific widgets belong in user-installed extensions, never that inventory.
 - Extensions live in the active extension workspace under `<extension-id>/` and may include `widget.tsx`, `server.ts`, and local helper files; the workspace may also include one root `layout.tsx` that arranges active widgets.
 - Packaged widgets, root layouts, settings sections, and server actions are compiled into `~/.baby-menu/cache` and loaded through custom protocols or cached modules; dev mode keeps Vite `/@fs` loading for renderer modules.
 - Root `layout.tsx` default-exports a `BabyMenuLayout`, receives active widget metadata plus `renderWidget(id)`, owns the popover canvas arrangement, and lets the popover adapt to the canvas width plus chrome and the rendered height.
