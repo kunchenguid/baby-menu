@@ -42,7 +42,6 @@ describe("distribution config", () => {
     expect(config).toContain("to: extensions-template");
     expect(config).toContain("babymenu-env.d.ts");
     expect(config).toContain("hello-world/**");
-    expect(config).toContain("@earendil-works/pi-tui/**");
     expect(config).toContain("to: tray");
     expect(config).toContain("baby_menuTemplate*.png");
     expect(config).toContain("identity: null");

@@ -7,6 +7,14 @@ const extensionsDir = resolve(import.meta.dirname, "../extensions");
 // This is the product's deliberately small, provider-neutral default inventory.
 // User-installed extensions remain unrestricted and are discovered at runtime.
 const NEUTRAL_BUNDLED_EXTENSION_IDS = ["hello-world"] as const;
+const EXPECTED_EXTENSION_RESOURCE = `  - from: extensions
+    to: extensions-template
+    filter:
+      - AGENTS.md
+      - babymenu-env.d.ts
+      - recipes/**
+      - hello-world/**
+`;
 
 async function sourceExtensionIds(): Promise<string[]> {
   const entries = await readdir(extensionsDir, { withFileTypes: true });
@@ -26,11 +34,10 @@ describe("default extension inventory", () => {
 
   it("packages exactly the reviewed provider-neutral extension inventory", async () => {
     const config = await readFile(resolve(import.meta.dirname, "../electron-builder.yml"), "utf8");
-    const packagedExtensionIds = [...config.matchAll(/^\s{6}- ([a-z0-9-]+)\/\*\*$/gm)]
-      .map((match) => match[1])
-      .filter((id): id is string => Boolean(id) && id !== "recipes")
-      .sort();
+    const extensionResources = [
+      ...config.matchAll(/^  - from: extensions\n(?:(?!^  - from: )[\s\S])*/gm),
+    ].map((match) => match[0]);
 
-    expect(packagedExtensionIds).toEqual([...NEUTRAL_BUNDLED_EXTENSION_IDS]);
+    expect(extensionResources).toEqual([EXPECTED_EXTENSION_RESOURCE]);
   });
 });
