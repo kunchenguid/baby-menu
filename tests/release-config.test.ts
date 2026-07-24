@@ -118,6 +118,16 @@ describe("distribution config", () => {
     expect(workflow).toContain("flags=.*runtime");
     expect(workflow).toContain("^Timestamp=.+$");
     expect(workflow).toContain("verify_code_object");
+    expect(workflow).toContain("verify_entitlements");
+    expect(workflow).toContain('set(entitlements) - {"com.apple.security.cs.allow-jit"}');
+    expect(workflow).toContain("--arch \"$architecture\" --entitlements :-");
+    expect(workflow).toContain("verify_macho_architectures");
+    expect(workflow).toContain('if [ "$architectures" = "arm64 x86_64" ]');
+    expect(workflow).toContain("node_modules/@esbuild/darwin-arm64/bin/esbuild");
+    expect(workflow).toContain("node_modules/@tailwindcss/oxide-darwin-arm64/tailwindcss-oxide.darwin-arm64.node");
+    expect(workflow).toContain("node_modules/lightningcss-darwin-arm64/lightningcss.darwin-arm64.node");
+    expect(workflow).toContain('if [ ! -f "$counterpart" ]');
+    expect(workflow).toContain("Missing paired $counterpart_architecture native prebuilt");
     expect(workflow).toContain("file -b \"$candidate\"");
     expect(workflow).toContain('spctl --assess --type execute --verbose=4 "$APP_PATH"');
     expect(workflow).toContain("source=Notarized Developer ID");

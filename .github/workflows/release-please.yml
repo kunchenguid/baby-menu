@@ -256,9 +256,115 @@ jobs:
             grep -Eq '^Timestamp=.+$' <<<"$signature"
           }
 
+          verify_entitlements() {
+            local code_object="$1"
+            local architecture="${2:-}"
+            local entitlements_file
+            entitlements_file="$(mktemp "$RUNNER_TEMP/baby-menu-entitlements.XXXXXX")"
+            if [ -n "$architecture" ]; then
+              codesign -d --arch "$architecture" --entitlements :- "$code_object" \
+                >"$entitlements_file" 2>/dev/null
+            else
+              codesign -d --entitlements :- "$code_object" \
+                >"$entitlements_file" 2>/dev/null
+            fi
+            python3 - "$entitlements_file" "$code_object" "$architecture" <<'PY'
+          import plistlib
+          import sys
+
+          path, code_object, architecture = sys.argv[1:]
+          with open(path, "rb") as stream:
+              entitlements = plistlib.load(stream)
+          if not isinstance(entitlements, dict):
+              raise SystemExit(f"Invalid entitlements for {code_object} ({architecture or 'default architecture'})")
+          unexpected = sorted(set(entitlements) - {"com.apple.security.cs.allow-jit"})
+          if unexpected:
+              raise SystemExit(
+                  f"Unexpected entitlements for {code_object} ({architecture or 'default architecture'}): "
+                  + ", ".join(unexpected)
+              )
+          if "com.apple.security.cs.allow-jit" in entitlements and entitlements["com.apple.security.cs.allow-jit"] is not True:
+              raise SystemExit(
+                  f"com.apple.security.cs.allow-jit must be true for {code_object} "
+                  f"({architecture or 'default architecture'})"
+              )
+          PY
+            rm -f "$entitlements_file"
+          }
+
+          verify_macho_architectures() {
+            local candidate="$1"
+            local relative_path="${candidate#"$APP_PATH"/}"
+            local architectures
+            local expected_architecture
+            local counterpart
+            local counterpart_architecture
+
+            architectures="$(lipo -archs "$candidate" | tr ' ' '\n' | LC_ALL=C sort | xargs)"
+            if [ "$architectures" = "arm64 x86_64" ]; then
+              verify_entitlements "$candidate" arm64
+              verify_entitlements "$candidate" x86_64
+              return
+            fi
+
+            case "$relative_path" in
+              Contents/Resources/app.asar.unpacked/node_modules/@esbuild/darwin-arm64/bin/esbuild)
+                expected_architecture="arm64"
+                counterpart="${candidate/darwin-arm64/darwin-x64}"
+                counterpart_architecture="x86_64"
+                ;;
+              Contents/Resources/app.asar.unpacked/node_modules/@esbuild/darwin-x64/bin/esbuild)
+                expected_architecture="x86_64"
+                counterpart="${candidate/darwin-x64/darwin-arm64}"
+                counterpart_architecture="arm64"
+                ;;
+              Contents/Resources/app.asar.unpacked/node_modules/@tailwindcss/oxide-darwin-arm64/tailwindcss-oxide.darwin-arm64.node)
+                expected_architecture="arm64"
+                counterpart="${candidate//darwin-arm64/darwin-x64}"
+                counterpart_architecture="x86_64"
+                ;;
+              Contents/Resources/app.asar.unpacked/node_modules/@tailwindcss/oxide-darwin-x64/tailwindcss-oxide.darwin-x64.node)
+                expected_architecture="x86_64"
+                counterpart="${candidate//darwin-x64/darwin-arm64}"
+                counterpart_architecture="arm64"
+                ;;
+              Contents/Resources/app.asar.unpacked/node_modules/lightningcss-darwin-arm64/lightningcss.darwin-arm64.node)
+                expected_architecture="arm64"
+                counterpart="${candidate//darwin-arm64/darwin-x64}"
+                counterpart_architecture="x86_64"
+                ;;
+              Contents/Resources/app.asar.unpacked/node_modules/lightningcss-darwin-x64/lightningcss.darwin-x64.node)
+                expected_architecture="x86_64"
+                counterpart="${candidate//darwin-x64/darwin-arm64}"
+                counterpart_architecture="arm64"
+                ;;
+              *)
+                echo "Expected universal arm64/x86_64 Mach-O at $relative_path, got: $architectures" >&2
+                exit 1
+                ;;
+            esac
+
+            if [ "$architectures" != "$expected_architecture" ]; then
+              echo "Expected $expected_architecture Mach-O at $relative_path, got: $architectures" >&2
+              exit 1
+            fi
+            if [ ! -f "$counterpart" ] || ! file -b "$counterpart" | grep -Fq 'Mach-O'; then
+              echo "Missing paired $counterpart_architecture native prebuilt for $relative_path" >&2
+              exit 1
+            fi
+            local counterpart_architectures
+            counterpart_architectures="$(lipo -archs "$counterpart" | tr ' ' '\n' | LC_ALL=C sort | xargs)"
+            if [ "$counterpart_architectures" != "$counterpart_architecture" ]; then
+              echo "Expected paired $counterpart_architecture Mach-O at ${counterpart#"$APP_PATH"/}, got: $counterpart_architectures" >&2
+              exit 1
+            fi
+            verify_entitlements "$candidate" "$expected_architecture"
+          }
+
           BUNDLE_COUNT=0
           while IFS= read -r -d '' code_bundle; do
             verify_code_object "$code_bundle"
+            verify_entitlements "$code_bundle"
             BUNDLE_COUNT=$((BUNDLE_COUNT + 1))
           done < <(find "$APP_PATH" -type d \( -name '*.app' -o -name '*.framework' \) -print0)
           if [ "$BUNDLE_COUNT" -eq 0 ]; then
@@ -270,6 +376,7 @@ jobs:
           while IFS= read -r -d '' candidate; do
             if file -b "$candidate" | grep -Fq 'Mach-O'; then
               verify_code_object "$candidate"
+              verify_macho_architectures "$candidate"
               EXECUTABLE_COUNT=$((EXECUTABLE_COUNT + 1))
             fi
           done < <(find "$APP_PATH" -type f -print0)
