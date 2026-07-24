@@ -17,12 +17,12 @@ async function releaseDraftGuard(): Promise<string> {
   return match.groups.script.replace(/^ {10}/gm, "");
 }
 
-async function runReleaseDraftGuard(releaseState: "true" | "false" | "missing") {
+async function runReleaseDraftGuard(releaseState: "true" | "false" | "missing" | "query-error") {
   const tempDirectory = await mkdtemp(join(tmpdir(), "baby-menu-release-guard-"));
   const ghPath = join(tempDirectory, "gh");
   await writeFile(
     ghPath,
-    `#!/bin/sh\ncase "$*" in\n  *releases/tags/*) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;\nesac\nif [ "$GH_RELEASE_STATE" != "missing" ]; then printf '%s\\n' "$GH_RELEASE_STATE"; fi\n`,
+    `#!/bin/sh\ncase "$*" in\n  *releases/tags/*) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;\nesac\nif [ "$GH_RELEASE_STATE" = "query-error" ]; then echo "gh: API unavailable (HTTP 503)" >&2; exit 1; fi\nif [ "$GH_RELEASE_STATE" != "missing" ]; then printf '%s\\n' "$GH_RELEASE_STATE"; fi\n`,
   );
   await chmod(ghPath, 0o755);
 
@@ -58,6 +58,14 @@ describe("release draft guard", () => {
     await expect(runReleaseDraftGuard("missing")).rejects.toMatchObject({
       stderr: expect.stringContaining(
         "No GitHub release exists for tag baby-menu-v0.1.23; refusing to build artifacts.",
+      ),
+    });
+  });
+
+  it("fails explicitly when GitHub release state cannot be queried", async () => {
+    await expect(runReleaseDraftGuard("query-error")).rejects.toMatchObject({
+      stderr: expect.stringContaining(
+        "Unable to verify draft status for baby-menu-v0.1.23; GitHub release query failed: gh: API unavailable (HTTP 503)",
       ),
     });
   });

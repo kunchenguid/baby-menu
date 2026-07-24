@@ -62,7 +62,8 @@ Maintainers must keep these repository secrets provisioned from the canonical se
 Never commit or print credential contents. Missing or malformed secrets fail the real release job; pull-request CI remains secret-free and validates the release config through `tests/release-config.test.ts`.
 Maintainers must also keep the `BABY_MENU_UMAMI_WEBSITE_ID` GitHub Actions repository variable configured for packaged-release telemetry; it is intentionally a variable rather than a secret because the id is baked into the app and sent in Umami payloads.
 
-To release, merge the release-please PR and require the `release-please` workflow's macOS job to pass. The release remains a draft until the signed artifact passes verification and runtime E2E, receives a valid checksum, and uploads successfully. Do not upload a replacement DMG or update the tap by hand unless repairing a failed release.
+To release, merge the release-please PR and require the `release-please` workflow's macOS job to pass. The release remains a draft until the signed artifact passes verification and runtime E2E, receives a valid checksum, and uploads successfully. Do not upload a replacement DMG or update the tap by hand.
+For the interrupted `0.1.23` release only, manually dispatch the `release-please` workflow with tag `baby-menu-v0.1.23` and version `0.1.23`. This recovery path checks out the existing trusted tag, requires its GitHub Release to remain a draft, and reruns the normal signed, notarized, verified build and publish flow. It refuses any other tag, version, commit, missing release, already-published release, or uncertain GitHub query result.
 For a post-release check of exactly the downloaded artifact on macOS:
 
 ```sh
