@@ -56,6 +56,14 @@ describe("macOS effective entitlement verifier", () => {
     });
   });
 
+  it("rejects the allowed JIT entitlement unless its value is exactly true", async () => {
+    const disabledJit = jitOnlyCodesignOutput.replace("<true/>", "<false/>");
+
+    await expect(verifyEntitlements(disabledJit)).rejects.toMatchObject({
+      stderr: expect.stringContaining("com.apple.security.cs.allow-jit must be true"),
+    });
+  });
+
   it("rejects a no-entitlement object when JIT is required", async () => {
     await expect(verifyEntitlements(Buffer.alloc(0), { requireJit: true })).rejects.toMatchObject({
       stderr: expect.stringContaining("Missing required com.apple.security.cs.allow-jit entitlement"),
