@@ -73,6 +73,7 @@ mkdir -p verify-baby-menu/mount
 gh release download "$TAG" --pattern "Baby-Menu-${VERSION}-universal.dmg" --dir verify-baby-menu
 DMG="$PWD/verify-baby-menu/Baby-Menu-${VERSION}-universal.dmg"
 hdiutil attach "$DMG" -readonly -nobrowse -mountpoint "$PWD/verify-baby-menu/mount"
+trap 'hdiutil detach "$PWD/verify-baby-menu/mount" >/dev/null' EXIT
 APP="$PWD/verify-baby-menu/mount/Baby Menu.app"
 
 test "$(plutil -extract CFBundleIdentifier raw -o - "$APP/Contents/Info.plist")" = \
@@ -80,14 +81,19 @@ test "$(plutil -extract CFBundleIdentifier raw -o - "$APP/Contents/Info.plist")"
 test "$(plutil -extract CFBundleShortVersionString raw -o - "$APP/Contents/Info.plist")" = \
   "$VERSION"
 codesign --verify --deep --strict --verbose=4 "$APP"
-codesign -d --verbose=4 "$APP" 2>&1 | grep -E \
-  '^(Identifier=com\.kunchenguid\.baby-menu|TeamIdentifier=9T2J7MNUP9|Authority=Developer ID Application: Kun Chen \(9T2J7MNUP9\)|Timestamp=)'
+SIGNATURE="$(codesign -d --verbose=4 "$APP" 2>&1)"
+grep -Fq 'Identifier=com.kunchenguid.baby-menu' <<<"$SIGNATURE"
+grep -Fq 'TeamIdentifier=9T2J7MNUP9' <<<"$SIGNATURE"
+grep -Fq 'Authority=Developer ID Application: Kun Chen (9T2J7MNUP9)' <<<"$SIGNATURE"
+grep -Eq '^CodeDirectory .*flags=.*runtime' <<<"$SIGNATURE"
+grep -Eq '^Timestamp=.+$' <<<"$SIGNATURE"
 spctl --assess --type execute --verbose=4 "$APP"
 xcrun stapler validate "$APP"
 xcrun stapler validate "$DMG"
 lipo "$APP/Contents/MacOS/Baby Menu" -verify_arch arm64 x86_64
 
 hdiutil detach "$PWD/verify-baby-menu/mount"
+trap - EXIT
 ```
 
 The expected Gatekeeper result is `accepted` with source `Notarized Developer ID`. The workflow runs these checks, plus per-bundle and per-Mach-O identity, hardened-runtime, and timestamp checks, against the mounted publication-ready DMG before upload.

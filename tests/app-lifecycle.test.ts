@@ -9,7 +9,7 @@ const trayInstance = {
 const electronApp = {
   commandLine: { appendSwitch: vi.fn() },
   dock: { hide: vi.fn() },
-  getPath: vi.fn((name: string) => {
+  getPath: vi.fn((name: string): string => {
     if (name === "home") return "/home/test-user";
     if (name === "exe") return "/tmp/Baby Menu Dev.app/Contents/MacOS/Baby Menu Dev";
     return "/tmp";
