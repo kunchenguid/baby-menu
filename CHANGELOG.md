@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.22...baby-menu-v0.1.23) (2026-07-24)
+
+
+### Bug Fixes
+
+* gate macOS releases until verification ([#94](https://github.com/kunchenguid/baby-menu/issues/94)) ([87d15b5](https://github.com/kunchenguid/baby-menu/commit/87d15b5811c3061596c9fe9c26a362ac1cd9af96))
+
 ## [0.1.22](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.21...baby-menu-v0.1.22) (2026-07-24)
 
 
