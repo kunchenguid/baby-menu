@@ -68,6 +68,10 @@ describe("distribution config", () => {
 
   it("signs, notarizes, and verifies the publication-ready DMG before publishing it", async () => {
     const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/release-please.yml"), "utf8");
+    const packagedRuntimeE2e = await readFile(
+      resolve(import.meta.dirname, "../scripts/e2e-packaged-mac-app.mjs"),
+      "utf8",
+    );
 
     expect(workflow).toContain("googleapis/release-please-action@v4");
     expect(workflow).toContain("branches:");
@@ -124,6 +128,9 @@ describe("distribution config", () => {
     expect(uploadIndex).toBeGreaterThan(runtimeE2eIndex);
     expect(uploadIndex).toBeGreaterThan(verifyIndex);
     expect(caskIndex).toBeGreaterThan(uploadIndex);
+    expect(packagedRuntimeE2e).toContain('join(testAppDataRoot, "preferences.json")');
+    expect(packagedRuntimeE2e).toContain("openAtLogin: false");
+    expect(packagedRuntimeE2e.indexOf("openAtLogin: false")).toBeLessThan(packagedRuntimeE2e.indexOf("spawn(executablePath"));
 
     expect(workflow).toContain("gh release upload");
     expect(workflow).toContain("HOMEBREW_TAP_TOKEN");

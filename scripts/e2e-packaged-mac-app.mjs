@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { basename, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -102,7 +102,9 @@ async function main() {
 
   const testRoot = await mkdtemp(join(tmpdir(), "baby-menu-packaged-runtime-"));
   const testHome = join(testRoot, "home");
-  await mkdir(testHome);
+  const testAppDataRoot = join(testHome, ".baby-menu");
+  await mkdir(testAppDataRoot, { recursive: true });
+  await writeFile(join(testAppDataRoot, "preferences.json"), `${JSON.stringify({ openAtLogin: false }, null, 2)}\n`);
   const logPath = join(testRoot, "app.log");
   const port = await reserveLoopbackPort();
   const logHandle = await import("node:fs").then(({ openSync }) => openSync(logPath, "w"));
