@@ -118,6 +118,10 @@ describe("distribution config", () => {
     expect(workflow).toContain("flags=.*runtime");
     expect(workflow).toContain("^Timestamp=.+$");
     expect(workflow).toContain("verify_code_object");
+    expect(workflow).toContain('codesign -d --arch "$architecture" --verbose=4 "$code_object"');
+    expect(workflow).toContain('verify_code_object "$candidate" arm64');
+    expect(workflow).toContain('verify_code_object "$candidate" x86_64');
+    expect(workflow).toContain('verify_code_object "$candidate" "$expected_architecture"');
     expect(workflow).toContain("verify_entitlements");
     expect(workflow).toContain('set(entitlements) - {"com.apple.security.cs.allow-jit"}');
     expect(workflow).toContain("--arch \"$architecture\" --entitlements :-");

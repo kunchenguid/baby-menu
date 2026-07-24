@@ -247,9 +247,14 @@ jobs:
 
           verify_code_object() {
             local code_object="$1"
+            local architecture="${2:-}"
             local signature
             codesign --verify --strict --verbose=2 "$code_object"
-            signature="$(codesign -d --verbose=4 "$code_object" 2>&1)"
+            if [ -n "$architecture" ]; then
+              signature="$(codesign -d --arch "$architecture" --verbose=4 "$code_object" 2>&1)"
+            else
+              signature="$(codesign -d --verbose=4 "$code_object" 2>&1)"
+            fi
             grep -Fq "TeamIdentifier=$TEAM_ID" <<<"$signature"
             grep -Fq "Authority=Developer ID Application: Kun Chen ($TEAM_ID)" <<<"$signature"
             grep -Eq '^CodeDirectory .*flags=.*runtime' <<<"$signature"
@@ -302,6 +307,8 @@ jobs:
 
             architectures="$(lipo -archs "$candidate" | tr ' ' '\n' | LC_ALL=C sort | xargs)"
             if [ "$architectures" = "arm64 x86_64" ]; then
+              verify_code_object "$candidate" arm64
+              verify_code_object "$candidate" x86_64
               verify_entitlements "$candidate" arm64
               verify_entitlements "$candidate" x86_64
               return
@@ -358,6 +365,7 @@ jobs:
               echo "Expected paired $counterpart_architecture Mach-O at ${counterpart#"$APP_PATH"/}, got: $counterpart_architectures" >&2
               exit 1
             fi
+            verify_code_object "$candidate" "$expected_architecture"
             verify_entitlements "$candidate" "$expected_architecture"
           }
 
@@ -375,7 +383,6 @@ jobs:
           EXECUTABLE_COUNT=0
           while IFS= read -r -d '' candidate; do
             if file -b "$candidate" | grep -Fq 'Mach-O'; then
-              verify_code_object "$candidate"
               verify_macho_architectures "$candidate"
               EXECUTABLE_COUNT=$((EXECUTABLE_COUNT + 1))
             fi
