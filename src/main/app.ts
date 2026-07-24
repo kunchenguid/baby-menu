@@ -174,11 +174,14 @@ export async function startBabyMenuApp(): Promise<void> {
     app.dock?.hide();
   }
 
+  // app.isPackaged is also true for local Baby Menu Dev bundles. Only the
+  // production product may register or mutate the user's macOS login item.
+  const allowOpenAtLogin = paths.isPackaged && app.getName() === "Baby Menu";
   const preferences = createPreferencesService({
     userDataDir: paths.appDataRoot,
     app,
-    defaultOpenAtLogin: paths.isPackaged,
-    allowOpenAtLogin: paths.isPackaged,
+    defaultOpenAtLogin: allowOpenAtLogin,
+    allowOpenAtLogin,
   });
   const persistedPreferences = await preferences.apply();
 

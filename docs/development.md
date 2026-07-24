@@ -37,7 +37,7 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 - `pnpm dev` iterates in a throwaway sandbox - the agent edits the gitignored `extensions-dev/` copy and your tracked tree stays clean.
 - `pnpm dev:reset` when recipe or extension guidance changes; it also clears `.cache/baby-menu/acp-sessions` so the agent re-reads fresh specs instead of continuing prior conversation state.
 - `pnpm generate:contracts` after changing extension-facing types in `src/shared/contracts.ts` or the public name list in `src/shared/extension-contract-names.ts`; CI fails if the committed `extensions/babymenu-env.d.ts` is stale.
-- Source/dev mode never touches macOS login items, including Electron's `setLoginItemSettings` API.
+- Source mode and packaged `Baby Menu Dev` / test bundles never touch macOS login items. Only the packaged production product named `Baby Menu` may call Electron's `setLoginItemSettings` API.
 
 ## Packaging
 

@@ -10,6 +10,7 @@ const electronApp = {
   commandLine: { appendSwitch: vi.fn() },
   dock: { hide: vi.fn() },
   getPath: vi.fn((name: string) => (name === "home" ? "/home/test-user" : "/tmp")),
+  getName: vi.fn(() => "Baby Menu Dev"),
   getVersion: vi.fn(() => "0.0.0-test"),
   getLoginItemSettings: vi.fn(() => ({ openAtLogin: false })),
   setLoginItemSettings: vi.fn(),
@@ -130,6 +131,7 @@ describe("startBabyMenuApp", () => {
     vi.clearAllMocks();
     vi.resetModules();
     electronApp.isPackaged = false;
+    electronApp.getName.mockReturnValue("Baby Menu Dev");
     browserWindowInstance.isDestroyed.mockReturnValue(false);
     browserWindowInstance.isVisible.mockReturnValue(false);
     trayInstance.getBounds.mockReturnValue({ x: 100, y: 10, width: 24, height: 24 });
@@ -328,8 +330,26 @@ describe("startBabyMenuApp", () => {
     expect(electronApp.setLoginItemSettings).not.toHaveBeenCalled();
   });
 
-  it("opts packaged app launches into opening at login by default", async () => {
+  it.each(["Baby Menu Dev", "Baby Menu Test"])(
+    "does not touch login items for the packaged %s bundle",
+    async (appName) => {
+      electronApp.isPackaged = true;
+      electronApp.getName.mockReturnValue(appName);
+      Object.defineProperty(process, "resourcesPath", {
+        configurable: true,
+        value: `/tmp/${appName}.app/Contents/Resources`,
+      });
+      const appModule = await import("../src/main/app");
+
+      await appModule.startBabyMenuApp();
+
+      expect(electronApp.setLoginItemSettings).not.toHaveBeenCalled();
+    },
+  );
+
+  it("opts the packaged production app into opening at login by default", async () => {
     electronApp.isPackaged = true;
+    electronApp.getName.mockReturnValue("Baby Menu");
     Object.defineProperty(process, "resourcesPath", {
       configurable: true,
       value: "/Applications/Baby Menu.app/Contents/Resources",
