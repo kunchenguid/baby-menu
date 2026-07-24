@@ -101,6 +101,7 @@ describe("distribution config", () => {
 
   it("configures production Developer ID signing and keeps local packages ad-hoc", async () => {
     const config = await readFile(resolve(import.meta.dirname, "../electron-builder.yml"), "utf8");
+    const electronViteConfig = await readFile(resolve(import.meta.dirname, "../electron.vite.config.ts"), "utf8");
     const devConfig = await readFile(resolve(import.meta.dirname, "../electron-builder.dev.yml"), "utf8");
     const entitlements = await readFile(resolve(import.meta.dirname, "../assets/entitlements.mac.plist"), "utf8");
     const localSigner = await readFile(
@@ -124,6 +125,9 @@ describe("distribution config", () => {
     expect(config).toContain("!node_modules/esbuild/**");
     expect(config).toContain("!node_modules/@esbuild/**");
     expect(config).not.toMatch(/x64ArchFiles:.*(?:@esbuild|esbuild)/);
+    expect(electronViteConfig).toContain("externalizeDeps:");
+    expect(electronViteConfig).toContain('exclude: ["acpx"]');
+    expect(electronViteConfig).not.toContain("externalizeDepsPlugin");
 
     expect(devConfig).toContain("identity: null");
     expect(devConfig).toContain("notarize: false");
@@ -159,8 +163,11 @@ describe("distribution config", () => {
     expect(workflow).toContain("needs.release-please.outputs.baby-menu-release-created == 'true'");
     expect(workflow).toContain("group: ${{ github.workflow }}-macos-${{ inputs.tag_name");
     expect(workflow).toContain("cancel-in-progress: false");
-    expect(workflow).toContain("github.event_name == 'workflow_dispatch' && 'refs/heads/main' || format('refs/tags/{0}', env.TAG_NAME)");
+    expect(workflow).toContain("github.event_name == 'workflow_dispatch' && github.sha || format('refs/tags/{0}', env.TAG_NAME)");
+    expect(workflow).toContain('if [ "$GITHUB_REF" != "refs/heads/main" ]');
     expect(workflow).toContain('if [ "$TAG_NAME" != "baby-menu-v0.1.23" ] || [ "$VERSION" != "0.1.23" ]');
+    expect(workflow).toContain('ACTUAL_COMMIT="$(git rev-parse HEAD)"');
+    expect(workflow).toContain('if [ "$ACTUAL_COMMIT" != "$GITHUB_SHA" ]');
     expect(workflow).toContain('PACKAGE_VERSION="$(node -p "require(\'./package.json\').version")"');
     expect(workflow).toContain('if [ "$PACKAGE_VERSION" != "$VERSION" ]');
     expect(workflow).not.toContain('EXPECTED_COMMIT="a8fd9cf3cda01277358a8b5e225e2ace7b0c0593"');

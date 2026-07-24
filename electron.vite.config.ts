@@ -1,11 +1,10 @@
 import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import { defineConfig } from "electron-vite";
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
     // Bake the self-hosted Umami telemetry target into the packaged main bundle.
     // The CI release build sets BABY_MENU_UMAMI_HOST / BABY_MENU_UMAMI_WEBSITE_ID;
     // when unset (source/dev/test) these resolve to "" so telemetry stays a no-op.
@@ -14,6 +13,9 @@ export default defineConfig({
       "process.env.BABY_MENU_BUILD_UMAMI_WEBSITE_ID": JSON.stringify(process.env.BABY_MENU_UMAMI_WEBSITE_ID || ""),
     },
     build: {
+      externalizeDeps: {
+        exclude: ["acpx"],
+      },
       rollupOptions: {
         // typescript + the Tailwind compiler are imported at runtime by the
         // extension/widget compile path, so they stay external (resolved from
@@ -32,7 +34,6 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
         external: ["electron"],

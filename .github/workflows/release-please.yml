@@ -52,6 +52,10 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Manual recovery must be dispatched from main, got $GITHUB_REF." >&2
+            exit 1
+          fi
           if [ "$TAG_NAME" != "baby-menu-v0.1.23" ] || [ "$VERSION" != "0.1.23" ]; then
             echo "Manual recovery is restricted to baby-menu-v0.1.23 at version 0.1.23." >&2
             exit 1
@@ -60,16 +64,21 @@ jobs:
       - uses: actions/checkout@v6
         with:
           # A newly created release builds its immutable tag. Manual recovery
-          # builds the reviewed fix on main without moving the existing tag.
-          ref: ${{ github.event_name == 'workflow_dispatch' && 'refs/heads/main' || format('refs/tags/{0}', env.TAG_NAME) }}
+          # builds the reviewed main commit without moving the existing tag.
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || format('refs/tags/{0}', env.TAG_NAME) }}
 
       - name: Verify manual recovery source
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           set -euo pipefail
+          ACTUAL_COMMIT="$(git rev-parse HEAD)"
+          if [ "$ACTUAL_COMMIT" != "$GITHUB_SHA" ]; then
+            echo "Manual recovery checked out $ACTUAL_COMMIT instead of dispatch commit $GITHUB_SHA." >&2
+            exit 1
+          fi
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
-            echo "Manual recovery requires package version $VERSION, got $PACKAGE_VERSION from main." >&2
+            echo "Manual recovery requires package version $VERSION, got $PACKAGE_VERSION from $ACTUAL_COMMIT." >&2
             exit 1
           fi
 
