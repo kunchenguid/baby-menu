@@ -1,0 +1,30 @@
+Local universal package and Electron 42 runtime verification
+
+command=pnpm package:mac
+packaging_result=success
+electron_version=42.2.0
+builder_config=electron-builder.dev.yml
+builder_signing=identity explicitly set to null
+
+Identifier=com.kunchenguid.baby-menu.dev
+Format=app bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20400 flags=0x2(adhoc)
+Signature=adhoc
+TeamIdentifier=not set
+bundle_id=com.kunchenguid.baby-menu.dev
+version=0.1.21
+architectures=x86_64 arm64
+unsigned_executable_memory=absent
+verified_macho_count=21
+
+runtime_command=node scripts/e2e-packaged-mac-app.mjs "release/mac-universal/Baby Menu Dev.app"
+rendererReady=true
+preloadReady=true
+
+The package was rebuilt from this target commit. The outer app passed
+`codesign --verify --deep --strict`; all 21 nested Mach-O files independently
+passed `codesign --verify --strict`; the main executable passed
+`lipo -verify_arch arm64 x86_64`; the signed app carried no
+`com.apple.security.cs.allow-unsigned-executable-memory` entitlement; and the
+actual packaged Electron executable launched with its renderer and preload
+bridge initialized.

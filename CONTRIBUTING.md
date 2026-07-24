@@ -66,8 +66,8 @@ To release, merge the release-please PR and require the `release-please` workflo
 For a post-release check of exactly the downloaded artifact on macOS:
 
 ```sh
-TAG=baby-menu-v0.1.22
-VERSION=0.1.22
+VERSION=x.y.z # Replace with the released version.
+TAG="baby-menu-v${VERSION}"
 mkdir -p verify-baby-menu/mount
 
 gh release download "$TAG" --pattern "Baby-Menu-${VERSION}-universal.dmg" --dir verify-baby-menu
@@ -75,6 +75,10 @@ DMG="$PWD/verify-baby-menu/Baby-Menu-${VERSION}-universal.dmg"
 hdiutil attach "$DMG" -readonly -nobrowse -mountpoint "$PWD/verify-baby-menu/mount"
 APP="$PWD/verify-baby-menu/mount/Baby Menu.app"
 
+test "$(plutil -extract CFBundleIdentifier raw -o - "$APP/Contents/Info.plist")" = \
+  "com.kunchenguid.baby-menu"
+test "$(plutil -extract CFBundleShortVersionString raw -o - "$APP/Contents/Info.plist")" = \
+  "$VERSION"
 codesign --verify --deep --strict --verbose=4 "$APP"
 codesign -d --verbose=4 "$APP" 2>&1 | grep -E \
   '^(Identifier=com\.kunchenguid\.baby-menu|TeamIdentifier=9T2J7MNUP9|Authority=Developer ID Application: Kun Chen \(9T2J7MNUP9\)|Timestamp=)'
