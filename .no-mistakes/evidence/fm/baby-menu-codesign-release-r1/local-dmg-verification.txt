@@ -1,0 +1,20 @@
+Mounted artifact verification
+
+artifact=Baby-Menu-0.1.21-universal.dmg
+Identifier=com.kunchenguid.baby-menu.dev
+Format=app bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20400 size=310 flags=0x2(adhoc) hashes=3+3 location=embedded
+Signature=adhoc
+TeamIdentifier=not set
+bundle_id=com.kunchenguid.baby-menu.dev
+version=0.1.21
+architectures=arm64 x86_64
+verified_macho_count=21
+rendererReady=true
+preloadReady=true
+
+The DMG was mounted read-only. The outer app passed `codesign --verify --deep
+--strict`, all 21 Mach-O files independently passed `codesign --verify
+--strict`, the main executable passed `lipo -verify_arch arm64 x86_64`, and
+the packaged renderer plus preload bridge initialized through the release
+workflow's `scripts/e2e-packaged-mac-app.mjs` probe.

@@ -39,6 +39,10 @@ describe("distribution config", () => {
     const config = await readFile(resolve(import.meta.dirname, "../electron-builder.yml"), "utf8");
     const devConfig = await readFile(resolve(import.meta.dirname, "../electron-builder.dev.yml"), "utf8");
     const entitlements = await readFile(resolve(import.meta.dirname, "../assets/entitlements.mac.plist"), "utf8");
+    const localSigner = await readFile(
+      resolve(import.meta.dirname, "../scripts/adhoc-sign-mac-app.mjs"),
+      "utf8",
+    );
 
     expect(config).toContain("appId: com.kunchenguid.baby-menu");
     expect(config).toContain("to: extensions-template");
@@ -57,6 +61,11 @@ describe("distribution config", () => {
     expect(devConfig).toContain("identity: null");
     expect(devConfig).toContain("notarize: false");
     expect(packageJson.scripts?.["package:mac"]).toContain("CSC_IDENTITY_AUTO_DISCOVERY=false");
+    expect(localSigner).toContain('spawnSync("file", ["-b", candidate]');
+    expect(localSigner).toContain('right.split("/").length - left.split("/").length');
+    expect(localSigner).toContain('run("codesign", ["--force", "--sign", "-", candidate])');
+    expect(localSigner.indexOf('run("codesign", ["--force", "--sign", "-", candidate])'))
+      .toBeLessThan(localSigner.indexOf('run("codesign", ["--force", "--deep", "--sign", "-", appPath])'));
 
     const entitlementKeys = [...entitlements.matchAll(/<key>(com\.apple\.security\.[^<]+)<\/key>/g)]
       .map((match) => match[1]);
