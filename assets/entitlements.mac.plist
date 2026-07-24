@@ -5,7 +5,5 @@
   <!-- Electron's V8 engine needs JIT under the macOS hardened runtime. -->
   <key>com.apple.security.cs.allow-jit</key>
   <true/>
-  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-  <true/>
 </dict>
 </plist>

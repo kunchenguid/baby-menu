@@ -285,6 +285,8 @@ jobs:
           xcrun stapler validate "$APP_PATH"
           xcrun stapler validate "$DMG_PATH"
 
+          node scripts/e2e-packaged-mac-app.mjs "$APP_PATH"
+
           hdiutil detach "$MOUNT_POINT" -quiet
           trap - EXIT
 

@@ -60,10 +60,8 @@ describe("distribution config", () => {
 
     const entitlementKeys = [...entitlements.matchAll(/<key>(com\.apple\.security\.[^<]+)<\/key>/g)]
       .map((match) => match[1]);
-    expect(entitlementKeys).toEqual([
-      "com.apple.security.cs.allow-jit",
-      "com.apple.security.cs.allow-unsigned-executable-memory",
-    ]);
+    expect(entitlementKeys).toEqual(["com.apple.security.cs.allow-jit"]);
+    expect(entitlements).not.toContain("com.apple.security.cs.allow-unsigned-executable-memory");
     await expect(stat(resolve(import.meta.dirname, "../assets/app-icon.svg")).then((file) => file.isFile())).resolves.toBe(true);
     await expect(stat(resolve(import.meta.dirname, "../assets/app-icon.icns")).then((file) => file.isFile())).resolves.toBe(true);
   });
@@ -112,14 +110,18 @@ describe("distribution config", () => {
     expect(workflow).toContain("source=Notarized Developer ID");
     expect(workflow).toContain('xcrun stapler validate "$APP_PATH"');
     expect(workflow).toContain('xcrun stapler validate "$DMG_PATH"');
+    expect(workflow).toContain('node scripts/e2e-packaged-mac-app.mjs "$APP_PATH"');
     expect(workflow).toContain("CFBundleShortVersionString");
     expect(workflow).toContain('lipo "$APP_EXECUTABLE" -verify_arch arm64 x86_64');
     expect(workflow).toContain('ARCHITECTURES" != "arm64 x86_64"');
 
     const verifyIndex = workflow.indexOf("Verify publication-ready signed and notarized DMG");
+    const runtimeE2eIndex = workflow.indexOf('node scripts/e2e-packaged-mac-app.mjs "$APP_PATH"');
     const uploadIndex = workflow.indexOf("Upload DMG to release");
     const caskIndex = workflow.indexOf("Update Homebrew Cask");
     expect(verifyIndex).toBeGreaterThan(-1);
+    expect(runtimeE2eIndex).toBeGreaterThan(verifyIndex);
+    expect(uploadIndex).toBeGreaterThan(runtimeE2eIndex);
     expect(uploadIndex).toBeGreaterThan(verifyIndex);
     expect(caskIndex).toBeGreaterThan(uploadIndex);
 
