@@ -22,8 +22,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | `pnpm dev:reset` | Wipe `extensions-dev/` and the agent session cache, then start fresh |
 | `pnpm build` | Build main + preload + renderer + bundled adapters into `out/` |
 | `pnpm generate:contracts` | Regenerate `extensions/babymenu-env.d.ts` from `src/shared/contracts.ts` |
-| `pnpm package:mac` | Clean `release/` and create an ad-hoc-signed `Baby Menu Dev.app` |
-| `pnpm dist:mac` | Build `Baby Menu Dev.app` and create a universal DMG in `release/` |
+| `pnpm package:mac` | Clean `release/` and create an ad-hoc-signed `Baby Menu Dev.app` without release credentials |
+| `pnpm dist:mac` | Build the local `Baby Menu Dev.app` and create a universal DMG in `release/` |
 | `pnpm test` | Run all Vitest tests |
 | `pnpm test:e2e` | Only e2e tests (including `acpx/runtime` plus bundled adapter coverage) |
 | `pnpm typecheck` | `tsc --noEmit` |
@@ -41,7 +41,8 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 ## Packaging
 
 - `pnpm package:mac` tests the actual packaged app from `release/mac-universal/Baby Menu Dev.app`.
-- Local packaging uses the `Baby Menu Dev` product name and `com.kunchenguid.baby-menu.dev` bundle id so local builds do not shadow the released `/Applications/Baby Menu.app` in macOS LaunchServices.
+- Local packaging uses the `Baby Menu Dev` product name and `com.kunchenguid.baby-menu.dev` bundle id so local builds do not shadow the released `/Applications/Baby Menu.app` in macOS LaunchServices. It explicitly disables Developer ID discovery and notarization, then applies an ad-hoc signature for local launch only.
+- Production signing and notarization run only in `.github/workflows/release-please.yml`. See [CONTRIBUTING.md](../CONTRIBUTING.md#release-notes) for the maintainer release and downloaded-artifact verification procedure.
 - The universal package must run on both Intel and Apple Silicon Macs, so macOS native prebuilt dependencies must stay installed for `x64` and `arm64` and stay covered by `electron-builder.yml` `x64ArchFiles` when new native packages are added.
 - Keep `electron-builder` at `26.8.2` or newer so pnpm-deduped dependencies are included correctly in packaged builds.
 

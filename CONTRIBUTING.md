@@ -48,11 +48,45 @@ Baby Menu releases are proposed by release-please after conventional commits lan
 Use prefixes such as `feat:` and `fix:` so release-please can choose the version bump and release notes.
 Mark breaking changes with `!` in the commit type or a `BREAKING CHANGE:` footer.
 Merging the release-please PR creates the version tag and GitHub Release.
-The release-please workflow then builds and uploads the macOS DMG, then updates `kunchenguid/homebrew-tap` with the release SHA.
+The release-please workflow builds the universal macOS app, signs every code object with `Developer ID Application: Kun Chen (9T2J7MNUP9)`, notarizes and staples the app and DMG, verifies the publication-ready DMG, uploads it, and then updates `kunchenguid/homebrew-tap` with that DMG's SHA.
+Any credential, identity, notarization, signature, Gatekeeper, architecture, bundle-id, or staple failure stops before artifact upload and tap publication.
 The generated Homebrew Cask quits Baby Menu during upgrade and relaunches it after installation only when the app was already running before uninstall started.
-Maintainers must keep `HOMEBREW_TAP_TOKEN` configured with write access to `kunchenguid/homebrew-tap` for that update step.
+
+Maintainers must keep these repository secrets provisioned from the canonical secure owners:
+
+- `MAC_DEVELOPER_ID_CERT_P12` - base64 of the password-protected Developer ID Application certificate and private key for Team `9T2J7MNUP9`.
+- `MAC_DEVELOPER_ID_CERT_PASSWORD` - the p12 export password.
+- `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, and `APP_STORE_CONNECT_API_KEY` - the App Store Connect API credentials used by `notarytool`; the API key is base64-encoded p8 content.
+- `HOMEBREW_TAP_TOKEN` - write access to `kunchenguid/homebrew-tap` for the final cask update.
+
+Never commit or print credential contents. Missing or malformed secrets fail the real release job; pull-request CI remains secret-free and validates the release config through `tests/release-config.test.ts`.
 Maintainers must also keep the `BABY_MENU_UMAMI_WEBSITE_ID` GitHub Actions repository variable configured for packaged-release telemetry; it is intentionally a variable rather than a secret because the id is baked into the app and sent in Umami payloads.
-Do not manually rewrite the tap from this repo outside that workflow unless you are repairing a failed release.
+
+To release, merge the release-please PR and require the `release-please` workflow's macOS job to pass. Do not upload a replacement DMG or update the tap by hand unless repairing a failed release.
+For a post-release check of exactly the downloaded artifact on macOS:
+
+```sh
+TAG=baby-menu-v0.1.22
+VERSION=0.1.22
+mkdir -p verify-baby-menu/mount
+
+gh release download "$TAG" --pattern "Baby-Menu-${VERSION}-universal.dmg" --dir verify-baby-menu
+DMG="$PWD/verify-baby-menu/Baby-Menu-${VERSION}-universal.dmg"
+hdiutil attach "$DMG" -readonly -nobrowse -mountpoint "$PWD/verify-baby-menu/mount"
+APP="$PWD/verify-baby-menu/mount/Baby Menu.app"
+
+codesign --verify --deep --strict --verbose=4 "$APP"
+codesign -d --verbose=4 "$APP" 2>&1 | grep -E \
+  '^(Identifier=com\.kunchenguid\.baby-menu|TeamIdentifier=9T2J7MNUP9|Authority=Developer ID Application: Kun Chen \(9T2J7MNUP9\)|Timestamp=)'
+spctl --assess --type execute --verbose=4 "$APP"
+xcrun stapler validate "$APP"
+xcrun stapler validate "$DMG"
+lipo "$APP/Contents/MacOS/Baby Menu" -verify_arch arm64 x86_64
+
+hdiutil detach "$PWD/verify-baby-menu/mount"
+```
+
+The expected Gatekeeper result is `accepted` with source `Notarized Developer ID`. The workflow runs these checks, plus per-bundle and per-Mach-O identity, hardened-runtime, and timestamp checks, against the mounted publication-ready DMG before upload.
 
 ## Questions
 

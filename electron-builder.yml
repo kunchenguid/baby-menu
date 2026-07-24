@@ -33,9 +33,11 @@ asarUnpack:
 mac:
   category: public.app-category.developer-tools
   icon: assets/app-icon.icns
-  identity: null
-  hardenedRuntime: false
+  hardenedRuntime: true
   gatekeeperAssess: false
+  entitlements: assets/entitlements.mac.plist
+  entitlementsInherit: assets/entitlements.mac.plist
+  notarize: true
   x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/{@esbuild/**,esbuild/**,@tailwindcss/oxide-*/**,lightningcss-*/**,lightningcss/**}
 
 dmg:

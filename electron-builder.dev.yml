@@ -6,3 +6,8 @@
 extends: ./electron-builder.yml
 appId: com.kunchenguid.baby-menu.dev
 productName: Baby Menu Dev
+
+# Local packages deliberately remain ad-hoc signed and are never notarized.
+mac:
+  identity: null
+  notarize: false

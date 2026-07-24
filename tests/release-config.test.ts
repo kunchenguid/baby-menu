@@ -35,8 +35,10 @@ describe("distribution config", () => {
     expect(devConfig).toContain("productName: Baby Menu Dev");
   });
 
-  it("declares an unsigned electron-builder mac bundle with extension templates", async () => {
+  it("configures production Developer ID signing and keeps local packages ad-hoc", async () => {
     const config = await readFile(resolve(import.meta.dirname, "../electron-builder.yml"), "utf8");
+    const devConfig = await readFile(resolve(import.meta.dirname, "../electron-builder.dev.yml"), "utf8");
+    const entitlements = await readFile(resolve(import.meta.dirname, "../assets/entitlements.mac.plist"), "utf8");
 
     expect(config).toContain("appId: com.kunchenguid.baby-menu");
     expect(config).toContain("to: extensions-template");
@@ -44,14 +46,29 @@ describe("distribution config", () => {
     expect(config).toContain("hello-world/**");
     expect(config).toContain("to: tray");
     expect(config).toContain("baby_menuTemplate*.png");
-    expect(config).toContain("identity: null");
-    expect(config).toContain("hardenedRuntime: false");
+    expect(config).not.toContain("identity: null");
+    expect(config).toContain("hardenedRuntime: true");
+    expect(config).toContain("gatekeeperAssess: false");
+    expect(config).toContain("entitlements: assets/entitlements.mac.plist");
+    expect(config).toContain("entitlementsInherit: assets/entitlements.mac.plist");
+    expect(config).toContain("notarize: true");
     expect(config).toContain("icon: assets/app-icon.icns");
+
+    expect(devConfig).toContain("identity: null");
+    expect(devConfig).toContain("notarize: false");
+    expect(packageJson.scripts?.["package:mac"]).toContain("CSC_IDENTITY_AUTO_DISCOVERY=false");
+
+    const entitlementKeys = [...entitlements.matchAll(/<key>(com\.apple\.security\.[^<]+)<\/key>/g)]
+      .map((match) => match[1]);
+    expect(entitlementKeys).toEqual([
+      "com.apple.security.cs.allow-jit",
+      "com.apple.security.cs.allow-unsigned-executable-memory",
+    ]);
     await expect(stat(resolve(import.meta.dirname, "../assets/app-icon.svg")).then((file) => file.isFile())).resolves.toBe(true);
     await expect(stat(resolve(import.meta.dirname, "../assets/app-icon.icns")).then((file) => file.isFile())).resolves.toBe(true);
   });
 
-  it("adds a release-please workflow that publishes the DMG and updates the Homebrew tap after a release", async () => {
+  it("signs, notarizes, and verifies the publication-ready DMG before publishing it", async () => {
     const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/release-please.yml"), "utf8");
 
     expect(workflow).toContain("googleapis/release-please-action@v4");
@@ -62,8 +79,50 @@ describe("distribution config", () => {
     expect(workflow).toContain("baby-menu-version: ${{ steps.release.outputs.version }}");
     expect(workflow).toContain("if: ${{ needs.release-please.outputs.baby-menu-release-created == 'true' }}");
     expect(workflow).toContain("ref: ${{ env.TAG_NAME }}");
-    expect(workflow).toContain("CSC_IDENTITY_AUTO_DISCOVERY");
-    expect(workflow).toContain("codesign --force --deep --sign -");
+    expect(workflow).toContain("TEAM_ID: 9T2J7MNUP9");
+    expect(workflow).toContain("BUNDLE_ID: com.kunchenguid.baby-menu");
+    for (const secret of [
+      "MAC_DEVELOPER_ID_CERT_P12",
+      "MAC_DEVELOPER_ID_CERT_PASSWORD",
+      "APP_STORE_CONNECT_KEY_ID",
+      "APP_STORE_CONNECT_ISSUER_ID",
+      "APP_STORE_CONNECT_API_KEY",
+    ]) {
+      expect(workflow).toContain(`secrets.${secret}`);
+      expect(workflow).toContain(`Missing ${secret}`);
+    }
+    expect(workflow).toContain("CSC_LINK: ${{ steps.developer_id_cert.outputs.csc_link }}");
+    expect(workflow).toContain("CSC_KEY_PASSWORD: ${{ secrets.MAC_DEVELOPER_ID_CERT_PASSWORD }}");
+    expect(workflow).toContain("APPLE_API_KEY: ${{ steps.asc-key.outputs.key_path }}");
+    expect(workflow).toContain("pnpm exec electron-builder --mac dir --universal");
+    expect(workflow).not.toContain("codesign --force --deep --sign -");
+    expect(workflow).toContain("xcrun notarytool submit \"$DMG_PATH\"");
+    expect(workflow).toContain("--wait");
+    expect(workflow).toContain('xcrun stapler staple "$DMG_PATH"');
+    expect(workflow).toContain("Verify publication-ready signed and notarized DMG");
+    expect(workflow).toContain('codesign --verify --deep --strict --verbose=4 "$APP_PATH"');
+    expect(workflow).toContain('TeamIdentifier=$TEAM_ID');
+    expect(workflow).toContain('Identifier=$BUNDLE_ID');
+    expect(workflow).toContain("Authority=Developer ID Application: Kun Chen ($TEAM_ID)");
+    expect(workflow).toContain("flags=.*runtime");
+    expect(workflow).toContain("^Timestamp=.+$");
+    expect(workflow).toContain("verify_code_object");
+    expect(workflow).toContain("file -b \"$candidate\"");
+    expect(workflow).toContain('spctl --assess --type execute --verbose=4 "$APP_PATH"');
+    expect(workflow).toContain("source=Notarized Developer ID");
+    expect(workflow).toContain('xcrun stapler validate "$APP_PATH"');
+    expect(workflow).toContain('xcrun stapler validate "$DMG_PATH"');
+    expect(workflow).toContain("CFBundleShortVersionString");
+    expect(workflow).toContain('lipo "$APP_EXECUTABLE" -verify_arch arm64 x86_64');
+    expect(workflow).toContain('ARCHITECTURES" != "arm64 x86_64"');
+
+    const verifyIndex = workflow.indexOf("Verify publication-ready signed and notarized DMG");
+    const uploadIndex = workflow.indexOf("Upload DMG to release");
+    const caskIndex = workflow.indexOf("Update Homebrew Cask");
+    expect(verifyIndex).toBeGreaterThan(-1);
+    expect(uploadIndex).toBeGreaterThan(verifyIndex);
+    expect(caskIndex).toBeGreaterThan(uploadIndex);
+
     expect(workflow).toContain("gh release upload");
     expect(workflow).toContain("HOMEBREW_TAP_TOKEN");
     expect(workflow).toContain("Casks/baby-menu.rb");
