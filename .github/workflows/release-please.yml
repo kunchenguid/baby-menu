@@ -4,6 +4,16 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Existing draft release tag to rebuild and publish
+        required: true
+        type: string
+      version:
+        description: Existing release version without the tag prefix
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -12,6 +22,7 @@ permissions:
 
 jobs:
   release-please:
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     outputs:
       baby-menu-release-created: ${{ steps.release.outputs.release_created }}
@@ -25,14 +36,14 @@ jobs:
 
   macos:
     needs: release-please
-    if: ${{ needs.release-please.outputs.baby-menu-release-created == 'true' }}
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.baby-menu-release-created == 'true') }}
     runs-on: macos-latest
     timeout-minutes: 75
     env:
       TEAM_ID: 9T2J7MNUP9
       BUNDLE_ID: com.kunchenguid.baby-menu
-      TAG_NAME: ${{ needs.release-please.outputs.baby-menu-tag-name }}
-      VERSION: ${{ needs.release-please.outputs.baby-menu-version }}
+      TAG_NAME: ${{ inputs.tag_name || needs.release-please.outputs.baby-menu-tag-name }}
+      VERSION: ${{ inputs.version || needs.release-please.outputs.baby-menu-version }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -43,11 +54,26 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          RELEASE_DRAFT="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}" --jq .draft)"
-          if [ "$RELEASE_DRAFT" != "true" ]; then
-            echo "Refusing to build artifacts for a release that is already public: $TAG_NAME" >&2
+          if ! RELEASE_DRAFT="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq '.[] | select(.tag_name == env.TAG_NAME) | .draft' 2>&1)"; then
+            echo "Unable to verify draft status for $TAG_NAME; GitHub release query failed: $RELEASE_DRAFT" >&2
             exit 1
           fi
+          case "$RELEASE_DRAFT" in
+            true) ;;
+            false)
+              echo "Refusing to build artifacts for a release that is already public: $TAG_NAME" >&2
+              exit 1
+              ;;
+            "")
+              echo "No GitHub release exists for tag $TAG_NAME; refusing to build artifacts." >&2
+              exit 1
+              ;;
+            *)
+              echo "Unable to verify draft status for $TAG_NAME; expected one release, got: $RELEASE_DRAFT" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Verify macOS release tools
         run: |
@@ -440,11 +466,26 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          RELEASE_DRAFT="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}" --jq .draft)"
-          if [ "$RELEASE_DRAFT" != "true" ]; then
-            echo "Refusing to publish a release that is not draft: $TAG_NAME" >&2
+          if ! RELEASE_DRAFT="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq '.[] | select(.tag_name == env.TAG_NAME) | .draft' 2>&1)"; then
+            echo "Unable to verify draft status before publishing $TAG_NAME; GitHub release query failed: $RELEASE_DRAFT" >&2
             exit 1
           fi
+          case "$RELEASE_DRAFT" in
+            true) ;;
+            false)
+              echo "Refusing to publish a release that is already public: $TAG_NAME" >&2
+              exit 1
+              ;;
+            "")
+              echo "No GitHub release exists for tag $TAG_NAME; refusing to publish." >&2
+              exit 1
+              ;;
+            *)
+              echo "Unable to verify draft status before publishing $TAG_NAME; expected one release, got: $RELEASE_DRAFT" >&2
+              exit 1
+              ;;
+          esac
           gh release edit "$TAG_NAME" --draft=false
 
       - name: Update Homebrew Cask
