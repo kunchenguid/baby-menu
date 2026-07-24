@@ -1,5 +1,5 @@
 import { app, BrowserWindow, screen, shell, type Rectangle } from "electron";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BabyMenuCustomAgentInput, BabyMenuSettings } from "../shared/contracts";
 import { getRepoRoot } from "../shared/paths";
@@ -176,7 +176,7 @@ export async function startBabyMenuApp(): Promise<void> {
 
   // app.isPackaged is also true for local Baby Menu Dev bundles. Only the
   // production product may register or mutate the user's macOS login item.
-  const allowOpenAtLogin = paths.isPackaged && app.getName() === "Baby Menu";
+  const allowOpenAtLogin = paths.isPackaged && basename(app.getPath("exe")) === "Baby Menu";
   const preferences = createPreferencesService({
     userDataDir: paths.appDataRoot,
     app,
