@@ -39,15 +39,38 @@ jobs:
     if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.baby-menu-release-created == 'true') }}
     runs-on: macos-latest
     timeout-minutes: 75
+    concurrency:
+      group: ${{ github.workflow }}-macos-${{ inputs.tag_name || needs.release-please.outputs.baby-menu-tag-name }}
+      cancel-in-progress: false
     env:
       TEAM_ID: 9T2J7MNUP9
       BUNDLE_ID: com.kunchenguid.baby-menu
       TAG_NAME: ${{ inputs.tag_name || needs.release-please.outputs.baby-menu-tag-name }}
       VERSION: ${{ inputs.version || needs.release-please.outputs.baby-menu-version }}
     steps:
+      - name: Validate manual recovery target
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          if [ "$TAG_NAME" != "baby-menu-v0.1.23" ] || [ "$VERSION" != "0.1.23" ]; then
+            echo "Manual recovery is restricted to baby-menu-v0.1.23 at version 0.1.23." >&2
+            exit 1
+          fi
+
       - uses: actions/checkout@v6
         with:
-          ref: ${{ env.TAG_NAME }}
+          ref: refs/tags/${{ env.TAG_NAME }}
+
+      - name: Verify manual recovery commit
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          EXPECTED_COMMIT="a8fd9cf3cda01277358a8b5e225e2ace7b0c0593"
+          ACTUAL_COMMIT="$(git rev-parse HEAD)"
+          if [ "$ACTUAL_COMMIT" != "$EXPECTED_COMMIT" ]; then
+            echo "Manual recovery tag $TAG_NAME resolved to untrusted commit $ACTUAL_COMMIT." >&2
+            exit 1
+          fi
 
       - name: Verify release is still draft
         env:
