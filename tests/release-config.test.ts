@@ -121,6 +121,9 @@ describe("distribution config", () => {
     expect(config).toContain("entitlementsInherit: assets/entitlements.mac.plist");
     expect(config).toContain("notarize: true");
     expect(config).toContain("icon: assets/app-icon.icns");
+    expect(config).toContain("!node_modules/esbuild/**");
+    expect(config).toContain("!node_modules/@esbuild/**");
+    expect(config).not.toMatch(/x64ArchFiles:.*(?:@esbuild|esbuild)/);
 
     expect(devConfig).toContain("identity: null");
     expect(devConfig).toContain("notarize: false");
@@ -156,10 +159,11 @@ describe("distribution config", () => {
     expect(workflow).toContain("needs.release-please.outputs.baby-menu-release-created == 'true'");
     expect(workflow).toContain("group: ${{ github.workflow }}-macos-${{ inputs.tag_name");
     expect(workflow).toContain("cancel-in-progress: false");
-    expect(workflow).toContain("ref: refs/tags/${{ env.TAG_NAME }}");
+    expect(workflow).toContain("github.event_name == 'workflow_dispatch' && 'refs/heads/main' || format('refs/tags/{0}', env.TAG_NAME)");
     expect(workflow).toContain('if [ "$TAG_NAME" != "baby-menu-v0.1.23" ] || [ "$VERSION" != "0.1.23" ]');
-    expect(workflow).toContain('EXPECTED_COMMIT="a8fd9cf3cda01277358a8b5e225e2ace7b0c0593"');
-    expect(workflow).toContain('ACTUAL_COMMIT="$(git rev-parse HEAD)"');
+    expect(workflow).toContain('PACKAGE_VERSION="$(node -p "require(\'./package.json\').version")"');
+    expect(workflow).toContain('if [ "$PACKAGE_VERSION" != "$VERSION" ]');
+    expect(workflow).not.toContain('EXPECTED_COMMIT="a8fd9cf3cda01277358a8b5e225e2ace7b0c0593"');
     expect(workflow).toContain("TEAM_ID: 9T2J7MNUP9");
     expect(workflow).toContain("BUNDLE_ID: com.kunchenguid.baby-menu");
     for (const secret of [
@@ -201,7 +205,8 @@ describe("distribution config", () => {
     expect(workflow).toContain('verify_entitlements "$candidate" x86_64 "$require_jit"');
     expect(workflow).toContain("verify_macho_architectures");
     expect(workflow).toContain('if [ "$architectures" = "arm64 x86_64" ]');
-    expect(workflow).toContain("node_modules/@esbuild/darwin-arm64/bin/esbuild");
+    expect(workflow).not.toContain("node_modules/@esbuild/");
+    expect(workflow).not.toContain("node_modules/esbuild/");
     expect(workflow).toContain("node_modules/@tailwindcss/oxide-darwin-arm64/tailwindcss-oxide.darwin-arm64.node");
     expect(workflow).toContain("node_modules/lightningcss-darwin-arm64/lightningcss.darwin-arm64.node");
     expect(workflow).toContain('if [ ! -f "$counterpart" ]');
@@ -225,12 +230,12 @@ describe("distribution config", () => {
 
     const recoveryTargetIndex = workflow.indexOf("Validate manual recovery target");
     const checkoutIndex = workflow.indexOf("actions/checkout@v6");
-    const recoveryCommitIndex = workflow.indexOf("Verify manual recovery commit");
+    const recoverySourceIndex = workflow.indexOf("Verify manual recovery source");
     const credentialsIndex = workflow.indexOf("Restore App Store Connect API key");
     expect(recoveryTargetIndex).toBeGreaterThan(-1);
     expect(checkoutIndex).toBeGreaterThan(recoveryTargetIndex);
-    expect(recoveryCommitIndex).toBeGreaterThan(checkoutIndex);
-    expect(credentialsIndex).toBeGreaterThan(recoveryCommitIndex);
+    expect(recoverySourceIndex).toBeGreaterThan(checkoutIndex);
+    expect(credentialsIndex).toBeGreaterThan(recoverySourceIndex);
 
     const verifyIndex = workflow.indexOf("Verify publication-ready signed and notarized DMG");
     const runtimeE2eIndex = workflow.indexOf('node scripts/e2e-packaged-mac-app.mjs "$APP_PATH"');

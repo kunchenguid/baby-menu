@@ -59,16 +59,17 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
-          ref: refs/tags/${{ env.TAG_NAME }}
+          # A newly created release builds its immutable tag. Manual recovery
+          # builds the reviewed fix on main without moving the existing tag.
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'refs/heads/main' || format('refs/tags/{0}', env.TAG_NAME) }}
 
-      - name: Verify manual recovery commit
+      - name: Verify manual recovery source
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           set -euo pipefail
-          EXPECTED_COMMIT="a8fd9cf3cda01277358a8b5e225e2ace7b0c0593"
-          ACTUAL_COMMIT="$(git rev-parse HEAD)"
-          if [ "$ACTUAL_COMMIT" != "$EXPECTED_COMMIT" ]; then
-            echo "Manual recovery tag $TAG_NAME resolved to untrusted commit $ACTUAL_COMMIT." >&2
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "Manual recovery requires package version $VERSION, got $PACKAGE_VERSION from main." >&2
             exit 1
           fi
 
@@ -377,16 +378,6 @@ jobs:
             fi
 
             case "$relative_path" in
-              Contents/Resources/app.asar.unpacked/node_modules/@esbuild/darwin-arm64/bin/esbuild)
-                expected_architecture="arm64"
-                counterpart="${candidate/darwin-arm64/darwin-x64}"
-                counterpart_architecture="x86_64"
-                ;;
-              Contents/Resources/app.asar.unpacked/node_modules/@esbuild/darwin-x64/bin/esbuild)
-                expected_architecture="x86_64"
-                counterpart="${candidate/darwin-x64/darwin-arm64}"
-                counterpart_architecture="arm64"
-                ;;
               Contents/Resources/app.asar.unpacked/node_modules/@tailwindcss/oxide-darwin-arm64/tailwindcss-oxide.darwin-arm64.node)
                 expected_architecture="arm64"
                 counterpart="${candidate//darwin-arm64/darwin-x64}"

@@ -8,6 +8,11 @@ directories:
 files:
   - out/**
   - package.json
+  # esbuild is used only by scripts/build-adapters.mjs before packaging. The
+  # running app uses the generated adapter bundles and its main bundle already
+  # contains acpx, so acpx's unused tsx -> esbuild dependency must not ship.
+  - '!node_modules/esbuild/**'
+  - '!node_modules/@esbuild/**'
 
 extraResources:
   - from: extensions
@@ -38,7 +43,7 @@ mac:
   entitlements: assets/entitlements.mac.plist
   entitlementsInherit: assets/entitlements.mac.plist
   notarize: true
-  x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/{@esbuild/**,esbuild/**,@tailwindcss/oxide-*/**,lightningcss-*/**,lightningcss/**}
+  x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/{@tailwindcss/oxide-*/**,lightningcss-*/**,lightningcss/**}
 
 dmg:
   artifactName: Baby-Menu-${version}-universal.dmg
