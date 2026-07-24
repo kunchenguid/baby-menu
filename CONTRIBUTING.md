@@ -47,9 +47,9 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 Baby Menu releases are proposed by release-please after conventional commits land on `main`.
 Use prefixes such as `feat:` and `fix:` so release-please can choose the version bump and release notes.
 Mark breaking changes with `!` in the commit type or a `BREAKING CHANGE:` footer.
-Merging the release-please PR creates the version tag and GitHub Release.
-The release-please workflow builds the universal macOS app, signs every code object with `Developer ID Application: Kun Chen (9T2J7MNUP9)`, notarizes and staples the app and DMG, verifies the publication-ready DMG, uploads it, and then updates `kunchenguid/homebrew-tap` with that DMG's SHA.
-Any credential, identity, notarization, signature, Gatekeeper, architecture, bundle-id, or staple failure stops before artifact upload and tap publication.
+Merging the release-please PR creates the version tag and a draft GitHub Release.
+The release-please workflow builds the universal macOS app, signs every code object with `Developer ID Application: Kun Chen (9T2J7MNUP9)`, notarizes and staples the app and DMG, verifies the publication-ready DMG, computes its checksum, uploads it to the draft, and only then publishes the release before updating `kunchenguid/homebrew-tap`.
+Any credential, identity, notarization, signature, entitlement, Gatekeeper, architecture, bundle-id, staple, packaged runtime, checksum, or upload failure leaves the release as a draft and stops before stable publication and tap publication.
 The generated Homebrew Cask quits Baby Menu during upgrade and relaunches it after installation only when the app was already running before uninstall started.
 
 Maintainers must keep these repository secrets provisioned from the canonical secure owners:
@@ -62,7 +62,7 @@ Maintainers must keep these repository secrets provisioned from the canonical se
 Never commit or print credential contents. Missing or malformed secrets fail the real release job; pull-request CI remains secret-free and validates the release config through `tests/release-config.test.ts`.
 Maintainers must also keep the `BABY_MENU_UMAMI_WEBSITE_ID` GitHub Actions repository variable configured for packaged-release telemetry; it is intentionally a variable rather than a secret because the id is baked into the app and sent in Umami payloads.
 
-To release, merge the release-please PR and require the `release-please` workflow's macOS job to pass. Do not upload a replacement DMG or update the tap by hand unless repairing a failed release.
+To release, merge the release-please PR and require the `release-please` workflow's macOS job to pass. The release remains a draft until the signed artifact passes verification and runtime E2E, receives a valid checksum, and uploads successfully. Do not upload a replacement DMG or update the tap by hand unless repairing a failed release.
 For a post-release check of exactly the downloaded artifact on macOS:
 
 ```sh

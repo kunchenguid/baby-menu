@@ -123,8 +123,12 @@ describe("distribution config", () => {
     expect(workflow).toContain('verify_code_object "$candidate" x86_64');
     expect(workflow).toContain('verify_code_object "$candidate" "$expected_architecture"');
     expect(workflow).toContain("verify_entitlements");
-    expect(workflow).toContain('set(entitlements) - {"com.apple.security.cs.allow-jit"}');
-    expect(workflow).toContain("--arch \"$architecture\" --entitlements :-");
+    expect(workflow).toContain('python3 scripts/verify-macos-entitlements.py');
+    expect(workflow).toContain('--arch "$architecture" --entitlements - --xml');
+    expect(workflow).toContain("--require-jit");
+    expect(workflow).toContain('Contents/MacOS/*|Contents/Frameworks/*.app/Contents/MacOS/*)');
+    expect(workflow).toContain('verify_entitlements "$candidate" arm64 "$require_jit"');
+    expect(workflow).toContain('verify_entitlements "$candidate" x86_64 "$require_jit"');
     expect(workflow).toContain("verify_macho_architectures");
     expect(workflow).toContain('if [ "$architectures" = "arm64 x86_64" ]');
     expect(workflow).toContain("node_modules/@esbuild/darwin-arm64/bin/esbuild");
@@ -142,15 +146,22 @@ describe("distribution config", () => {
     expect(workflow).toContain('lipo "$APP_EXECUTABLE" -verify_arch arm64 x86_64');
     expect(workflow).toContain('ARCHITECTURES" != "arm64 x86_64"');
 
+    expect(workflow).toContain("Verify release is still draft");
+    expect(workflow).toContain('gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}" --jq .draft');
+
     const verifyIndex = workflow.indexOf("Verify publication-ready signed and notarized DMG");
     const runtimeE2eIndex = workflow.indexOf('node scripts/e2e-packaged-mac-app.mjs "$APP_PATH"');
-    const uploadIndex = workflow.indexOf("Upload DMG to release");
+    const checksumIndex = workflow.indexOf("Compute SHA256");
+    const uploadIndex = workflow.indexOf("Upload DMG to draft release");
+    const publishIndex = workflow.indexOf("Publish verified release");
     const caskIndex = workflow.indexOf("Update Homebrew Cask");
     expect(verifyIndex).toBeGreaterThan(-1);
     expect(runtimeE2eIndex).toBeGreaterThan(verifyIndex);
-    expect(uploadIndex).toBeGreaterThan(runtimeE2eIndex);
-    expect(uploadIndex).toBeGreaterThan(verifyIndex);
-    expect(caskIndex).toBeGreaterThan(uploadIndex);
+    expect(checksumIndex).toBeGreaterThan(runtimeE2eIndex);
+    expect(uploadIndex).toBeGreaterThan(checksumIndex);
+    expect(publishIndex).toBeGreaterThan(uploadIndex);
+    expect(caskIndex).toBeGreaterThan(publishIndex);
+    expect(workflow).toContain('gh release edit "$TAG_NAME" --draft=false');
     expect(packagedRuntimeE2e).toContain('join(testAppDataRoot, "preferences.json")');
     expect(packagedRuntimeE2e).toContain("openAtLogin: false");
     expect(packagedRuntimeE2e.indexOf("openAtLogin: false")).toBeLessThan(packagedRuntimeE2e.indexOf("spawn(executablePath"));
@@ -213,6 +224,8 @@ describe("distribution config", () => {
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "include-component-in-tag": true,
+      draft: true,
+      "force-tag-creation": true,
       packages: {
         ".": {
           "release-type": "node",

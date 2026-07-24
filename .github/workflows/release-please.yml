@@ -38,6 +38,17 @@ jobs:
         with:
           ref: ${{ env.TAG_NAME }}
 
+      - name: Verify release is still draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RELEASE_DRAFT="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}" --jq .draft)"
+          if [ "$RELEASE_DRAFT" != "true" ]; then
+            echo "Refusing to build artifacts for a release that is already public: $TAG_NAME" >&2
+            exit 1
+          fi
+
       - name: Verify macOS release tools
         run: |
           set -euo pipefail
@@ -264,36 +275,31 @@ jobs:
           verify_entitlements() {
             local code_object="$1"
             local architecture="${2:-}"
+            local require_jit="${3:-false}"
             local entitlements_file
+            local -a parser_args
             entitlements_file="$(mktemp "$RUNNER_TEMP/baby-menu-entitlements.XXXXXX")"
+            parser_args=("$entitlements_file" "$code_object")
             if [ -n "$architecture" ]; then
-              codesign -d --arch "$architecture" --entitlements :- "$code_object" \
-                >"$entitlements_file" 2>/dev/null
+              parser_args+=(--architecture "$architecture")
+              if ! codesign -d --arch "$architecture" --entitlements - --xml "$code_object" \
+                >"$entitlements_file"; then
+                rm -f "$entitlements_file"
+                return 1
+              fi
             else
-              codesign -d --entitlements :- "$code_object" \
-                >"$entitlements_file" 2>/dev/null
+              if ! codesign -d --entitlements - --xml "$code_object" >"$entitlements_file"; then
+                rm -f "$entitlements_file"
+                return 1
+              fi
             fi
-            python3 - "$entitlements_file" "$code_object" "$architecture" <<'PY'
-          import plistlib
-          import sys
-
-          path, code_object, architecture = sys.argv[1:]
-          with open(path, "rb") as stream:
-              entitlements = plistlib.load(stream)
-          if not isinstance(entitlements, dict):
-              raise SystemExit(f"Invalid entitlements for {code_object} ({architecture or 'default architecture'})")
-          unexpected = sorted(set(entitlements) - {"com.apple.security.cs.allow-jit"})
-          if unexpected:
-              raise SystemExit(
-                  f"Unexpected entitlements for {code_object} ({architecture or 'default architecture'}): "
-                  + ", ".join(unexpected)
-              )
-          if "com.apple.security.cs.allow-jit" in entitlements and entitlements["com.apple.security.cs.allow-jit"] is not True:
-              raise SystemExit(
-                  f"com.apple.security.cs.allow-jit must be true for {code_object} "
-                  f"({architecture or 'default architecture'})"
-              )
-          PY
+            if [ "$require_jit" = "true" ]; then
+              parser_args+=(--require-jit)
+            fi
+            if ! python3 scripts/verify-macos-entitlements.py "${parser_args[@]}"; then
+              rm -f "$entitlements_file"
+              return 1
+            fi
             rm -f "$entitlements_file"
           }
 
@@ -304,13 +310,20 @@ jobs:
             local expected_architecture
             local counterpart
             local counterpart_architecture
+            local require_jit=false
+
+            case "$relative_path" in
+              Contents/MacOS/*|Contents/Frameworks/*.app/Contents/MacOS/*)
+                require_jit=true
+                ;;
+            esac
 
             architectures="$(lipo -archs "$candidate" | tr ' ' '\n' | LC_ALL=C sort | xargs)"
             if [ "$architectures" = "arm64 x86_64" ]; then
               verify_code_object "$candidate" arm64
               verify_code_object "$candidate" x86_64
-              verify_entitlements "$candidate" arm64
-              verify_entitlements "$candidate" x86_64
+              verify_entitlements "$candidate" arm64 "$require_jit"
+              verify_entitlements "$candidate" x86_64 "$require_jit"
               return
             fi
 
@@ -366,13 +379,16 @@ jobs:
               exit 1
             fi
             verify_code_object "$candidate" "$expected_architecture"
-            verify_entitlements "$candidate" "$expected_architecture"
+            verify_entitlements "$candidate" "$expected_architecture" "$require_jit"
           }
 
           BUNDLE_COUNT=0
           while IFS= read -r -d '' code_bundle; do
             verify_code_object "$code_bundle"
-            verify_entitlements "$code_bundle"
+            case "$code_bundle" in
+              *.app) verify_entitlements "$code_bundle" "" true ;;
+              *) verify_entitlements "$code_bundle" ;;
+            esac
             BUNDLE_COUNT=$((BUNDLE_COUNT + 1))
           done < <(find "$APP_PATH" -type d \( -name '*.app' -o -name '*.framework' \) -print0)
           if [ "$BUNDLE_COUNT" -eq 0 ]; then
@@ -404,15 +420,32 @@ jobs:
           hdiutil detach "$MOUNT_POINT" -quiet
           trap - EXIT
 
-      - name: Upload DMG to release
+      - name: Compute SHA256
+        run: |
+          set -euo pipefail
+          SHA256="$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')"
+          if [[ ! "$SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "Could not compute a valid SHA256 for $DMG_PATH" >&2
+            exit 1
+          fi
+          echo "SHA256=${SHA256}" >> "$GITHUB_ENV"
+
+      - name: Upload DMG to draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$TAG_NAME" "$DMG_PATH" --clobber
 
-      - name: Compute SHA256
+      - name: Publish verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          SHA256=$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')
-          echo "SHA256=${SHA256}" >> "$GITHUB_ENV"
+          set -euo pipefail
+          RELEASE_DRAFT="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}" --jq .draft)"
+          if [ "$RELEASE_DRAFT" != "true" ]; then
+            echo "Refusing to publish a release that is not draft: $TAG_NAME" >&2
+            exit 1
+          fi
+          gh release edit "$TAG_NAME" --draft=false
 
       - name: Update Homebrew Cask
         env:
