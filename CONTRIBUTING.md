@@ -49,7 +49,7 @@ Use prefixes such as `feat:` and `fix:` so release-please can choose the version
 Mark breaking changes with `!` in the commit type or a `BREAKING CHANGE:` footer.
 Merging the release-please PR creates the version tag and a draft GitHub Release.
 The release-please workflow builds the universal macOS app, signs every code object with `Developer ID Application: Kun Chen (9T2J7MNUP9)`, notarizes and staples the app and DMG, verifies the publication-ready DMG, computes its checksum, uploads it to the draft, and only then publishes the release before updating `kunchenguid/homebrew-tap`.
-Any credential, identity, notarization, signature, entitlement, Gatekeeper, architecture, bundle-id, staple, packaged runtime, checksum, or upload failure leaves the release as a draft and stops before stable publication and tap publication.
+Any signing, notarization, verification, packaged runtime, checksum, or GitHub upload failure leaves the release as a draft and stops before stable publication and tap publication. A missing or invalid `HOMEBREW_TAP_TOKEN`, or another tap update failure, occurs after stable publication and fails the workflow without updating Homebrew.
 The generated Homebrew Cask quits Baby Menu during upgrade and relaunches it after installation only when the app was already running before uninstall started.
 
 Maintainers must keep these repository secrets provisioned from the canonical secure owners:
