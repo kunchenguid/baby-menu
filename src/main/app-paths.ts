@@ -20,10 +20,12 @@ export type BabyMenuRuntimePaths = {
   isPackaged: boolean;
 };
 
+type BabyMenuPathEnv = Partial<Pick<NodeJS.ProcessEnv, typeof EXTENSIONS_DIR_ENV | "BABY_MENU_PACKAGED_TEST_HOME">>;
+
 type CreateBabyMenuRuntimePathsOptions = {
   isPackaged: boolean;
   sourceRoot: string;
-  env?: Partial<Pick<NodeJS.ProcessEnv, typeof EXTENSIONS_DIR_ENV>>;
+  env?: BabyMenuPathEnv;
   homeDir?: string;
   resourcesPath?: string;
 };
@@ -82,14 +84,18 @@ export function resolveBabyMenuRuntimePaths(sourceRoot: string): BabyMenuRuntime
     isPackaged: app.isPackaged,
     sourceRoot,
     env: process.env,
-    homeDir: app.isPackaged ? app.getPath("home") : undefined,
+    homeDir: app.isPackaged ? resolvePackagedHomeDir(app.getPath("home"), process.env) : undefined,
     resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
   });
 }
 
+export function resolvePackagedHomeDir(defaultHomeDir: string, env: BabyMenuPathEnv = process.env): string {
+  return env.BABY_MENU_PACKAGED_TEST_HOME?.trim() || defaultHomeDir;
+}
+
 function resolveSourceExtensionsDir(
   sourceRoot: string,
-  env: Partial<Pick<NodeJS.ProcessEnv, typeof EXTENSIONS_DIR_ENV>> = process.env,
+  env: BabyMenuPathEnv = process.env,
 ): string {
   const configured = env[EXTENSIONS_DIR_ENV];
   if (!configured) return join(sourceRoot, "extensions");

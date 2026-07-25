@@ -33,6 +33,7 @@ Follow these rules:
 - `BABY_MENU_KEEP_POPOVER_OPEN=1` disables the blur-to-hide behavior so the popover stays open while devtools / external windows have focus.
 - `BABY_MENU_OPEN_POPOVER_ON_START=1` opens the real popover through the tray bounds path for an explicit unattended check.
 - `BABY_MENU_REMOTE_DEBUGGING_PORT=<port>` enables Electron's loopback Chrome DevTools endpoint for an explicit unattended check; invalid ports are ignored.
+- `BABY_MENU_PACKAGED_TEST_HOME=<path>` isolates packaged-app state for the packaged runtime E2E; do not use it for normal app launches.
 - `BABY_MENU_AGENT=<agent-name>` overrides agent auto-detection when no saved Settings choice exists. E2E tests pass `acpx-mock` via `registryOverrides`.
 - `BABY_MENU_AGENT_TIMEOUT_MS=<ms>` overrides the embedded-agent request timeout.
 - `BABY_MENU_TELEMETRY=0` (or `false` / `off`) disables packaged-release telemetry; `BABY_MENU_UMAMI_HOST` and `BABY_MENU_UMAMI_WEBSITE_ID` override the self-hosted Umami target for telemetry testing.
@@ -107,6 +108,7 @@ The Codex adapter makes one narrow exception: because `--ignore-user-config` als
 `scripts/build-adapters.mjs` bundles `src/adapters/claude/index.ts` and `src/adapters/codex/index.ts` to `out/adapters/<name>/index.mjs` after `electron-vite build`.
 `pnpm dev` runs the same adapter build before launching Electron because dev runtime paths also resolve adapters from `out/adapters/`.
 Packaged builds keep `out/adapters/**` in `app.asar.unpacked` because adapter processes are spawned as standalone Node programs and cannot execute from inside `app.asar`.
+`esbuild` is build-time-only and excluded from packaging. Runtime code imports the externalized `acpx/runtime` entry, which does not reference acpx's CLI-only `tsx` path; `tests/acpx-runtime-dependencies.test.ts` locks that boundary, and the packaged runtime E2E runs an ACP turn with esbuild absent.
 
 `typescript` is intentionally externalized from the production main bundle because `extension-module-compiler.ts` imports it at runtime to compile packaged extensions.
 Keep it in runtime dependencies unless that path changes.

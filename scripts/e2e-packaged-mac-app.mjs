@@ -1,18 +1,44 @@
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { basename, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { listPackage } from "@electron/asar";
+import { mockAgentArgs } from "acp-mock";
 
 const defaultAppPath = resolve("release/mac-universal/Baby Menu Dev.app");
 const appPath = resolve(process.argv[2] ?? defaultAppPath);
 const executableName = basename(appPath, ".app");
 const executablePath = join(appPath, "Contents", "MacOS", executableName);
+const acpMockBinPath = resolve("node_modules/acp-mock/dist/cli.js");
+const mockAgentName = "packaged-mock";
+const mockAgentSummary = "packaged acpx runtime completed without esbuild";
 const timeoutMs = 60_000;
 
 function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
+}
+
+function shellQuote(value) {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+async function assertNoPackagedEsbuild() {
+  const resourcesPath = join(appPath, "Contents", "Resources");
+  const unpackedNodeModules = join(resourcesPath, "app.asar.unpacked", "node_modules");
+  for (const packageName of ["esbuild", "@esbuild"]) {
+    const candidate = join(unpackedNodeModules, packageName);
+    if (await access(candidate).then(() => true, () => false)) {
+      throw new Error(`Packaged app contains forbidden runtime path: ${candidate}`);
+    }
+  }
+
+  const forbiddenEntry = listPackage(join(resourcesPath, "app.asar")).find((entry) =>
+    /(?:^|[\\/])node_modules[\\/](?:@esbuild|esbuild)(?:[\\/]|$)/.test(entry));
+  if (forbiddenEntry) {
+    throw new Error(`Packaged app archive contains forbidden runtime path: ${forbiddenEntry}`);
+  }
 }
 
 async function reserveLoopbackPort() {
@@ -58,7 +84,30 @@ async function waitForRenderer(child, browserUrl, logPath) {
   throw new Error(`Timed out waiting for the packaged app renderer\n${log}`);
 }
 
-async function verifyRenderer(target) {
+async function evaluate(socket, requestId, expression, awaitPromise = false) {
+  socket.send(JSON.stringify({
+    id: requestId,
+    method: "Runtime.evaluate",
+    params: { expression, awaitPromise, returnByValue: true },
+  }));
+  const response = await new Promise((resolveMessage, rejectMessage) => {
+    const timer = setTimeout(() => rejectMessage(new Error("Timed out probing the packaged renderer")), timeoutMs);
+    const onMessage = (event) => {
+      const message = JSON.parse(String(event.data));
+      if (message.id !== requestId) return;
+      clearTimeout(timer);
+      socket.removeEventListener("message", onMessage);
+      resolveMessage(message);
+    };
+    socket.addEventListener("message", onMessage);
+  });
+  if (response.error || response.result?.exceptionDetails) {
+    throw new Error(`Packaged renderer evaluation failed: ${JSON.stringify(response)}`);
+  }
+  return response.result?.result?.value;
+}
+
+async function verifyRendererAndAgent(target) {
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolveOpen, rejectOpen) => {
     socket.addEventListener("open", resolveOpen, { once: true });
@@ -67,44 +116,68 @@ async function verifyRenderer(target) {
   try {
     const startedAt = Date.now();
     let requestId = 0;
+    let rendererReady = false;
     while (Date.now() - startedAt < timeoutMs) {
       requestId += 1;
-      socket.send(JSON.stringify({
-        id: requestId,
-        method: "Runtime.evaluate",
-        params: {
-          expression: "document.readyState === 'complete' && typeof window.babyMenu === 'object'",
-          returnByValue: true,
-        },
-      }));
-      const response = await new Promise((resolveMessage, rejectMessage) => {
-        const timer = setTimeout(() => rejectMessage(new Error("Timed out probing the packaged renderer")), 10_000);
-        const onMessage = (event) => {
-          const message = JSON.parse(String(event.data));
-          if (message.id !== requestId) return;
-          clearTimeout(timer);
-          socket.removeEventListener("message", onMessage);
-          resolveMessage(message);
-        };
-        socket.addEventListener("message", onMessage);
-      });
-      if (!response.error && !response.result?.exceptionDetails && response.result?.result?.value === true) return;
+      rendererReady = await evaluate(
+        socket,
+        requestId,
+        "document.readyState === 'complete' && typeof window.babyMenu === 'object'",
+      );
+      if (rendererReady) break;
       await delay(100);
     }
-    throw new Error("Packaged renderer or preload bridge did not initialize");
+    if (!rendererReady) throw new Error("Packaged renderer or preload bridge did not initialize");
+
+    requestId += 1;
+    const agentResult = await evaluate(
+      socket,
+      requestId,
+      `window.babyMenu.agent.send(${JSON.stringify("Verify the packaged ACP runtime")})`,
+      true,
+    );
+    if (!agentResult || !String(agentResult.assistantText).includes(mockAgentSummary)) {
+      throw new Error(`Packaged agent turn failed: ${JSON.stringify(agentResult)}`);
+    }
+    return agentResult;
   } finally {
     socket.close();
   }
 }
 
+async function readMockEvents(eventLogPath) {
+  const text = await readFile(eventLogPath, "utf8");
+  return text.trim().split("\n").filter(Boolean).map((line) => JSON.parse(line).event);
+}
+
 async function main() {
   if (process.platform !== "darwin") throw new Error("Packaged macOS runtime E2E requires macOS");
 
+  await assertNoPackagedEsbuild();
   const testRoot = await mkdtemp(join(tmpdir(), "baby-menu-packaged-runtime-"));
   const testHome = join(testRoot, "home");
   const testAppDataRoot = join(testHome, ".baby-menu");
+  const mockEventLogPath = join(testRoot, "mock-acp.jsonl");
   await mkdir(testAppDataRoot, { recursive: true });
-  await writeFile(join(testAppDataRoot, "preferences.json"), `${JSON.stringify({ openAtLogin: false }, null, 2)}\n`);
+  await writeFile(
+    join(testAppDataRoot, "preferences.json"),
+    `${JSON.stringify({ openAtLogin: false, agentName: mockAgentName }, null, 2)}\n`,
+  );
+  const launchCommand = [
+    process.execPath,
+    acpMockBinPath,
+    ...mockAgentArgs({
+      eventLogPath: mockEventLogPath,
+      agentMessageJson: { summary: mockAgentSummary },
+    }),
+  ].map(shellQuote).join(" ");
+  await writeFile(join(testAppDataRoot, "agents.json"), `${JSON.stringify([{
+    name: mockAgentName,
+    label: "Packaged Mock Agent",
+    command: mockAgentName,
+    launchCommand,
+  }], null, 2)}\n`);
+
   const logPath = join(testRoot, "app.log");
   const port = await reserveLoopbackPort();
   const logHandle = await import("node:fs").then(({ openSync }) => openSync(logPath, "w"));
@@ -112,9 +185,11 @@ async function main() {
     env: {
       ...process.env,
       HOME: testHome,
+      BABY_MENU_PACKAGED_TEST_HOME: testHome,
       BABY_MENU_KEEP_POPOVER_OPEN: "1",
       BABY_MENU_OPEN_POPOVER_ON_START: "1",
       BABY_MENU_REMOTE_DEBUGGING_PORT: String(port),
+      BABY_MENU_AGENT_TIMEOUT_MS: String(timeoutMs),
       BABY_MENU_TELEMETRY: "0",
     },
     stdio: ["ignore", logHandle, logHandle],
@@ -122,8 +197,18 @@ async function main() {
 
   try {
     const target = await waitForRenderer(child, `http://127.0.0.1:${port}`, logPath);
-    await verifyRenderer(target);
-    process.stdout.write(`${JSON.stringify({ app: appPath, rendererReady: true, preloadReady: true })}\n`);
+    const agentResult = await verifyRendererAndAgent(target);
+    const mockEvents = await readMockEvents(mockEventLogPath);
+    if (!mockEvents.includes("agent:prompt:done")) {
+      throw new Error(`Packaged ACP agent did not complete a prompt: ${JSON.stringify(mockEvents)}`);
+    }
+    process.stdout.write(`${JSON.stringify({
+      app: appPath,
+      rendererReady: true,
+      preloadReady: true,
+      agentRuntimeReady: true,
+      assistantText: agentResult.assistantText,
+    })}\n`);
   } finally {
     await stopApp(child);
     await rm(testRoot, { recursive: true, force: true });

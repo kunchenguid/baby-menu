@@ -125,9 +125,9 @@ describe("distribution config", () => {
     expect(config).toContain("!node_modules/esbuild/**");
     expect(config).toContain("!node_modules/@esbuild/**");
     expect(config).not.toMatch(/x64ArchFiles:.*(?:@esbuild|esbuild)/);
-    expect(electronViteConfig).toContain("externalizeDeps:");
-    expect(electronViteConfig).toContain('exclude: ["acpx"]');
-    expect(electronViteConfig).not.toContain("externalizeDepsPlugin");
+    expect(electronViteConfig).toContain("plugins: [externalizeDepsPlugin()]");
+    expect(electronViteConfig).not.toContain('exclude: ["acpx"]');
+    expect(packageJson.devDependencies?.["@electron/asar"]).toBe("3.4.1");
 
     expect(devConfig).toContain("identity: null");
     expect(devConfig).toContain("notarize: false");
@@ -224,6 +224,10 @@ describe("distribution config", () => {
     expect(workflow).toContain('xcrun stapler validate "$APP_PATH"');
     expect(workflow).toContain('xcrun stapler validate "$DMG_PATH"');
     expect(workflow).toContain('node scripts/e2e-packaged-mac-app.mjs "$APP_PATH"');
+    expect(packagedRuntimeE2e).toContain('from "@electron/asar"');
+    expect(packagedRuntimeE2e).toContain("assertNoPackagedEsbuild");
+    expect(packagedRuntimeE2e).toContain("window.babyMenu.agent.send");
+    expect(packagedRuntimeE2e).toContain("agent:prompt:done");
     expect(workflow).toContain("CFBundleShortVersionString");
     expect(workflow).toContain('lipo "$APP_EXECUTABLE" -verify_arch arm64 x86_64');
     expect(workflow).toContain('ARCHITECTURES" != "arm64 x86_64"');

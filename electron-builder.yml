@@ -8,9 +8,9 @@ directories:
 files:
   - out/**
   - package.json
-  # esbuild is used only by scripts/build-adapters.mjs before packaging. The
-  # running app uses the generated adapter bundles and its main bundle already
-  # contains acpx, so acpx's unused tsx -> esbuild dependency must not ship.
+  # esbuild builds adapters before packaging. At runtime Baby Menu imports only
+  # acpx/runtime, whose published entry cannot reach acpx's CLI-only tsx path;
+  # tests/acpx-runtime-dependencies.test.ts locks that dependency boundary.
   - '!node_modules/esbuild/**'
   - '!node_modules/@esbuild/**'
 

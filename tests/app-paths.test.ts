@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createBabyMenuRuntimePaths } from "../src/main/app-paths";
+import { createBabyMenuRuntimePaths, resolvePackagedHomeDir } from "../src/main/app-paths";
 import { seedExtensionWorkspace } from "../src/main/extension-seeder";
 
 describe("Baby Menu runtime paths", () => {
@@ -31,6 +31,12 @@ describe("Baby Menu runtime paths", () => {
       trayIconPath: "/repo/assets/tray/baby_menuTemplate.png",
       isPackaged: false,
     });
+  });
+
+  it("lets packaged E2E runs isolate the home directory without changing the normal default", () => {
+    expect(resolvePackagedHomeDir("/Users/me", {})).toBe("/Users/me");
+    expect(resolvePackagedHomeDir("/Users/me", { BABY_MENU_PACKAGED_TEST_HOME: " /tmp/test-home " }))
+      .toBe("/tmp/test-home");
   });
 
   it("keeps packaged mutable state under a home dot directory and templates under Resources", () => {
