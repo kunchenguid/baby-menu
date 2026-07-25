@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: Existing draft release tag to rebuild and publish
+        description: Existing draft release tag for recovered artifacts
         required: true
         type: string
       version:

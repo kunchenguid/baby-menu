@@ -35,8 +35,7 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 - Run `pnpm generate:contracts` and commit `extensions/babymenu-env.d.ts` after changing extension-facing types or `src/shared/extension-contract-names.ts`.
 - Run `pnpm package:mac` when changing packaging, runtime paths, extension compilation, native dependencies, or release behavior.
 - Local `pnpm package:mac` builds intentionally produce `Baby Menu Dev.app` with bundle id `com.kunchenguid.baby-menu.dev`; release automation uses `electron-builder.yml` directly for the production `Baby Menu.app` identity.
-- Keep universal macOS packaging compatible with both Intel and Apple Silicon Macs; native prebuilt packages must be installed for `x64` and `arm64` and preserved in `electron-builder.yml` `x64ArchFiles` when electron-builder merges the app.
-- Keep `electron-builder` at `26.8.2` or newer so pnpm-deduped dependencies are included correctly in packaged builds.
+- Follow the universal native-dependency and electron-builder constraints in [`docs/development.md`](docs/development.md#packaging).
 - Keep `pnpm-lock.yaml` changes with dependency changes.
 - Do not commit generated build output, release artifacts, runtime caches, or dev extension workspaces.
 - Do not hand-edit release-please metadata such as `CHANGELOG.md` or `.release-please-manifest.json`.
@@ -63,7 +62,7 @@ Never commit or print credential contents. Missing or malformed secrets fail the
 Maintainers must also keep the `BABY_MENU_UMAMI_WEBSITE_ID` GitHub Actions repository variable configured for packaged-release telemetry; it is intentionally a variable rather than a secret because the id is baked into the app and sent in Umami payloads.
 
 To release, merge the release-please PR and require the `release-please` workflow's macOS job to pass. The release remains a draft until the signed artifact passes verification and runtime E2E, receives a valid checksum, and uploads successfully. Do not upload a replacement DMG or update the tap by hand.
-For the interrupted `0.1.23` release only, manually dispatch the `release-please` workflow with tag `baby-menu-v0.1.23` and version `0.1.23`. This recovery path checks out the existing trusted tag, requires its GitHub Release to remain a draft, and reruns the normal signed, notarized, verified build and publish flow. It refuses any other tag, version, commit, missing release, already-published release, or uncertain GitHub query result.
+For the interrupted `0.1.23` release only, manually dispatch the `release-please` workflow from `main` with tag `baby-menu-v0.1.23` and version `0.1.23`. This recovery path builds the reviewed `main` commit selected by the dispatch without moving the existing tag, requires that commit's package version to remain `0.1.23`, requires the GitHub Release to remain a draft, and reruns the normal signed, notarized, verified build and publish flow. It refuses a dispatch from another ref, any other tag or version, a checkout that differs from the dispatch commit, a mismatched package version, a missing or already-published release, or an uncertain GitHub query result. Normal releases continue building their immutable tags.
 For a post-release check of exactly the downloaded artifact on macOS:
 
 ```sh

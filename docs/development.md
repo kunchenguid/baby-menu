@@ -44,7 +44,8 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 - `pnpm package:mac` tests the actual packaged app from `release/mac-universal/Baby Menu Dev.app`.
 - Local packaging uses the `Baby Menu Dev` product name and `com.kunchenguid.baby-menu.dev` bundle id so local builds do not shadow the released `/Applications/Baby Menu.app` in macOS LaunchServices. It explicitly disables Developer ID discovery and notarization, then applies an ad-hoc signature for local launch only.
 - See [CONTRIBUTING.md](../CONTRIBUTING.md#release-notes) for the production release and downloaded-artifact verification procedure.
-- The universal package must run on both Intel and Apple Silicon Macs, so macOS native prebuilt dependencies must stay installed for `x64` and `arm64` and stay covered by `electron-builder.yml` `x64ArchFiles` when new native packages are added.
+- The universal package must run on both Intel and Apple Silicon Macs, so packaged runtime native prebuilt dependencies must stay installed for `x64` and `arm64` and stay covered by `electron-builder.yml` `x64ArchFiles` when new native packages are added.
+- `esbuild` is build-time-only: `scripts/build-adapters.mjs` uses it before packaging, the generated adapters are shipped, and `acpx/runtime` is already bundled into `out/main/index.js`. Keep `esbuild` and `@esbuild` excluded from `electron-builder.yml`; shipping the host-specific executable breaks universal package verification.
 - Keep `electron-builder` at `26.8.2` or newer so pnpm-deduped dependencies are included correctly in packaged builds.
 
 ## Hero video
