@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { basename, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -15,6 +15,7 @@ const acpMockBinPath = resolve("node_modules/acp-mock/dist/cli.js");
 const mockAgentName = "packaged-mock";
 const mockAgentSummary = "packaged acpx runtime completed without esbuild";
 const timeoutMs = 60_000;
+const forbiddenEsbuildPath = /(?:^|[\\/])node_modules[\\/](?:@esbuild|esbuild)(?:[\\/]|$)/;
 
 function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
@@ -24,18 +25,24 @@ function shellQuote(value) {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
-async function assertNoPackagedEsbuild() {
-  const resourcesPath = join(appPath, "Contents", "Resources");
-  const unpackedNodeModules = join(resourcesPath, "app.asar.unpacked", "node_modules");
-  for (const packageName of ["esbuild", "@esbuild"]) {
-    const candidate = join(unpackedNodeModules, packageName);
-    if (await access(candidate).then(() => true, () => false)) {
-      throw new Error(`Packaged app contains forbidden runtime path: ${candidate}`);
-    }
+export async function assertNoPackagedEsbuild(candidateAppPath = appPath) {
+  const resourcesPath = join(candidateAppPath, "Contents", "Resources");
+  const unpackedPath = join(resourcesPath, "app.asar.unpacked");
+  let unpackedEntries = [];
+  try {
+    unpackedEntries = await readdir(unpackedPath, { recursive: true });
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  const forbiddenUnpackedEntry = unpackedEntries.find((entry) => forbiddenEsbuildPath.test(entry));
+  if (forbiddenUnpackedEntry) {
+    throw new Error(
+      `Packaged app contains forbidden runtime path: ${join(unpackedPath, forbiddenUnpackedEntry)}`,
+    );
   }
 
-  const forbiddenEntry = listPackage(join(resourcesPath, "app.asar")).find((entry) =>
-    /(?:^|[\\/])node_modules[\\/](?:@esbuild|esbuild)(?:[\\/]|$)/.test(entry));
+  const forbiddenEntry = listPackage(join(resourcesPath, "app.asar"))
+    .find((entry) => forbiddenEsbuildPath.test(entry));
   if (forbiddenEntry) {
     throw new Error(`Packaged app archive contains forbidden runtime path: ${forbiddenEntry}`);
   }

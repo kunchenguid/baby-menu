@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -68,6 +68,41 @@ describe("release draft guard", () => {
         "Unable to verify draft status for baby-menu-v0.1.23; GitHub release query failed: gh: API unavailable (HTTP 503)",
       ),
     });
+  });
+});
+
+describe("packaged runtime verification", () => {
+  it("recursively rejects esbuild nested in unpacked dependencies", async () => {
+    const tempDirectory = await mkdtemp(join(tmpdir(), "baby-menu-packaged-esbuild-"));
+    const nestedEsbuildPath = join(
+      tempDirectory,
+      "Baby Menu Dev.app",
+      "Contents",
+      "Resources",
+      "app.asar.unpacked",
+      "node_modules",
+      "acpx",
+      "node_modules",
+      "esbuild",
+    );
+    await mkdir(nestedEsbuildPath, { recursive: true });
+
+    try {
+      const verificationScript = resolve(
+        import.meta.dirname,
+        "../scripts/e2e-packaged-mac-app.mjs",
+      );
+      const invocation = [
+        `import(${JSON.stringify(verificationScript)})`,
+        `.then(({ assertNoPackagedEsbuild }) => assertNoPackagedEsbuild(${JSON.stringify(join(tempDirectory, "Baby Menu Dev.app"))}))`,
+      ].join("");
+      await expect(execFileAsync(process.execPath, ["--input-type=module", "--eval", invocation]))
+        .rejects.toMatchObject({
+          stderr: expect.stringContaining(nestedEsbuildPath),
+        });
+    } finally {
+      await rm(tempDirectory, { recursive: true, force: true });
+    }
   });
 });
 
