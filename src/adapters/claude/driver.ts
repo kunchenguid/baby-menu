@@ -141,7 +141,13 @@ export class ClaudeDriver implements SessionDriver {
       child.stderr.on("data", (chunk: string) => logDebug(SCOPE, "stderr", chunk.trimEnd()));
       child.on("error", () => {
         if (cancelled) settle("cancelled");
-        else fail(new AdapterTurnError("CLI_START_FAILED", "Claude CLI could not be started."));
+        else
+          fail(
+            new AdapterTurnError(
+              "CLI_START_FAILED",
+              `Claude CLI could not be started: "${this.command}" was not found on PATH.`,
+            ),
+          );
       });
       child.on("exit", (code) => {
         logDebug(SCOPE, "claude exited", code);

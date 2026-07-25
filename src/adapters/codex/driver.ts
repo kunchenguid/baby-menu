@@ -155,7 +155,13 @@ export class CodexDriver implements SessionDriver {
       child.stderr.on("data", (chunk: string) => logDebug(SCOPE, "stderr", chunk.trimEnd()));
       child.on("error", () => {
         if (cancelled) settle("cancelled");
-        else fail(new AdapterTurnError("CLI_START_FAILED", "Codex CLI could not be started."));
+        else
+          fail(
+            new AdapterTurnError(
+              "CLI_START_FAILED",
+              `Codex CLI could not be started: "${this.command}" was not found on PATH.`,
+            ),
+          );
       });
       child.on("exit", (code) => {
         logDebug(SCOPE, "codex exec exited", code);
