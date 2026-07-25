@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.24](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.23...baby-menu-v0.1.24) (2026-07-25)
+
+
+### Bug Fixes
+
+* exclude build-only esbuild from universal macOS releases ([#98](https://github.com/kunchenguid/baby-menu/issues/98)) ([30f2cf8](https://github.com/kunchenguid/baby-menu/commit/30f2cf82c6cfbf678f258e4879500863b0503694))
+* make draft macOS releases safely recoverable ([#96](https://github.com/kunchenguid/baby-menu/issues/96)) ([29f1d84](https://github.com/kunchenguid/baby-menu/commit/29f1d8430aeb31398e3e32d9ad416278abc883ea))
+
 ## [0.1.23](https://github.com/kunchenguid/baby-menu/compare/baby-menu-v0.1.22...baby-menu-v0.1.23) (2026-07-24)
 
 
