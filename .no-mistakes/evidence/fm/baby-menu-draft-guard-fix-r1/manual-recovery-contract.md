@@ -1,5 +1,9 @@
 # 0.1.23 manual recovery contract
 
+> Historical evidence for the superseded tag-based recovery path. See
+> [CONTRIBUTING.md](../../../../CONTRIBUTING.md#release-notes) for the current
+> recovery contract.
+
 The recovery path was inspected and exercised without dispatching the release, which would mutate the real GitHub release before this fix is merged.
 
 ## Existing target identity

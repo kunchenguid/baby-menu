@@ -1,0 +1,14 @@
+Fresh local test verification of cf1052c3f4af988d7ba052adf94c4a56c68a66a6
+
+Universal executable:
+release/mac-universal/Baby Menu Dev.app/Contents/MacOS/Baby Menu Dev: Mach-O universal binary with 2 architectures: [x86_64:Mach-O 64-bit executable x86_64] [arm64:Mach-O 64-bit executable arm64]
+lipo -verify_arch arm64 x86_64: passed
+codesign --verify --deep --strict: passed
+
+Packaged archive inspection:
+{"archiveForbiddenEsbuildPaths":[],"unpackedForbiddenEsbuildPaths":[]}
+
+Packaged app ACP prompt:
+{"rendererReady":true,"preloadReady":true,"agentRuntimeReady":true,"assistantText":"{\"summary\":\"packaged acpx runtime completed without esbuild\"}"}
+
+The harness also verified the mock ACP event log contained agent:prompt:done.

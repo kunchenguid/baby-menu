@@ -108,7 +108,7 @@ The Codex adapter makes one narrow exception: because `--ignore-user-config` als
 `scripts/build-adapters.mjs` bundles `src/adapters/claude/index.ts` and `src/adapters/codex/index.ts` to `out/adapters/<name>/index.mjs` after `electron-vite build`.
 `pnpm dev` runs the same adapter build before launching Electron because dev runtime paths also resolve adapters from `out/adapters/`.
 Packaged builds keep `out/adapters/**` in `app.asar.unpacked` because adapter processes are spawned as standalone Node programs and cannot execute from inside `app.asar`.
-`esbuild` is build-time-only and excluded from packaging. Runtime code imports the externalized `acpx/runtime` entry, which does not reference acpx's CLI-only `tsx` path; `tests/acpx-runtime-dependencies.test.ts` locks that boundary, and the packaged runtime E2E runs an ACP turn with esbuild absent.
+See `docs/development.md#packaging` for the build-only `esbuild` boundary and its regression coverage.
 
 `typescript` is intentionally externalized from the production main bundle because `extension-module-compiler.ts` imports it at runtime to compile packaged extensions.
 Keep it in runtime dependencies unless that path changes.
