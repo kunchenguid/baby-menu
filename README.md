@@ -69,7 +69,8 @@ For agent selection, custom ACP agents, telemetry, and environment flags, see [d
 
 ## Linux
 
-Requires a Wayland session. Verified on Hyprland, KDE Plasma, and GNOME.
+Requires a Wayland session. Verified on Hyprland with waybar; KDE Plasma and GNOME are supported by design.
+Linux packages are not published yet, so this describes the app once you build and run it from source.
 
 Toggle the popover:
 
@@ -82,7 +83,7 @@ Hyprland (`~/.config/hypr/hyprland.conf`):
 
 ```
 bind = SUPER, B, exec, baby-menu --toggle
-windowrulev2 float, class:^(baby-menu)$
+windowrulev2 = float, class:^(baby-menu)$
 ```
 
 The windowrule matters: without it, Hyprland tiles the frameless popover.
