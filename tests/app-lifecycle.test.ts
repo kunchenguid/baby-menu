@@ -175,6 +175,18 @@ describe("startBabyMenuApp", () => {
     expect(electronApp.commandLine.appendSwitch).toHaveBeenCalledWith("use-mock-keychain");
   });
 
+  it("disables the Chromium keyring backend before app startup on Linux", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "linux",
+    });
+
+    await import("../src/main/app");
+
+    expect(electronApp.commandLine.appendSwitch).toHaveBeenCalledWith("password-store", "basic");
+    expect(electronApp.commandLine.appendSwitch).not.toHaveBeenCalledWith("use-mock-keychain");
+  });
+
   it("accepts a validated remote debugging port for unattended popover checks", async () => {
     process.env.BABY_MENU_REMOTE_DEBUGGING_PORT = "9333";
 

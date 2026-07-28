@@ -33,6 +33,13 @@ if (process.platform === "darwin") {
   app.commandLine.appendSwitch("use-mock-keychain");
 }
 
+// Same intent as use-mock-keychain on macOS: a packaged install must never raise
+// a gnome-keyring or kwallet unlock prompt at startup. Credentials belong in
+// extension server actions, not Chromium storage.
+if (process.platform === "linux") {
+  app.commandLine.appendSwitch("password-store", "basic");
+}
+
 const remoteDebuggingPort = Number(process.env.BABY_MENU_REMOTE_DEBUGGING_PORT);
 if (Number.isInteger(remoteDebuggingPort) && remoteDebuggingPort >= 1 && remoteDebuggingPort <= 65_535) {
   app.commandLine.appendSwitch("remote-debugging-port", String(remoteDebuggingPort));
