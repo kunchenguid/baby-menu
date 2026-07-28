@@ -46,7 +46,7 @@ Tracked source extensions use git as the accept/rollback mechanism when selected
 
 Three processes, kept deliberately separate:
 
-1. **Main** (`src/main/`) - app lifecycle, tray, popover window, IPC, git, agent runtime. Never call agent or git from the renderer directly.
+1. **Main** (`src/main/`) - app lifecycle, tray, popover window, IPC, git, agent runtime. Never call agent or git from the renderer directly. `baby-menu --toggle` toggles the popover on an already-running instance; `app.requestSingleInstanceLock()` keeps a second launch from spawning a second tray icon on every platform.
 2. **Preload** (`src/preload/index.ts`) - the stable bridge. Exposes `window.babyMenu` via `contextBridge`. Do not add one-off preload methods for each widget.
 3. **Renderer** (`src/renderer/`) - React UI: `AgentChat`, `WidgetHost`, custom popover layouts, `SettingsView`, `UpdateIndicator`, manual layout reloads, and app-shell controls such as Quit. Widgets, root `layout.tsx`, and extension settings sections should be hot reloadable and should not require an Electron restart for each new capability. The header reload control remounts only the menu surface so widget and root-layout discovery run again while the agent conversation and Settings state stay intact. The app shell and extension renderer surfaces share one design system, `@babymenu/ui` (`src/ui/`); see "Design system" below.
 4. **Extension server actions and background tasks** - privileged filesystem, shell, network, credential, token, storage, notification, and background work should live behind extension-owned `server.ts` modules.
@@ -62,8 +62,9 @@ The extension-facing slice of that contract is a generated public surface, treat
 
 - `app.ts` - Electron lifecycle, popover window creation, packaged path setup, extension seeding, preferences, selectable-agent catalog wiring, protocols, tray, and IPC. `package.json#main` points here via `out/main/index.js`.
 - `app-paths.ts` - resolves source paths versus packaged `~/.baby-menu` paths.
-- `tray.ts` - macOS tray icon and click handling (`createBabyMenuTray`).
-- `popover.ts` - popover `BrowserWindow` options (`createPopoverOptions`), adaptive width/height sizing (`responsivePopoverSize`), bounds math (`calculatePopoverBounds`), and renderer URL/file loading (`loadPopoverRenderer`).
+- `tray.ts` - macOS tray icon and click handling (`createBabyMenuTray`), plus a Linux-only context menu (`Open Baby Menu`, `Quit`); `setTemplateImage` is applied only on darwin.
+- `linux-autostart.ts` - writes and removes `~/.config/autostart/baby-menu.desktop`, standing in for `setLoginItemSettings` on Linux, and prefers `$APPIMAGE` over the extracted executable path.
+- `popover.ts` - popover `BrowserWindow` options (`createPopoverOptions`), adaptive width/height sizing (`responsivePopoverSize`), macOS bounds math (`calculatePopoverBounds`), and renderer URL/file loading (`loadPopoverRenderer`). `calculatePopoverBounds` is macOS only: Wayland ignores absolute toplevel coordinates, so `app.ts` sizes and centers the popover on Linux instead.
 - `ipc.ts` - registers all `ipcMain` handlers exposed via the preload bridge; the single place new generic IPC routes are added.
 - `agent-catalog.ts` - defines built-in agents, parses custom `agents.json`, computes Settings availability, and builds `acpx` registry overrides.
 - `agent-catalog-controller.ts` - owns the live agent catalog, validates Settings-added custom ACP agents, persists `agents.json`, and pushes refreshed registry overrides into the runtime without requiring an app restart.
@@ -77,7 +78,7 @@ The extension-facing slice of that contract is a generated public surface, treat
 - `widget-tailwind-css.ts` - compiles widget and layout authored Tailwind utilities against the `@babymenu/ui` `@theme` (single source of truth, `src/ui/theme.css`) for packaged loading, resolving symlinked source directories before copying them for Tailwind scanning.
 - `widget-module-registry.ts` - discovers widget modules and the optional root `layout.tsx`, returning renderer `/@fs` URLs in dev and, in packaged mode, compiled `baby-menu-widget://` module URLs plus sibling compiled `cssUrl` files; compiled layout failures warn and fall back to the built-in column.
 - `widget-protocol.ts` - registers custom protocols for compiled widget and layout modules, their `.css`, and the renderer host shims (`react`, `react/jsx-runtime`, and `@babymenu/ui` re-exported from the host global).
-- `preferences.ts` - stores app preferences, including the selected agent, under the active app data root and applies login-item settings only when allowed. `app.ts` allows this only for the packaged production product named `Baby Menu`; source mode and packaged dev/test products are no-ops for macOS login items.
+- `preferences.ts` - stores app preferences, including the selected agent, under the active app data root and applies login-item settings only when allowed. `app.ts` allows this only for the packaged production product named `Baby Menu`; source mode and packaged dev/test products are no-ops on every platform. On macOS and Windows this calls Electron's `setLoginItemSettings`; on Linux it calls the `linux-autostart.ts` facade instead.
 - `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs.
 - `update-checker.ts` - checks the latest GitHub Release at most every 4 hours, compares it to the running app version, opens the release page externally, and simulates an available update in source/dev mode so the header indicator can be exercised.
 - `recipe-loader.ts` - discovers and parses `recipes/*.html` from the active extension workspace.

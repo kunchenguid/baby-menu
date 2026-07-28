@@ -11,6 +11,14 @@ On launch, packaged Baby Menu refreshes bundled defaults (`AGENTS.md`, `babymenu
 If `~/.baby-menu/extensions` is a symlink, Baby Menu resolves it for seeding and packaged widget/layout CSS compilation, which supports managed symlinks into writable dotfiles directories such as home-manager `mkOutOfStoreSymlink`.
 Read-only or otherwise invalid targets are skipped with a log message instead of blocking startup.
 
+### Linux autostart
+
+Linux has no `setLoginItemSettings` API, so Baby Menu manages open-at-login itself.
+Toggling it on writes `~/.config/autostart/baby-menu.desktop`; toggling it off removes the file.
+When running as an AppImage, the entry launches `$APPIMAGE` instead of the extracted executable path, since that path does not survive a reboot.
+If writing or removing the file fails (for example, a read-only `~/.config`), the failure is logged to the app console.
+The Settings toggle still shows the new value, so it can disagree with what the session manager will actually do.
+
 ## Choosing an agent
 
 Baby Menu detects supported agents in order: Claude Code (`claude`), then Codex (`codex`).

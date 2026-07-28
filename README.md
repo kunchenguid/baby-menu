@@ -67,6 +67,33 @@ When a newer release exists, Baby Menu shows an update indicator in the popover 
 
 For agent selection, custom ACP agents, telemetry, and environment flags, see [docs/configuration.md](docs/configuration.md).
 
+## Linux
+
+Requires a Wayland session. Verified on Hyprland, KDE Plasma, and GNOME.
+
+Toggle the popover:
+
+- Click the tray icon, or right click, then `Open Baby Menu`.
+- `baby-menu --toggle`, bound to a key in your own compositor config.
+
+There is no built-in global hotkey on purpose: Chromium cannot grab global keys under native Wayland, so a built-in binding would look broken instead of just missing.
+
+Hyprland (`~/.config/hypr/hyprland.conf`):
+
+```
+bind = SUPER, B, exec, baby-menu --toggle
+windowrulev2 float, class:^(baby-menu)$
+```
+
+The windowrule matters: without it, Hyprland tiles the frameless popover.
+
+KDE Plasma: System Settings, Shortcuts, Add Command, `baby-menu --toggle`.
+
+GNOME: Settings, Keyboard, Custom Shortcuts, command `baby-menu --toggle`.
+GNOME also shows no tray icon at all without the AppIndicator extension, so on a stock GNOME session the `--toggle` shortcut is the only entry point.
+
+Launch at login is a Settings toggle. It writes or removes `~/.config/autostart/baby-menu.desktop`.
+
 ## How It Works
 
 ```
