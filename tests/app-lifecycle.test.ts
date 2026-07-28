@@ -29,6 +29,8 @@ const browserWindowInstance = {
   isDestroyed: vi.fn(() => false),
   isVisible: vi.fn(() => false),
   setBounds: vi.fn(),
+  setContentSize: vi.fn(),
+  center: vi.fn(),
   show: vi.fn(),
   focus: vi.fn(),
   hide: vi.fn(),
@@ -187,14 +189,21 @@ describe("startBabyMenuApp", () => {
   });
 
   it("opens the real popover on startup when the unattended-check seam is enabled", async () => {
-    process.env.BABY_MENU_OPEN_POPOVER_ON_START = "1";
-    const appModule = await import("../src/main/app");
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "darwin" });
 
-    await appModule.startBabyMenuApp();
+    try {
+      process.env.BABY_MENU_OPEN_POPOVER_ON_START = "1";
+      const appModule = await import("../src/main/app");
 
-    await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalled());
-    expect(trayInstance.getBounds).toHaveBeenCalled();
-    expect(browserWindowInstance.setBounds).toHaveBeenCalledWith({ x: 8, y: 42, width: 504, height: 620 });
+      await appModule.startBabyMenuApp();
+
+      await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalled());
+      expect(trayInstance.getBounds).toHaveBeenCalled();
+      expect(browserWindowInstance.setBounds).toHaveBeenCalledWith({ x: 8, y: 42, width: 504, height: 620 });
+    } finally {
+      if (originalPlatform) Object.defineProperty(process, "platform", originalPlatform);
+    }
   });
 
   it("retains the tray object for the app lifetime", async () => {
@@ -258,34 +267,48 @@ describe("startBabyMenuApp", () => {
   });
 
   it("wires content-height resize reports into the popover bounds", async () => {
-    const appModule = await import("../src/main/app");
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "darwin" });
 
-    await appModule.startBabyMenuApp();
-    const popoverController = registerIpcHandlers.mock.calls.at(-1)?.[4];
-    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
-    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
-    await vi.waitFor(() => expect(browserWindowInstance.setBounds).toHaveBeenCalled());
+    try {
+      const appModule = await import("../src/main/app");
 
-    popoverController.setContentHeight(333);
+      await appModule.startBabyMenuApp();
+      const popoverController = registerIpcHandlers.mock.calls.at(-1)?.[4];
+      const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+      await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+      await vi.waitFor(() => expect(browserWindowInstance.setBounds).toHaveBeenCalled());
 
-    expect(browserWindowInstance.setBounds).toHaveBeenLastCalledWith({ x: 8, y: 42, width: 504, height: 333 });
+      popoverController.setContentHeight(333);
+
+      expect(browserWindowInstance.setBounds).toHaveBeenLastCalledWith({ x: 8, y: 42, width: 504, height: 333 });
+    } finally {
+      if (originalPlatform) Object.defineProperty(process, "platform", originalPlatform);
+    }
   });
 
   it("caps initial renderer size reports before first popover bounds", async () => {
-    const appModule = await import("../src/main/app");
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "darwin" });
 
-    await appModule.startBabyMenuApp();
-    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
-    browserWindowInstance.loadFile.mockImplementationOnce(async () => {
-      const popoverController = registerIpcHandlers.mock.calls.at(-1)?.[4];
-      popoverController.setContentSize({ width: 2000, height: 300 });
-    });
+    try {
+      const appModule = await import("../src/main/app");
 
-    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+      await appModule.startBabyMenuApp();
+      const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+      browserWindowInstance.loadFile.mockImplementationOnce(async () => {
+        const popoverController = registerIpcHandlers.mock.calls.at(-1)?.[4];
+        popoverController.setContentSize({ width: 2000, height: 300 });
+      });
 
-    await vi.waitFor(() =>
-      expect(browserWindowInstance.setBounds).toHaveBeenLastCalledWith({ x: 8, y: 42, width: 1424, height: 300 }),
-    );
+      await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+
+      await vi.waitFor(() =>
+        expect(browserWindowInstance.setBounds).toHaveBeenLastCalledWith({ x: 8, y: 42, width: 1424, height: 300 }),
+      );
+    } finally {
+      if (originalPlatform) Object.defineProperty(process, "platform", originalPlatform);
+    }
   });
 
   it("starts the background scheduler and only forwards task-run events to visible renderer", async () => {
@@ -414,5 +437,53 @@ describe("startBabyMenuApp", () => {
     expect((electronApp as { setActivationPolicy: ReturnType<typeof vi.fn> }).setActivationPolicy).toHaveBeenLastCalledWith(
       "accessory",
     );
+  });
+});
+
+describe("linux popover placement", () => {
+  const originalPlatform = process.platform;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    electronApp.isPackaged = false;
+    browserWindowInstance.isDestroyed.mockReturnValue(false);
+    browserWindowInstance.isVisible.mockReturnValue(false);
+    // Linux tray clicks carry an empty rectangle: Tray.getBounds is macOS and
+    // Windows only.
+    trayInstance.getBounds.mockReturnValue({ x: 0, y: 0, width: 0, height: 0 });
+    process.env.BABY_MENU_OPEN_POPOVER_ON_START = "1";
+    Object.defineProperty(process, "platform", { configurable: true, value: "linux" });
+  });
+
+  afterEach(() => {
+    delete process.env.BABY_MENU_OPEN_POPOVER_ON_START;
+    Object.defineProperty(process, "platform", { configurable: true, value: originalPlatform });
+  });
+
+  it("sizes and centers the popover instead of anchoring it to tray bounds", async () => {
+    const { startBabyMenuApp } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+
+    expect(browserWindowInstance.setBounds).not.toHaveBeenCalled();
+    expect(browserWindowInstance.setContentSize).toHaveBeenCalledWith(504, 620);
+    expect(browserWindowInstance.center).toHaveBeenCalledTimes(1);
+    expect(browserWindowInstance.show).toHaveBeenCalled();
+  });
+
+  it("re-sizes without re-centering when the renderer reports a new canvas size", async () => {
+    const { startBabyMenuApp } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+    const setContentSize = registerIpcHandlers.mock.calls[0][4].setContentSize as (size: {
+      width: number;
+      height: number;
+    }) => void;
+    setContentSize({ width: 840, height: 400 });
+
+    expect(browserWindowInstance.setContentSize).toHaveBeenLastCalledWith(840, 400);
+    expect(browserWindowInstance.setBounds).not.toHaveBeenCalled();
+    expect(browserWindowInstance.center).toHaveBeenCalledTimes(1);
   });
 });

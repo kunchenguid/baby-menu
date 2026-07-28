@@ -39,10 +39,15 @@ if (Number.isInteger(remoteDebuggingPort) && remoteDebuggingPort >= 1 && remoteD
 
 registerBabyMenuProtocolSchemes();
 
+// Wayland ignores absolute toplevel coordinates and Tray.getBounds() is macOS
+// and Windows only, so Linux sizes and centers the popover instead of anchoring it.
+const isLinux = process.platform === "linux";
+
 let popoverWindow: BrowserWindow | null = null;
 let activeTray: BabyMenuTray | null = null;
 let latestTrayBounds: Rectangle | null = null;
 let latestPopoverSize: Size = DEFAULT_POPOVER_SIZE;
+let popoverCentered = false;
 
 export function getActiveBabyMenuTray(): BabyMenuTray | null {
   return activeTray;
@@ -83,16 +88,27 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
   return popoverWindow;
 }
 
-async function togglePopover(trayBounds: Rectangle): Promise<void> {
-  latestTrayBounds = trayBounds;
+async function togglePopover(trayBounds: Rectangle | null): Promise<void> {
+  if (trayBounds) latestTrayBounds = trayBounds;
   const window = await createPopoverWindow();
   if (window.isVisible()) {
     window.hide();
     return;
   }
 
-  const display = screen.getDisplayNearestPoint({ x: trayBounds.x, y: trayBounds.y });
-  window.setBounds(calculatePopoverBounds(trayBounds, display.workArea, latestPopoverSize));
+  if (isLinux) {
+    window.setContentSize(latestPopoverSize.width, latestPopoverSize.height);
+    // Centered once, not on every open: the compositor owns placement after
+    // that, and re-centering would yank a window the user may have moved.
+    if (!popoverCentered) {
+      window.center();
+      popoverCentered = true;
+    }
+  } else if (latestTrayBounds) {
+    const display = screen.getDisplayNearestPoint({ x: latestTrayBounds.x, y: latestTrayBounds.y });
+    window.setBounds(calculatePopoverBounds(latestTrayBounds, display.workArea, latestPopoverSize));
+  }
+
   setPopoverKeyWindowActive(true);
   window.show();
   window.focus();
@@ -131,8 +147,14 @@ function setPopoverContentSize(size: { width: number; height: number }) {
     ? screen.getDisplayNearestPoint({ x: latestTrayBounds.x, y: latestTrayBounds.y }).workArea
     : undefined;
   latestPopoverSize = responsivePopoverSize(size, workArea);
-  if (!latestTrayBounds || !popoverWindow || popoverWindow.isDestroyed()) return;
+  if (!popoverWindow || popoverWindow.isDestroyed()) return;
 
+  if (isLinux) {
+    popoverWindow.setContentSize(latestPopoverSize.width, latestPopoverSize.height);
+    return;
+  }
+
+  if (!latestTrayBounds) return;
   const display = screen.getDisplayNearestPoint({ x: latestTrayBounds.x, y: latestTrayBounds.y });
   popoverWindow.setBounds(calculatePopoverBounds(latestTrayBounds, display.workArea, latestPopoverSize));
 }
