@@ -115,6 +115,7 @@ Toggle the popover:
 
 - Click the tray icon. On GNOME and KDE the AppIndicator host maps left click to the menu, so use `Open Baby Menu` there.
 - `baby-menu --toggle`, bound to a key in your own compositor config.
+- Launching Baby Menu again while it is running (from the app grid, a launcher, or the `.desktop` entry) toggles the existing popover instead of starting a second copy.
 
 There is no built-in global hotkey on purpose: Chromium cannot grab global keys under native Wayland, so a built-in binding would look broken instead of just missing.
 
@@ -130,7 +131,7 @@ The windowrule matters: without it, Hyprland tiles the frameless popover.
 KDE Plasma: System Settings, Shortcuts, Add Command, `baby-menu --toggle`.
 
 GNOME: Settings, Keyboard, Custom Shortcuts, command `baby-menu --toggle`.
-GNOME also shows no tray icon at all without the AppIndicator extension, so on a stock GNOME session the `--toggle` shortcut is the only entry point.
+GNOME also shows no tray icon at all without the AppIndicator extension, so on a stock GNOME session the shortcut and re-launching from the app grid are the only entry points.
 
 Launch at login is a Settings toggle in packaged Linux builds.
 It writes or removes `~/.config/autostart/baby-menu.desktop`. Running from source the toggle stays off, because only a packaged production build may touch your session autostart.

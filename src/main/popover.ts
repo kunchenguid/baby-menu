@@ -66,6 +66,21 @@ export function responsivePopoverSize(content: Size, workArea?: Rectangle): Size
   };
 }
 
+// A resize that keeps the window's top-left anchored (the Linux path, which has
+// no tray bounds to re-anchor against) can push a grown popover past the work
+// area and leave it there. This pulls it back on-screen and leaves a window that
+// still fits exactly where the compositor put it.
+export function clampPopoverPosition(
+  position: { x: number; y: number },
+  size: Size,
+  workArea: Rectangle,
+): { x: number; y: number } {
+  return {
+    x: Math.round(clamp(position.x, workArea.x, workArea.x + workArea.width - size.width)),
+    y: Math.round(clamp(position.y, workArea.y, workArea.y + workArea.height - size.height)),
+  };
+}
+
 export function createPopoverOptions(preloadPath: string): BrowserWindowConstructorOptions {
   return {
     width: DEFAULT_POPOVER_SIZE.width,

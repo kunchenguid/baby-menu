@@ -33,6 +33,8 @@ const browserWindowInstance = {
   isVisible: vi.fn(() => false),
   setBounds: vi.fn(),
   setContentSize: vi.fn(),
+  getBounds: vi.fn(() => ({ x: 0, y: 0, width: 504, height: 620 })),
+  setPosition: vi.fn(),
   center: vi.fn(),
   show: vi.fn(),
   focus: vi.fn(),
@@ -482,6 +484,10 @@ describe("linux popover placement", () => {
   afterEach(() => {
     delete process.env.BABY_MENU_OPEN_POPOVER_ON_START;
     Object.defineProperty(process, "platform", { configurable: true, value: originalPlatform });
+    // vi.clearAllMocks() drops recorded calls but keeps configured implementations,
+    // so a work area or window position set by one test would leak into the next.
+    getDisplayNearestPoint.mockImplementation(() => ({ workArea: { x: 0, y: 0, width: 1440, height: 900 } }));
+    browserWindowInstance.getBounds.mockImplementation(() => ({ x: 0, y: 0, width: 504, height: 620 }));
   });
 
   it("sizes and centers the popover instead of anchoring it to tray bounds", async () => {
@@ -507,6 +513,28 @@ describe("linux popover placement", () => {
 
     expect(browserWindowInstance.setContentSize).toHaveBeenLastCalledWith(840, 400);
     expect(browserWindowInstance.setBounds).not.toHaveBeenCalled();
+    expect(browserWindowInstance.center).toHaveBeenCalledTimes(1);
+    // Still fully on-screen at 1440x900, so the clamp must leave it where it is.
+    expect(browserWindowInstance.setPosition).not.toHaveBeenCalled();
+  });
+
+  it("clamps a grown popover back into the work area without re-centering it", async () => {
+    getDisplayNearestPoint.mockReturnValue({ workArea: { x: 0, y: 0, width: 1366, height: 768 } });
+    // Where center() left the default 504x620 popover on a 1366x768 work area.
+    browserWindowInstance.getBounds.mockReturnValue({ x: 431, y: 74, width: 504, height: 620 });
+    const { startBabyMenuApp } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+    const setContentSize = registerIpcHandlers.mock.calls[0][4].setContentSize as (size: {
+      width: number;
+      height: number;
+    }) => void;
+    setContentSize({ width: 504, height: 728 });
+
+    // setContentSize anchors the top-left, so 720 tall from y=74 would run 26px
+    // past the bottom of the work area and stay there.
+    expect(browserWindowInstance.setContentSize).toHaveBeenLastCalledWith(504, 720);
+    expect(browserWindowInstance.setPosition).toHaveBeenCalledWith(431, 48);
     expect(browserWindowInstance.center).toHaveBeenCalledTimes(1);
   });
 
@@ -578,19 +606,21 @@ describe("popover blur guard", () => {
     delete process.env.BABY_MENU_KEEP_POPOVER_OPEN;
   });
 
-  it("keeps the focused flag across a repeat popover open", async () => {
+  it("re-arms the guard on every popover open, not just the first", async () => {
     const { startBabyMenuApp } = await import("../src/main/app");
 
     await startBabyMenuApp();
     windowHandler("focus")?.();
     windowHandler("blur")?.();
+    windowHandler("hide")?.();
 
     const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
     await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
-
+    // A compositor that delivers blur before focus does it on every surface map,
+    // not only for a brand new window, so the second open must survive it too.
     windowHandler("blur")?.();
 
-    expect(browserWindowInstance.hide).toHaveBeenCalledTimes(2);
+    expect(browserWindowInstance.hide).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -655,14 +685,32 @@ describe("single instance lock", () => {
     await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalledTimes(1));
   });
 
-  it("ignores a second instance launched without --toggle", async () => {
+  it("toggles the popover for a bare second launch too", async () => {
     const { startBabyMenuApp } = await import("../src/main/app");
 
     await startBabyMenuApp();
+    expect(browserWindowInstance.show).not.toHaveBeenCalled();
+
+    // Re-launching from the .desktop entry or an app grid carries no --toggle,
+    // and on a tray-less GNOME session it is the user's only other entry point.
     appHandler("second-instance")?.({}, ["/usr/bin/baby-menu"]);
+    await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalledTimes(1));
+  });
+
+  it("ignores a second instance that arrives before startup finishes", async () => {
+    const { startBabyMenuApp, TOGGLE_ARGUMENT } = await import("../src/main/app");
+    // Readiness is not the end of startup: IPC handlers and the tray are only
+    // registered several awaits later, so a popover opened here would come up
+    // with every window.babyMenu.* call rejecting as unhandled.
+    electronApp.whenReady.mockImplementationOnce(async () => {
+      appHandler("second-instance")?.({}, ["/usr/bin/baby-menu", TOGGLE_ARGUMENT]);
+    });
+
+    await startBabyMenuApp();
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     expect(browserWindowInstance.show).not.toHaveBeenCalled();
+    expect(BrowserWindow).not.toHaveBeenCalled();
   });
 });
 

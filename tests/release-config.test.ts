@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -432,6 +433,40 @@ describe("linux packaging configuration", () => {
     await expect(
       stat(resolve(import.meta.dirname, "../assets/app-icon-512.png")).then((file) => file.isFile()),
     ).resolves.toBe(true);
+  });
+
+  it("documents exactly the Linux artifact filenames electron-builder will emit", async () => {
+    const config = await readFile(resolve(import.meta.dirname, "../electron-builder.yml"), "utf8");
+    const readme = await readFile(resolve(import.meta.dirname, "../README.md"), "utf8");
+
+    // builder-util is a transitive dependency, so resolve it through
+    // electron-builder rather than from this package's own node_modules root.
+    const requireHere = createRequire(import.meta.url);
+    const { Arch, getArtifactArchName } = createRequire(requireHere.resolve("electron-builder"))("builder-util") as {
+      Arch: Record<string, number>;
+      getArtifactArchName: (arch: number, ext: string) => string;
+    };
+
+    const linuxBlock = config.match(/^linux:\n(?:^(?!\S).*\n?)*/m)?.[0];
+    const artifactName = linuxBlock?.match(/^ {2}artifactName: (?<pattern>.+)$/m)?.groups?.pattern;
+    const targets = linuxBlock?.match(/^ {2}target:\n(?: {4}- .+\n)+/m)?.[0].match(/(?<= {4}- ).+/g);
+    expect(artifactName).toBeDefined();
+    expect(targets).toEqual(["AppImage", "deb", "rpm", "pacman"]);
+
+    // ${ext} is the fpm target name itself, and ${arch} goes through
+    // getArtifactArchName, which maps x64 per target rather than uniformly: the
+    // README's four suffixes are not interchangeable and cannot be eyeballed.
+    // Both sides are derived, so this fails if the README, the target list, or
+    // the artifactName pattern moves without the others.
+    const emitted = targets?.map((target) =>
+      artifactName
+        ?.replace("${version}", "<version>")
+        .replace("${arch}", getArtifactArchName(Arch.x64, target))
+        .replace("${ext}", target),
+    );
+    const documented = readme.match(/baby-menu-<version>-[\w.]+/g);
+
+    expect([...new Set(documented)].sort()).toEqual([...new Set(emitted)].sort());
   });
 
   it("packages local/dev Linux builds under a distinct dev-only executable name so autostart never installed one", async () => {

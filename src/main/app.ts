@@ -11,6 +11,7 @@ import { registerIpcHandlers } from "./ipc";
 import {
   DEFAULT_POPOVER_SIZE,
   calculatePopoverBounds,
+  clampPopoverPosition,
   createPopoverOptions,
   loadPopoverRenderer,
   responsivePopoverSize,
@@ -95,6 +96,11 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
   // Once the popover is hidden, drop back to accessory mode so the dock icon disappears again.
   // See setPopoverKeyWindowActive for why the popover becomes a regular-policy app while visible.
   popoverWindow.on("hide", () => {
+    // Re-arm the guard below for the next open: a compositor that delivers blur
+    // before focus does it on every surface map, not just the first. Accepted
+    // tradeoff: a popover that never receives focus no longer hides on blur, and
+    // stays dismissable through the tray and `baby-menu --toggle`.
+    popoverHasFocused = false;
     setPopoverKeyWindowActive(false);
     sendPopoverVisibility(false);
   });
@@ -124,6 +130,8 @@ async function togglePopover(trayBounds: Rectangle | null): Promise<void> {
     if (!popoverCentered) {
       window.center();
       popoverCentered = true;
+    } else {
+      clampPopoverIntoWorkArea(window);
     }
   } else if (latestTrayBounds) {
     const display = screen.getDisplayNearestPoint({ x: latestTrayBounds.x, y: latestTrayBounds.y });
@@ -154,6 +162,17 @@ function setPopoverKeyWindowActive(active: boolean): void {
   if (active) app.focus({ steal: true });
 }
 
+// setContentSize keeps the window's top-left anchored, so growth runs off the
+// bottom or right edge of the screen and stays there - the Linux path never
+// re-anchors against tray bounds the way calculatePopoverBounds does.
+function clampPopoverIntoWorkArea(window: BrowserWindow): void {
+  const bounds = window.getBounds();
+  const { workArea } = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
+  const position = clampPopoverPosition(bounds, latestPopoverSize, workArea);
+  if (position.x === bounds.x && position.y === bounds.y) return;
+  window.setPosition(position.x, position.y);
+}
+
 function sendToPopover(channel: string, payload: unknown): void {
   if (!popoverWindow || popoverWindow.isDestroyed()) return;
   popoverWindow.webContents.send(channel, payload);
@@ -172,6 +191,7 @@ function setPopoverContentSize(size: { width: number; height: number }) {
 
   if (isLinux) {
     popoverWindow.setContentSize(latestPopoverSize.width, latestPopoverSize.height);
+    clampPopoverIntoWorkArea(popoverWindow);
     return;
   }
 
@@ -197,14 +217,20 @@ export async function startBabyMenuApp(): Promise<void> {
     app.quit();
     return;
   }
-  app.on("second-instance", (_event, argv) => {
-    if (!argv.includes(TOGGLE_ARGUMENT)) return;
-    // A --toggle launch can land while this instance is still starting up.
+  // Any second launch toggles, with or without --toggle: relaunching from the
+  // .desktop entry, an app grid, or a dock icon is the ordinary Linux gesture,
+  // and on a stock GNOME session (no AppIndicator extension, so no tray icon)
+  // it would otherwise be a silent no-op with no way to tell the app is running.
+  app.on("second-instance", () => {
+    // A second launch can land while this instance is still starting up.
     // Creating a BrowserWindow before readiness throws, and the rejection would
-    // escape this fire-and-forget call and take down the main process. Dropping
-    // the toggle is right: the popover is about to open on startup anyway.
-    if (!app.isReady()) return;
-    void togglePopover(getActiveBabyMenuTray()?.getBounds() ?? null);
+    // escape this fire-and-forget call and take down the main process. A tray
+    // means startup got past registerIpcHandlers, so the popover the toggle
+    // opens can actually talk to the main process. Dropping the toggle is right
+    // either way: the popover is about to open on startup anyway.
+    const tray = getActiveBabyMenuTray();
+    if (!app.isReady() || !tray) return;
+    void togglePopover(tray.getBounds());
   });
 
   await app.whenReady();
