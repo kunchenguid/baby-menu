@@ -153,6 +153,28 @@ jobs:
           pnpm exec electron-builder --linux --x64 --publish never
           ls -la release
 
+      - name: Verify packaged glibc native prebuilts
+        run: |
+          set -euo pipefail
+          # widget-tailwind-css.ts runs Tailwind in the main process, so every
+          # launch loads @tailwindcss/oxide and lightningcss. Their platform
+          # prebuilts are optional dependencies: when app-builder-lib cannot
+          # resolve one it only logs "dependency not found on disk" and packages
+          # anyway, producing artifacts that die at startup with
+          # ERR_MODULE_NOT_FOUND before the tray ever appears. Running
+          # electron-builder outside pnpm reproduces exactly that, because the
+          # npm collector cannot read a pnpm store. This is the Linux
+          # counterpart of the macOS job's paired-prebuilt check.
+          unpacked=release/linux-unpacked/resources/app.asar.unpacked/node_modules
+          for prebuilt in \
+            "$unpacked/lightningcss-linux-x64-gnu/lightningcss.linux-x64-gnu.node" \
+            "$unpacked/@tailwindcss/oxide-linux-x64-gnu/tailwindcss-oxide.linux-x64-gnu.node"; do
+            if [ ! -f "$prebuilt" ]; then
+              echo "Missing packaged native prebuilt $prebuilt; the packaged app would crash on launch." >&2
+              exit 1
+            fi
+          done
+
       - name: Upload Linux packages to draft release
         env:
           GH_TOKEN: ${{ github.token }}

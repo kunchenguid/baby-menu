@@ -529,6 +529,33 @@ describe("linux packaging configuration", () => {
     expect(linuxJobBlock).toContain("release/*.pacman");
   });
 
+  it("fails the Linux job when the packaged glibc native prebuilts are missing", async () => {
+    const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/release-please.yml"), "utf8");
+    const linuxJobBlock = workflow.match(/^ {2}linux:\n(?:^(?! {2}\S).*\n?)*/m)?.[0];
+
+    expect(linuxJobBlock).toBeDefined();
+    // @tailwindcss/oxide and lightningcss are runtime dependencies loaded by
+    // widget-tailwind-css.ts in the main process, and their platform prebuilts
+    // are optional dependencies: app-builder-lib only logs "dependency not
+    // found on disk" when it cannot resolve one, so a package missing them
+    // builds, uploads, and then dies at startup before the tray exists. Without
+    // this check nothing between "electron-builder exited 0" and a published
+    // release ever opens the artifact.
+    expect(linuxJobBlock).toContain(
+      "release/linux-unpacked/resources/app.asar.unpacked/node_modules",
+    );
+    expect(linuxJobBlock).toContain("lightningcss-linux-x64-gnu/lightningcss.linux-x64-gnu.node");
+    expect(linuxJobBlock).toContain(
+      "@tailwindcss/oxide-linux-x64-gnu/tailwindcss-oxide.linux-x64-gnu.node",
+    );
+    // The check has to run before the upload step, or it only reports on
+    // artifacts that are already attached to the draft release.
+    const verifyIndex = linuxJobBlock?.indexOf("Verify packaged glibc native prebuilts") ?? -1;
+    const uploadIndex = linuxJobBlock?.indexOf("Upload Linux packages to draft release") ?? -1;
+    expect(verifyIndex).toBeGreaterThan(-1);
+    expect(uploadIndex).toBeGreaterThan(verifyIndex);
+  });
+
   it("orders the macOS publish after the Linux job without hard-gating on it", async () => {
     const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/release-please.yml"), "utf8");
 
