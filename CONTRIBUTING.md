@@ -33,7 +33,7 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 - Tests live in `tests/` at the repo root.
 - Run `pnpm typecheck`, `pnpm test`, and `pnpm build` before pushing.
 - Run `pnpm generate:contracts` and commit `extensions/babymenu-env.d.ts` after changing extension-facing types or `src/shared/extension-contract-names.ts`.
-- Run `pnpm package:mac` when changing packaging, runtime paths, extension compilation, native dependencies, or release behavior.
+- Run `pnpm package:mac` on macOS, or `pnpm package:linux` on Linux, when changing packaging, runtime paths, extension compilation, native dependencies, or release behavior.
 - Local `pnpm package:mac` builds intentionally produce `Baby Menu Dev.app` with bundle id `com.kunchenguid.baby-menu.dev`; release automation uses `electron-builder.yml` directly for the production `Baby Menu.app` identity.
 - Follow the universal native-dependency, build-only esbuild exclusion, and packaged runtime verification constraints in [`docs/development.md`](docs/development.md#packaging).
 - Keep `pnpm-lock.yaml` changes with dependency changes.

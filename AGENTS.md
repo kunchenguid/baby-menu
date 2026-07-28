@@ -129,7 +129,7 @@ Delivery mirrors the React shim exactly: `main.tsx` installs the kit on `window.
 Extension widgets, root layouts, and settings sections may additionally import only `@babymenu/ui`; they author token-scoped Tailwind utilities, and their stylesheet is compiled and injected automatically.
 
 `createPopoverOptions` enforces `frame:false`, `contextIsolation:true`, `nodeIntegration:false`, `skipTaskbar:true`, `alwaysOnTop:true`. Do not relax these without a reason.
-On macOS, `app.ts` appends Chromium's `use-mock-keychain` switch before app readiness, so do not rely on Chromium or renderer storage for keychain-backed secrets.
+Before app readiness, `app.ts` appends Chromium's `use-mock-keychain` switch on macOS and `password-store=basic` on Linux (so a packaged install never raises a gnome-keyring or kwallet prompt at startup), so do not rely on Chromium or renderer storage for keychain- or keyring-backed secrets.
 Keep credential and token work in extension server actions.
 
 ### Agent runtime + change sessions
