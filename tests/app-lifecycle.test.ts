@@ -486,4 +486,15 @@ describe("linux popover placement", () => {
     expect(browserWindowInstance.setBounds).not.toHaveBeenCalled();
     expect(browserWindowInstance.center).toHaveBeenCalledTimes(1);
   });
+
+  it("does not re-center on a second popover open", async () => {
+    const { startBabyMenuApp } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+
+    expect(browserWindowInstance.center).toHaveBeenCalledTimes(1);
+    expect(browserWindowInstance.show).toHaveBeenCalledTimes(2);
+  });
 });
