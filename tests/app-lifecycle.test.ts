@@ -498,3 +498,60 @@ describe("linux popover placement", () => {
     expect(browserWindowInstance.show).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("popover blur guard", () => {
+  const originalPlatform = process.platform;
+
+  function windowHandler(event: string): (() => void) | undefined {
+    const call = browserWindowInstance.on.mock.calls.find(([name]) => name === event);
+    return call?.[1] as (() => void) | undefined;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    electronApp.isPackaged = false;
+    browserWindowInstance.isDestroyed.mockReturnValue(false);
+    browserWindowInstance.isVisible.mockReturnValue(false);
+    trayInstance.getBounds.mockReturnValue({ x: 0, y: 0, width: 0, height: 0 });
+    process.env.BABY_MENU_OPEN_POPOVER_ON_START = "1";
+    delete process.env.BABY_MENU_KEEP_POPOVER_OPEN;
+    Object.defineProperty(process, "platform", { configurable: true, value: "linux" });
+  });
+
+  afterEach(() => {
+    delete process.env.BABY_MENU_OPEN_POPOVER_ON_START;
+    Object.defineProperty(process, "platform", { configurable: true, value: originalPlatform });
+  });
+
+  it("ignores a blur delivered before the popover was ever focused", async () => {
+    const { startBabyMenuApp } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+    windowHandler("blur")?.();
+
+    expect(browserWindowInstance.hide).not.toHaveBeenCalled();
+  });
+
+  it("hides on blur once the popover has been focused", async () => {
+    const { startBabyMenuApp } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+    windowHandler("focus")?.();
+    windowHandler("blur")?.();
+
+    expect(browserWindowInstance.hide).toHaveBeenCalledTimes(1);
+  });
+
+  it("still honors BABY_MENU_KEEP_POPOVER_OPEN after a focus", async () => {
+    process.env.BABY_MENU_KEEP_POPOVER_OPEN = "1";
+    const { startBabyMenuApp } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+    windowHandler("focus")?.();
+    windowHandler("blur")?.();
+
+    expect(browserWindowInstance.hide).not.toHaveBeenCalled();
+    delete process.env.BABY_MENU_KEEP_POPOVER_OPEN;
+  });
+});

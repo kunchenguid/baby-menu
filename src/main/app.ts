@@ -48,6 +48,7 @@ let activeTray: BabyMenuTray | null = null;
 let latestTrayBounds: Rectangle | null = null;
 let latestPopoverSize: Size = DEFAULT_POPOVER_SIZE;
 let popoverCentered = false;
+let popoverHasFocused = false;
 
 export function getActiveBabyMenuTray(): BabyMenuTray | null {
   return activeTray;
@@ -62,8 +63,15 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
 
   const dirname = currentDirname();
   popoverWindow = new BrowserWindow(createPopoverOptions(join(dirname, "../preload/index.cjs")));
+  popoverHasFocused = false;
+  popoverWindow.on("focus", () => {
+    popoverHasFocused = true;
+  });
   popoverWindow.on("blur", () => {
     if (process.env.BABY_MENU_KEEP_POPOVER_OPEN === "1") return;
+    // A Wayland compositor can deliver blur before the window has ever been
+    // focused, which would hide the popover the instant it appears.
+    if (!popoverHasFocused) return;
     popoverWindow?.hide();
   });
   // Tell the renderer when the popover is shown or hidden so view refresh can pause
