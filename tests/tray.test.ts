@@ -58,7 +58,7 @@ describe("createBabyMenuTray", () => {
   it("builds an Open and Quit context menu on Linux, where GNOME swallows left click", async () => {
     const { createBabyMenuTray } = await import("../src/main/tray");
     const onClick = vi.fn();
-    tray.getBounds.mockReturnValue({ x: 12, y: 0, width: 24, height: 24 });
+    tray.getBounds.mockReturnValueOnce({ x: 12, y: 0, width: 24, height: 24 });
 
     createBabyMenuTray(onClick, {
       iconPath: "/repo/assets/tray/baby_menu-linux.png",
