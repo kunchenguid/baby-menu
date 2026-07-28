@@ -11,6 +11,8 @@ Embedded agents launched from baby-menu should work from the active extension wo
 - `pnpm generate:contracts` - regenerates `extensions/babymenu-env.d.ts` (the `@babymenu/contracts` surface) from `src/shared/contracts.ts`. Run after changing any extension-facing type or `src/shared/extension-contract-names.ts`, then commit the result; CI fails on a stale file.
 - `pnpm package:mac` - cleans `release/`, builds the app, packages `release/mac-universal/Baby Menu Dev.app`, and ad-hoc signs it for local testing. Local/dev packaging uses `electron-builder.dev.yml`, which overrides `appId` to `com.kunchenguid.baby-menu.dev` and `productName` to `Baby Menu Dev` so locally-built bundles never collide with the released app (`com.kunchenguid.baby-menu`) in macOS LaunchServices. It explicitly disables Developer ID discovery and notarization. See `CONTRIBUTING.md` for the production release and verification procedure.
 - `pnpm dist:mac` - runs `package:mac` and creates `release/Baby-Menu-<version>-universal.dmg` from the dev bundle.
+- `pnpm package:linux` - unpacked Linux directory build using `electron-builder.dev.yml`, x86_64 only. Names the executable `baby-menu-dev` so it never satisfies the open-at-login production gate in `src/main/app.ts`.
+- `pnpm dist:linux` - builds all four Linux artifacts (`AppImage`, `deb`, `rpm`, `pacman`), x86_64 only, same dev-only naming. The `rpm` and `pacman` targets need system tooling that is not bundled; see `docs/development.md#linux-packaging` for the per-target requirements.
 - `pnpm test` - run all Vitest tests.
 - `pnpm test:e2e` - run only `tests/e2e-*.test.ts` (these include real `acpx/runtime` coverage against `acp-mock` plus bundled adapter coverage against fake local CLIs).
 - `pnpm test:e2e:grok-popover` - run the unattended macOS Grok production-wiring check described in `docs/grok-quota-e2e.md`; it uses the real popover and exact consumer Grok usage source, requires a healthy local bearer, proves no refresh or auth mutation occurs, and never exposes auth or raw provider data.
@@ -41,7 +43,7 @@ Follow these rules:
 
 ## Architecture
 
-This is a macOS tray-bar Electron app whose distinguishing idea is that an embedded agent (running via `acpx/runtime`) edits the active extension workspace at runtime.
+This is a macOS and Linux tray-bar Electron app whose distinguishing idea is that an embedded agent (running via `acpx/runtime`) edits the active extension workspace at runtime.
 Tracked source extensions use git as the accept/rollback mechanism when selected explicitly; packaged mode edits `~/.baby-menu/extensions` and uses filesystem snapshots.
 
 Three processes, kept deliberately separate:

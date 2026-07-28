@@ -24,6 +24,8 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | `pnpm generate:contracts` | Regenerate `extensions/babymenu-env.d.ts` from `src/shared/contracts.ts` |
 | `pnpm package:mac` | Clean `release/` and create an ad-hoc-signed `Baby Menu Dev.app` without release credentials |
 | `pnpm dist:mac` | Build the local `Baby Menu Dev.app` and create a universal DMG in `release/` |
+| `pnpm package:linux` | Clean `release/` and create an unpacked `release/linux-unpacked/` directory build, x86_64 only |
+| `pnpm dist:linux` | Build all four local Linux packages (`AppImage`, `deb`, `rpm`, `pacman`), x86_64 only |
 | `pnpm test` | Run all Vitest tests |
 | `pnpm test:e2e` | Only e2e tests (including `acpx/runtime` plus bundled adapter coverage) |
 | `pnpm test:e2e:packaged-mac` | Check that a packaged macOS app starts its renderer and preload bridge |
@@ -37,7 +39,7 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 - `pnpm dev` iterates in a throwaway sandbox - the agent edits the gitignored `extensions-dev/` copy and your tracked tree stays clean.
 - `pnpm dev:reset` when recipe or extension guidance changes; it also clears `.cache/baby-menu/acp-sessions` so the agent re-reads fresh specs instead of continuing prior conversation state.
 - `pnpm generate:contracts` after changing extension-facing types in `src/shared/contracts.ts` or the public name list in `src/shared/extension-contract-names.ts`; CI fails if the committed `extensions/babymenu-env.d.ts` is stale.
-- Source mode and packaged `Baby Menu Dev` / test bundles never touch macOS login items. Only the packaged production product named `Baby Menu` may call Electron's `setLoginItemSettings` API.
+- Source mode and packaged dev / test bundles never touch open-at-login on any platform. Only the packaged production product, matched by exact executable name (`Baby Menu` on macOS, `baby-menu` on Linux), may call Electron's `setLoginItemSettings` API or write the Linux autostart entry described in [docs/configuration.md](configuration.md#linux-autostart).
 
 ## Packaging
 
@@ -47,6 +49,15 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 - The universal package must run on both Intel and Apple Silicon Macs, so packaged runtime native prebuilt dependencies must stay installed for `x64` and `arm64` and stay covered by `electron-builder.yml` `x64ArchFiles` when new native packages are added.
 - `esbuild` is build-time-only and must stay excluded from `electron-builder.yml`. It enters the production dependency graph only through `acpx -> tsx -> esbuild`, but Baby Menu imports the separately published `acpx/runtime` entry, which does not reference `tsx` or acpx's CLI chunk. The adapters are pre-bundled before packaging, while runtime extension compilation uses the shipped `typescript` dependency. `tests/acpx-runtime-dependencies.test.ts` locks the acpx entry-point boundary, and the packaged runtime E2E verifies a real ACP turn with neither `esbuild` nor `@esbuild` present in the app.
 - Keep `electron-builder` at `26.8.2` or newer so pnpm-deduped dependencies are included correctly in packaged builds.
+
+### Linux packaging
+
+- `pnpm package:linux` builds an unpacked `release/linux-unpacked/` directory using `electron-builder.dev.yml`. Like the macOS dev bundle, it carries a dev-only identity: the executable is named `baby-menu-dev` (not `baby-menu`), so it never satisfies the open-at-login production gate in `src/main/app.ts`, which matches the executable name exactly.
+- `pnpm dist:linux` builds all four packages (`AppImage`, `deb`, `rpm`, `pacman`) with the same dev-only naming. The `rpm` target shells out to `rpmbuild` through fpm, so it needs a system `rpmbuild` (`rpm-tools` on Arch, `rpm` on Debian/Ubuntu). The `pacman` target shells out to `bsdtar` to generate `.MTREE`, so it needs a system `bsdtar` (already present on Arch through base `libarchive`, `libarchive-tools` on Debian/Ubuntu). `deb` is pure fpm and needs nothing extra; `AppImage` pulls its own `appimagetool`.
+- fpm's bundled Ruby needs a working system `libcrypt.so.1`. If a local `dist:linux` run fails on a missing `libcrypt.so.1`, that is a host Ruby dependency gap, not a project bug - do not `sudo` install a compat package to work around it on a throwaway host.
+- Nobody has produced a real `deb`, `rpm`, or `pacman` artifact end to end yet; only the unpacked directory build and the `AppImage` have actually been built locally. The CI job is expected to work because Ubuntu runners ship `libcrypt.so.1`, but that is unverified until the first real release run.
+- CI builds production artifacts on `ubuntu-22.04`, not `ubuntu-latest`. glibc is a floor, not a ceiling: building on 24.04 would produce `.deb`/`.rpm` artifacts that do not install on Debian 12 or RHEL 9. If that runner label is retired, move to the next-oldest supported label - a one-line change.
+- For how the `linux` release job in `.github/workflows/release-please.yml` orders against the macOS job, see [CONTRIBUTING.md](../CONTRIBUTING.md#release-notes).
 
 ## Hero video
 

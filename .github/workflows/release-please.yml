@@ -34,8 +34,155 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  macos:
+  linux:
     needs: release-please
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.baby-menu-release-created == 'true') }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    concurrency:
+      group: ${{ github.workflow }}-linux-${{ inputs.tag_name || needs.release-please.outputs.baby-menu-tag-name }}
+      cancel-in-progress: false
+    env:
+      TAG_NAME: ${{ inputs.tag_name || needs.release-please.outputs.baby-menu-tag-name }}
+      VERSION: ${{ inputs.version || needs.release-please.outputs.baby-menu-version }}
+    steps:
+      - name: Validate manual recovery target
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Manual recovery must be dispatched from main, got $GITHUB_REF." >&2
+            exit 1
+          fi
+          if [ "$TAG_NAME" != "baby-menu-v0.1.23" ] || [ "$VERSION" != "0.1.23" ]; then
+            echo "Manual recovery is restricted to baby-menu-v0.1.23 at version 0.1.23." >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v6
+        with:
+          # A newly created release builds its immutable tag. Manual recovery
+          # builds the reviewed main commit without moving the existing tag.
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || format('refs/tags/{0}', env.TAG_NAME) }}
+
+      - name: Verify manual recovery source
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          ACTUAL_COMMIT="$(git rev-parse HEAD)"
+          if [ "$ACTUAL_COMMIT" != "$GITHUB_SHA" ]; then
+            echo "Manual recovery checked out $ACTUAL_COMMIT instead of dispatch commit $GITHUB_SHA." >&2
+            exit 1
+          fi
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "Manual recovery requires package version $VERSION, got $PACKAGE_VERSION from $ACTUAL_COMMIT." >&2
+            exit 1
+          fi
+
+      - name: Verify release is still draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! RELEASE_DRAFT="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq '.[] | select(.tag_name == env.TAG_NAME) | .draft' 2>&1)"; then
+            echo "Unable to verify draft status for $TAG_NAME; GitHub release query failed: $RELEASE_DRAFT" >&2
+            exit 1
+          fi
+          case "$RELEASE_DRAFT" in
+            true) ;;
+            false)
+              echo "Refusing to build artifacts for a release that is already public: $TAG_NAME" >&2
+              exit 1
+              ;;
+            "")
+              echo "No GitHub release exists for tag $TAG_NAME; refusing to build artifacts." >&2
+              exit 1
+              ;;
+            *)
+              echo "Unable to verify draft status for $TAG_NAME; expected one release, got: $RELEASE_DRAFT" >&2
+              exit 1
+              ;;
+          esac
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Linux packaging tools
+        run: |
+          set -euo pipefail
+          # The rpm target shells out to rpmbuild through fpm, and the pacman
+          # target shells out to bsdtar (libarchive-tools) to generate .MTREE.
+          # deb is pure fpm, and AppImage pulls its own appimagetool.
+          sudo apt-get update
+          sudo apt-get install -y rpm libarchive-tools
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        env:
+          BABY_MENU_UMAMI_HOST: https://a.kunchenguid.com
+          BABY_MENU_UMAMI_WEBSITE_ID: ${{ vars.BABY_MENU_UMAMI_WEBSITE_ID }}
+        run: pnpm build
+
+      - name: Package Linux artifacts
+        run: |
+          set -euo pipefail
+          # electron-builder.yml already sets executableName, StartupWMClass,
+          # and the desktop entry to distinguish baby-menu from baby-menu-dev.
+          # --publish never is explicit defense-in-depth: electron-builder's
+          # PublishManager defaults to "onTagOrDraft" under CI, so if a GitHub
+          # token is ever added to this job's env it would otherwise try to
+          # auto-publish into a v<version> draft, a different tag from this
+          # project's baby-menu-v<version>. Artifacts are uploaded to the
+          # correct tag explicitly, in the next step.
+          pnpm exec electron-builder --linux --x64 --publish never
+          ls -la release
+
+      - name: Upload Linux packages to draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # artifactName: baby-menu-${version}-${arch}.${ext} expands ${ext} to
+          # the fpm target name itself, so the pacman target produces .pacman,
+          # not .pkg.tar.zst. failglob makes an unmatched pattern here fail
+          # loudly instead of handing gh a literal string it would then reject
+          # only after uploading nothing (gh stats every asset before any
+          # upload begins).
+          shopt -s failglob
+          gh release upload "$TAG_NAME" \
+            release/*.AppImage \
+            release/*.deb \
+            release/*.rpm \
+            release/*.pacman \
+            --clobber
+
+  macos:
+    # The macOS job ends by flipping the draft public and updating the Homebrew
+    # cask, so it waits for the Linux job to finish and land its assets first.
+    # That ordering gate is advisory only: the deb, rpm, and pacman fpm targets
+    # have never been built end to end, so a first-release fpm failure must not
+    # strand the release as a permanent draft with no DMG published. The Linux
+    # job still runs and still reports its real status, so a failure is visible.
+    # Tighten this to a hard `needs.linux.result == 'success'` check once a real
+    # release has proven the fpm targets. always() is kept so the
+    # workflow_dispatch path still runs when release-please is skipped.
+    needs: [release-please, linux]
     if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.baby-menu-release-created == 'true') }}
     runs-on: macos-latest
     timeout-minutes: 75

@@ -149,7 +149,7 @@ describe("distribution config", () => {
     expect(config).toContain("babymenu-env.d.ts");
     expect(config).toContain("hello-world/**");
     expect(config).toContain("to: tray");
-    expect(config).toContain("baby_menuTemplate*.png");
+    expect(config).toContain("- baby_menu*.png");
     expect(config).not.toContain("identity: null");
     expect(config).toContain("hardenedRuntime: true");
     expect(config).toContain("gatekeeperAssess: false");
@@ -384,5 +384,158 @@ describe("distribution config", () => {
     expect(workflow).toContain('config_status=$(printf \'%s\\n\' "$name_status" | awk');
     expect(workflow).toContain('[ "$manifest_status" = "A" ] && [ "$config_status" = "A" ]');
     expect(workflow).toContain("for path in CHANGELOG.md; do");
+  });
+});
+
+describe("linux packaging configuration", () => {
+  it("builds all four Linux package formats under stable executable name", async () => {
+    const config = await readFile(resolve(import.meta.dirname, "../electron-builder.yml"), "utf8");
+
+    expect(config).toContain("- AppImage");
+    expect(config).toContain("- deb");
+    expect(config).toContain("- rpm");
+    expect(config).toContain("- pacman");
+    // production gate in src/main/app.ts matches basename(exe) exactly,
+    // documented Hyprland windowrule matches class:^(baby-menu)$.
+    // Anchored to the exact line, like category below: a bare substring match would
+    // also pass if this key landed under mac: at the wrong indent (where it does
+    // nothing), and the trailing $ is what rejects the dev build's baby-menu-dev.
+    expect(config).toMatch(/^ {2}executableName: baby-menu$/m);
+    expect(config).toContain("StartupWMClass: baby-menu");
+    // Terminal is deliberately absent: LinuxTargetHelper.js's computeDesktopEntry seeds
+    // Terminal="false" before spreading targetSpecificOptions.desktop?.entry, so restating
+    // it under desktop.entry changes nothing. Do not reintroduce it.
+    // desktop.entry.Categories is dead in app-builder-lib@26.8.2: LinuxTargetHelper.js's
+    // computeDesktopEntry spreads targetSpecificOptions.desktop?.entry last, but its
+    // subsequent (~line 159) `desktopMeta.Categories = ...` unconditionally overwrites it
+    // from the top-level linux.category, so a desktop.entry.Categories key is silently
+    // ignored there. Do not reintroduce it under desktop.entry.
+    const desktopEntryBlock = config.match(/desktop:\n {4}entry:\n(?: {6}.+\n)+/)?.[0];
+    expect(desktopEntryBlock).toBeDefined();
+    expect(desktopEntryBlock).not.toContain("Categories");
+    expect(desktopEntryBlock).not.toContain("Terminal");
+    expect(config).toContain("icon: assets/app-icon-512.png");
+    // Pinned to the exact line: a bare "category: Utility" would satisfy a substring
+    // match but would not produce the spec's Categories=Utility;Development; desktop
+    // entry value (see LinuxTargetHelper.js line ~159, referenced above).
+    expect(config).toMatch(/^ {2}category: Utility;Development$/m);
+    expect(config).toContain("maintainer: Kun Chen <kunchenguid@users.noreply.github.com>");
+    expect(config).toContain("artifactName: baby-menu-${version}-${arch}.${ext}");
+
+    // macOS tray filter widened to cover the Linux tray icon too.
+    expect(config).toContain("baby_menu*.png");
+    expect(config).not.toContain("baby_menuTemplate*.png");
+
+    await expect(
+      stat(resolve(import.meta.dirname, "../assets/tray/baby_menu-linux.png")).then((file) => file.isFile()),
+    ).resolves.toBe(true);
+    await expect(
+      stat(resolve(import.meta.dirname, "../assets/app-icon-512.png")).then((file) => file.isFile()),
+    ).resolves.toBe(true);
+  });
+
+  it("packages local/dev Linux builds under a distinct dev-only executable name so autostart never installed one", async () => {
+    const devConfig = await readFile(resolve(import.meta.dirname, "../electron-builder.dev.yml"), "utf8");
+
+    expect(devConfig).toContain("executableName: baby-menu-dev");
+  });
+
+  it("keeps local/dev Linux packages from impersonating the released package", async () => {
+    const devConfig = await readFile(resolve(import.meta.dirname, "../electron-builder.dev.yml"), "utf8");
+
+    // fpm's package name comes from package.json#name unless overridden, so
+    // without a per-target packageName a dev .deb/.rpm/.pacman installs as the
+    // real `baby-menu` package and removes the released install.
+    for (const target of ["deb", "rpm", "pacman"]) {
+      expect(devConfig).toMatch(new RegExp(`^${target}:\\n  packageName: baby-menu-dev$`, "m"));
+    }
+    // packageName is a LinuxTargetSpecificOptions key; electron-builder's schema
+    // sets additionalProperties: false on the top-level linux block and would
+    // reject the whole config if it were declared there instead.
+    const devLinuxBlock = devConfig.match(/^linux:\n(?:^(?!\S).*\n?)*/m)?.[0];
+    expect(devLinuxBlock).toBeDefined();
+    expect(devLinuxBlock).not.toContain("packageName:");
+    expect(devConfig).toContain("artifactName: baby-menu-dev-${version}-${arch}.${ext}");
+  });
+
+  it("builds Linux packages on a glibc floor runner with rpm tooling installed", async () => {
+    const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/release-please.yml"), "utf8");
+
+    expect(workflow).toContain("  linux:");
+    // Scoped to the linux job's own block, not the whole 200-line file: a bare
+    // toContain("runs-on: ubuntu-22.04") would still pass even if this job's
+    // runs-on regressed to ubuntu-latest, since the string can appear elsewhere.
+    // Capture from the "  linux:" header up to (but excluding) the next
+    // top-level (2-space indented) job key, then assert only within that block.
+    const linuxJobBlock = workflow.match(/^ {2}linux:\n(?:^(?! {2}\S).*\n?)*/m)?.[0];
+    expect(linuxJobBlock).toBeDefined();
+    // glibc is a floor, not a ceiling: building on 24.04 produces .deb and .rpm
+    // artifacts that will not install on Debian 12 or RHEL 9.
+    expect(linuxJobBlock).toContain("runs-on: ubuntu-22.04");
+    // The rpm target shells out to rpmbuild through fpm, and the pacman target
+    // shells out to bsdtar (libarchive-tools) to generate .MTREE; deb is pure
+    // fpm and AppImage pulls its own appimagetool.
+    expect(linuxJobBlock).toContain("sudo apt-get install -y rpm libarchive-tools");
+    expect(linuxJobBlock).toContain("electron-builder --linux --x64");
+    expect(linuxJobBlock).toContain("group: ${{ github.workflow }}-linux-${{ inputs.tag_name");
+    // Same telemetry wiring as the macOS job, so packaged Linux releases report
+    // the same way.
+    expect(linuxJobBlock).toContain("BABY_MENU_UMAMI_WEBSITE_ID: ${{ vars.BABY_MENU_UMAMI_WEBSITE_ID }}");
+    // Ties the upload globs to the four targets actually configured in
+    // electron-builder.yml (AppImage, deb, rpm, pacman - matching the
+    // artifactName: baby-menu-${version}-${arch}.${ext} pattern, where ${ext}
+    // is the fpm target name itself, e.g. "pacman" not "pkg.tar.zst"). This is
+    // the seam a wrong extension previously fell through: the target list and
+    // the upload globs were each individually plausible and never checked
+    // against each other.
+    expect(linuxJobBlock).toContain("release/*.AppImage");
+    expect(linuxJobBlock).toContain("release/*.deb");
+    expect(linuxJobBlock).toContain("release/*.rpm");
+    expect(linuxJobBlock).toContain("release/*.pacman");
+  });
+
+  it("orders the macOS publish after the Linux job without hard-gating on it", async () => {
+    const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/release-please.yml"), "utf8");
+
+    expect(workflow).toContain("needs: [release-please, linux]");
+    // The ordering gate is advisory until a real release proves the fpm targets.
+    // always() plus no result check means a failing Linux job cannot strand the
+    // release as a permanent draft with no DMG published, while the Linux job
+    // still runs first and still reports its real status. Anchored to the macOS
+    // job's own if: line, because the surrounding comment names the hard-gate
+    // expression this should tighten to once those targets are proven.
+    const macosJobBlock = workflow.match(/^ {2}macos:\n(?:^(?! {2}\S).*\n?)*/m)?.[0];
+    expect(macosJobBlock).toBeDefined();
+    const macosIfLine = macosJobBlock?.match(/^ {4}if: .*$/m)?.[0];
+    expect(macosIfLine).toBeDefined();
+    expect(macosIfLine).not.toContain("needs.linux.result");
+  });
+
+  it("applies the same draft and recovery guards to the Linux job as to the macOS job", async () => {
+    const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/release-please.yml"), "utf8");
+
+    expect(workflow.match(/Verify release is still draft/g)).toHaveLength(2);
+    expect(workflow.match(/Validate manual recovery target/g)).toHaveLength(2);
+    expect(workflow.match(/Verify manual recovery source/g)).toHaveLength(2);
+    expect(
+      workflow.match(
+        /ref: \$\{\{ github\.event_name == 'workflow_dispatch' && github\.sha \|\| format\('refs\/tags\/\{0\}', env\.TAG_NAME\) \}\}/g,
+      ),
+    ).toHaveLength(2);
+
+    // Counting step names only proves both copies exist, not that they still say the
+    // same thing: a mistranscribed body (a flipped true/false arm, a dropped exit 1)
+    // would keep every count above at 2. The duplication is deliberate (the guards are
+    // copied verbatim from the macOS job rather than extracted), so drift between the
+    // two copies is the standing risk, and byte equality is what actually guards it.
+    // Captures the whole duplicated span (the three guard steps plus the checkout
+    // step interleaved between them), stopping at the first step that belongs to
+    // neither: pnpm/action-setup in the Linux job, Verify macOS release tools in
+    // the macOS one.
+    const guardBlocks = workflow.match(
+      /^ {6}- name: Validate manual recovery target\n[\s\S]*?(?=^ {6}- (?!name: (?:Validate manual recovery target|Verify manual recovery source|Verify release is still draft)|uses: actions\/checkout@v6))/gm,
+    );
+    expect(guardBlocks).toHaveLength(2);
+    expect(guardBlocks?.[0]).toBe(guardBlocks?.[1]);
   });
 });

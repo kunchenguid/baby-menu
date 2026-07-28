@@ -13,12 +13,19 @@ export function linuxAutostartExecPath(env: { APPIMAGE?: string }, exePath: stri
   return env.APPIMAGE?.trim() || exePath;
 }
 
+// The session manager splits Exec on whitespace into argv, and the deb, rpm and
+// pacman targets install to /opt/Baby Menu/baby-menu. Quote exactly the way
+// app-builder-lib's LinuxTargetHelper does for the desktop entry it generates.
+export function linuxAutostartExecValue(execPath: string): string {
+  return /^[/0-9A-Za-z._-]+$/.test(execPath) ? execPath : `"${execPath}"`;
+}
+
 export function linuxAutostartEntry(execPath: string): string {
   return [
     "[Desktop Entry]",
     "Type=Application",
     "Name=Baby Menu",
-    `Exec=${execPath}`,
+    `Exec=${linuxAutostartExecValue(execPath)}`,
     "Terminal=false",
     "X-GNOME-Autostart-enabled=true",
     "",

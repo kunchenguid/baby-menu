@@ -11,3 +11,23 @@ productName: Baby Menu Dev
 mac:
   identity: null
   notarize: false
+
+# A locally built Linux bundle must never be mistaken for an installed one, and
+# must never satisfy the production open-at-login gate in src/main/app.ts.
+linux:
+  executableName: baby-menu-dev
+  # The inherited artifactName hardcodes `baby-menu`, which would make a
+  # dev-built file indistinguishable by name from a release asset.
+  artifactName: baby-menu-dev-${version}-${arch}.${ext}
+
+# fpm's package name defaults to package.json#name, which productName and
+# executableName do not affect, so without this a locally built .deb/.rpm/
+# .pacman declares itself as the released `baby-menu` package and installing it
+# replaces the real one. packageName is a per-target option; electron-builder's
+# schema rejects it under the top-level linux: block.
+deb:
+  packageName: baby-menu-dev
+rpm:
+  packageName: baby-menu-dev
+pacman:
+  packageName: baby-menu-dev

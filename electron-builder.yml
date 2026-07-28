@@ -25,7 +25,7 @@ extraResources:
   - from: assets/tray
     to: tray
     filter:
-      - baby_menuTemplate*.png
+      - baby_menu*.png
 
 asar: true
 
@@ -44,6 +44,30 @@ mac:
   entitlementsInherit: assets/entitlements.mac.plist
   notarize: true
   x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/{@tailwindcss/oxide-*/**,lightningcss-*/**,lightningcss/**}
+
+linux:
+  target:
+    - AppImage
+    - deb
+    - rpm
+    - pacman
+  # The production gate in src/main/app.ts matches basename(exe) exactly, and
+  # the documented Hyprland windowrule matches class:^(baby-menu)$.
+  executableName: baby-menu
+  # app-builder-lib@26.8.2's LinuxTargetHelper.js unconditionally derives the desktop
+  # entry's Categories from this top-level category (overwriting any desktop.entry.
+  # Categories), so the trailing ";Development" here is what actually reaches the
+  # generated Categories=Utility;Development; value.
+  category: Utility;Development
+  synopsis: Menu-bar app that writes its own widgets
+  maintainer: Kun Chen <kunchenguid@users.noreply.github.com>
+  # electron-builder resizes this one PNG for every target, so there is no
+  # generated icon directory and no build-time rsvg or imagemagick dependency.
+  icon: assets/app-icon-512.png
+  artifactName: baby-menu-${version}-${arch}.${ext}
+  desktop:
+    entry:
+      StartupWMClass: baby-menu
 
 dmg:
   artifactName: Baby-Menu-${version}-universal.dmg

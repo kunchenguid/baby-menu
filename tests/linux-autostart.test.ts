@@ -6,6 +6,7 @@ import {
   applyLinuxAutostart,
   linuxAutostartEntry,
   linuxAutostartExecPath,
+  linuxAutostartExecValue,
   linuxAutostartFilePath,
 } from "../src/main/linux-autostart";
 
@@ -46,6 +47,14 @@ describe("linux autostart", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  it("quotes an exec path the session manager would otherwise split into argv", () => {
+    // deb, rpm and pacman install to /opt/<sanitizedProductName>/<executableName>,
+    // and the product name keeps its space.
+    expect(linuxAutostartEntry("/opt/Baby Menu/baby-menu")).toContain('Exec="/opt/Baby Menu/baby-menu"');
+    expect(linuxAutostartExecValue("/opt/Baby Menu/baby-menu")).toBe('"/opt/Baby Menu/baby-menu"');
+    expect(linuxAutostartExecValue("/usr/bin/baby-menu")).toBe("/usr/bin/baby-menu");
   });
 
   it("creates the entry, including the autostart directory", async () => {

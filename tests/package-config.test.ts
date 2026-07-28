@@ -29,4 +29,22 @@ describe("package configuration", () => {
   it("does not expose a direct start script that bypasses the packaged app path", () => {
     expect(packageJson.scripts).not.toHaveProperty("start");
   });
+
+  it("provides local Linux packaging scripts use dev bundle identity", () => {
+    expect(packageJson.scripts?.["package:linux"]).toBe(
+      "rm -rf release && pnpm build && electron-builder --linux dir --x64 --config electron-builder.dev.yml",
+    );
+    expect(packageJson.scripts?.["dist:linux"]).toBe(
+      "rm -rf release && pnpm build && electron-builder --linux --x64 --config electron-builder.dev.yml",
+    );
+  });
+
+  it("declares a project homepage so fpm-based Linux targets (deb, rpm, pacman) can build", () => {
+    // electron-builder's FpmTarget throws "Please specify project homepage" for
+    // deb/rpm/pacman unless metadata.homepage resolves to a URL; assert the shape
+    // that check actually requires, not just that some string is present.
+    expect(typeof packageJson.homepage).toBe("string");
+    expect(packageJson.homepage).toMatch(/^https:\/\//);
+    expect(() => new URL(packageJson.homepage as string)).not.toThrow();
+  });
 });

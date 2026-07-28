@@ -1,7 +1,7 @@
 <h1 align="center">baby-menu</h1>
 <p align="center">
   <a href="https://github.com/kunchenguid/baby-menu/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kunchenguid/baby-menu/ci.yml?style=flat-square&label=ci" /></a>
-  <a href="https://img.shields.io/badge/platform-macOS-blue?style=flat-square"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" /></a>
+  <a href="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue?style=flat-square"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue?style=flat-square" /></a>
   <a href="https://img.shields.io/badge/electron-42-9feaf9?style=flat-square"><img alt="Electron" src="https://img.shields.io/badge/electron-42-9feaf9?style=flat-square" /></a>
   <a href="https://x.com/kunchenguid"><img alt="X" src="https://img.shields.io/badge/X-@kunchenguid-black?style=flat-square" /></a>
   <a href="https://discord.gg/Wsy2NpnZDu"><img alt="Discord" src="https://img.shields.io/discord/1439901831038763092?style=flat-square&label=discord" /></a>
@@ -32,6 +32,7 @@ You ask for a feature in plain English, the agent writes an extension and it hot
 ## Quick Start
 
 Requires macOS 13 Ventura or newer, Homebrew, and a supported, already-authenticated agent CLI such as `claude` or `codex` on `PATH`.
+On Linux, install a distribution package instead - see [Linux](#linux).
 
 ```sh
 brew install --cask kunchenguid/tap/baby-menu
@@ -70,7 +71,45 @@ For agent selection, custom ACP agents, telemetry, and environment flags, see [d
 ## Linux
 
 Requires a Wayland session. Verified on Hyprland with waybar; KDE Plasma and GNOME are supported by design.
-Linux packages are not published yet, so this describes the app once you build and run it from source.
+
+### Install
+
+Download the artifact for your distribution from the
+[latest release](https://github.com/kunchenguid/baby-menu/releases/latest). x86_64 only.
+
+```bash
+# Arch
+sudo pacman -U baby-menu-<version>-x64.pacman
+
+# Debian, Ubuntu
+sudo dpkg -i baby-menu-<version>-amd64.deb
+
+# Fedora, RHEL
+sudo rpm -U baby-menu-<version>-x86_64.rpm
+
+# AppImage
+chmod +x baby-menu-<version>-x86_64.AppImage
+./baby-menu-<version>-x86_64.AppImage
+```
+
+The `.deb`, `.rpm`, and pacman packages run a postinstall step that configures the Chromium
+sandbox for your system: it installs an AppArmor profile on Ubuntu 24.04 and later, and falls
+back to a setuid `chrome-sandbox` helper only where the kernel has no unprivileged user
+namespaces at all. The AppImage has no install step, so on Ubuntu 24.04+, where AppArmor
+restricts unprivileged user namespaces by default, its sandbox can fail to start; pass
+`--no-sandbox`:
+
+```bash
+./baby-menu-<version>-x86_64.AppImage --no-sandbox
+```
+
+`--no-sandbox` turns the Chromium sandbox off for that run rather than working around the
+AppArmor restriction, so prefer the `.deb` on Ubuntu 24.04+ if you want to keep it. Allowing
+unprivileged user namespaces system-wide (`sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`)
+also lets the AppImage sandbox start normally.
+
+On Arch and most other distros, unprivileged user namespaces are available by default and the
+AppImage runs its sandbox normally with no extra flags.
 
 Toggle the popover:
 
@@ -93,14 +132,14 @@ KDE Plasma: System Settings, Shortcuts, Add Command, `baby-menu --toggle`.
 GNOME: Settings, Keyboard, Custom Shortcuts, command `baby-menu --toggle`.
 GNOME also shows no tray icon at all without the AppIndicator extension, so on a stock GNOME session the `--toggle` shortcut is the only entry point.
 
-Launch at login is a Settings toggle in packaged Linux builds, which are not published yet.
+Launch at login is a Settings toggle in packaged Linux builds.
 It writes or removes `~/.config/autostart/baby-menu.desktop`. Running from source the toggle stays off, because only a packaged production build may touch your session autostart.
 
 ## How It Works
 
 ```
    ┌─────────────────────┐
-   │  macOS tray popover │   (React renderer, adaptive size)
+   │    tray popover     │   (React renderer, adaptive size)
    │ + Menu / Settings   │
    │ + Reload layout     │
    │ + Update / Quit     │
