@@ -554,4 +554,19 @@ describe("popover blur guard", () => {
     expect(browserWindowInstance.hide).not.toHaveBeenCalled();
     delete process.env.BABY_MENU_KEEP_POPOVER_OPEN;
   });
+
+  it("keeps the focused flag across a repeat popover open", async () => {
+    const { startBabyMenuApp } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+    windowHandler("focus")?.();
+    windowHandler("blur")?.();
+
+    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+
+    windowHandler("blur")?.();
+
+    expect(browserWindowInstance.hide).toHaveBeenCalledTimes(2);
+  });
 });
