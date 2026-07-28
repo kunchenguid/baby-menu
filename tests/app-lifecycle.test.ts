@@ -399,21 +399,28 @@ describe("startBabyMenuApp", () => {
   );
 
   it("opts the packaged production app into opening at login by default", async () => {
-    electronApp.isPackaged = true;
-    electronApp.getPath.mockImplementation((name: string) => {
-      if (name === "home") return "/home/test-user";
-      if (name === "exe") return "/Applications/Baby Menu.app/Contents/MacOS/Baby Menu";
-      return "/tmp";
-    });
-    Object.defineProperty(process, "resourcesPath", {
-      configurable: true,
-      value: "/Applications/Baby Menu.app/Contents/Resources",
-    });
-    const appModule = await import("../src/main/app");
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "darwin" });
 
-    await appModule.startBabyMenuApp();
+    try {
+      electronApp.isPackaged = true;
+      electronApp.getPath.mockImplementation((name: string) => {
+        if (name === "home") return "/home/test-user";
+        if (name === "exe") return "/Applications/Baby Menu.app/Contents/MacOS/Baby Menu";
+        return "/tmp";
+      });
+      Object.defineProperty(process, "resourcesPath", {
+        configurable: true,
+        value: "/Applications/Baby Menu.app/Contents/Resources",
+      });
+      const appModule = await import("../src/main/app");
 
-    expect(electronApp.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: true });
+      await appModule.startBabyMenuApp();
+
+      expect(electronApp.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: true });
+    } finally {
+      if (originalPlatform) Object.defineProperty(process, "platform", originalPlatform);
+    }
   });
 
   it("temporarily uses regular activation policy while the macOS popover is visible", async () => {
@@ -627,5 +634,76 @@ describe("single instance lock", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     expect(browserWindowInstance.show).not.toHaveBeenCalled();
+  });
+});
+
+describe("linux autostart wiring", () => {
+  const originalPlatform = process.platform;
+  const tempDirs: string[] = [];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    browserWindowInstance.isDestroyed.mockReturnValue(false);
+    browserWindowInstance.isVisible.mockReturnValue(false);
+    trayInstance.getBounds.mockReturnValue({ x: 0, y: 0, width: 0, height: 0 });
+    electronApp.requestSingleInstanceLock.mockReturnValue(true);
+    delete process.env.BABY_MENU_PACKAGED_TEST_HOME;
+    Object.defineProperty(process, "platform", { configurable: true, value: "linux" });
+  });
+
+  afterEach(async () => {
+    electronApp.isPackaged = false;
+    Object.defineProperty(process, "platform", { configurable: true, value: originalPlatform });
+    const { rm } = await import("node:fs/promises");
+    await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
+  it("creates an autostart entry for the packaged production Linux executable", async () => {
+    const { mkdtemp, readFile } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const home = await mkdtemp(join(tmpdir(), "baby-menu-linux-home-"));
+    tempDirs.push(home);
+
+    electronApp.isPackaged = true;
+    electronApp.getPath.mockImplementation((name: string) => {
+      if (name === "home") return home;
+      if (name === "exe") return "/usr/bin/baby-menu";
+      return home;
+    });
+    Object.defineProperty(process, "resourcesPath", { configurable: true, value: join(home, "resources") });
+
+    const { startBabyMenuApp } = await import("../src/main/app");
+    await startBabyMenuApp();
+
+    const filePath = join(home, ".config", "autostart", "baby-menu.desktop");
+    await vi.waitFor(async () => {
+      await expect(readFile(filePath, "utf8")).resolves.toContain("Exec=/usr/bin/baby-menu");
+    });
+
+    expect(electronApp.setLoginItemSettings).not.toHaveBeenCalled();
+  });
+
+  it("does not create an autostart entry for a packaged dev-build Linux executable", async () => {
+    const { mkdtemp, access } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const home = await mkdtemp(join(tmpdir(), "baby-menu-linux-home-"));
+    tempDirs.push(home);
+
+    electronApp.isPackaged = true;
+    electronApp.getPath.mockImplementation((name: string) => {
+      if (name === "home") return home;
+      if (name === "exe") return "/repo/release/linux-unpacked/baby-menu-dev";
+      return home;
+    });
+    Object.defineProperty(process, "resourcesPath", { configurable: true, value: join(home, "resources") });
+
+    const { startBabyMenuApp } = await import("../src/main/app");
+    await startBabyMenuApp();
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    await expect(access(join(home, ".config", "autostart", "baby-menu.desktop"))).rejects.toThrow();
   });
 });

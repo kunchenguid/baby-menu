@@ -18,6 +18,7 @@ import {
 } from "./popover";
 import { createBackgroundTaskScheduler } from "./background-task-scheduler";
 import { createExtensionDatabase } from "./extension-database";
+import { createLinuxLoginItem } from "./linux-autostart";
 import { createNotifier } from "./notifier";
 import { createPreferencesService } from "./preferences";
 import { createBackgroundTaskSource, createServerActionRegistry } from "./server-action-registry";
@@ -220,12 +221,19 @@ export async function startBabyMenuApp(): Promise<void> {
     app.dock?.hide();
   }
 
-  // app.isPackaged is also true for local Baby Menu Dev bundles. Only the
-  // production product may register or mutate the user's macOS login item.
-  const allowOpenAtLogin = paths.isPackaged && basename(app.getPath("exe")) === "Baby Menu";
+  // app.isPackaged is also true for local dev bundles. Only the production
+  // product may register or mutate the user's login item: "Baby Menu" is the
+  // macOS bundle name, "baby-menu" is electron-builder's Linux executable name.
+  const exeName = basename(app.getPath("exe"));
+  const allowOpenAtLogin = paths.isPackaged && (isLinux ? exeName === "baby-menu" : exeName === "Baby Menu");
+  // app.setLoginItemSettings is macOS and Windows only; on Linux a desktop
+  // entry under ~/.config/autostart stands in for it (see linux-autostart.ts).
+  const loginItem = isLinux
+    ? createLinuxLoginItem({ exePath: app.getPath("exe"), homeDir: app.getPath("home") })
+    : app;
   const preferences = createPreferencesService({
     userDataDir: paths.appDataRoot,
-    app,
+    app: loginItem,
     defaultOpenAtLogin: allowOpenAtLogin,
     allowOpenAtLogin,
   });
