@@ -198,31 +198,45 @@ describe("startBabyMenuApp", () => {
   });
 
   it("retains the tray object for the app lifetime", async () => {
-    const appModule = (await import("../src/main/app")) as typeof import("../src/main/app") & {
-      getActiveBabyMenuTray?: () => unknown;
-    };
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "darwin" });
 
-    expect(typeof appModule.getActiveBabyMenuTray).toBe("function");
+    try {
+      const appModule = (await import("../src/main/app")) as typeof import("../src/main/app") & {
+        getActiveBabyMenuTray?: () => unknown;
+      };
 
-    await appModule.startBabyMenuApp();
+      expect(typeof appModule.getActiveBabyMenuTray).toBe("function");
 
-    expect(createBabyMenuTray).toHaveBeenCalledWith(expect.any(Function), {
-      iconPath: "/repo/assets/tray/baby_menuTemplate.png",
-    });
-    expect(appModule.getActiveBabyMenuTray?.()).toBe(trayInstance);
+      await appModule.startBabyMenuApp();
+
+      expect(createBabyMenuTray).toHaveBeenCalledWith(expect.any(Function), {
+        iconPath: "/repo/assets/tray/baby_menuTemplate.png",
+      });
+      expect(appModule.getActiveBabyMenuTray?.()).toBe(trayInstance);
+    } finally {
+      if (originalPlatform) Object.defineProperty(process, "platform", originalPlatform);
+    }
   });
 
   it("still creates the tray when extension workspace seeding fails", async () => {
-    const { seedExtensionWorkspace } = await import("../src/main/extension-seeder");
-    (seedExtensionWorkspace as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("EISDIR: symlinked workspace"));
-    const appModule = await import("../src/main/app");
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "darwin" });
 
-    await expect(appModule.startBabyMenuApp()).resolves.toBeUndefined();
+    try {
+      const { seedExtensionWorkspace } = await import("../src/main/extension-seeder");
+      (seedExtensionWorkspace as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("EISDIR: symlinked workspace"));
+      const appModule = await import("../src/main/app");
 
-    expect(createBabyMenuTray).toHaveBeenCalledWith(expect.any(Function), {
-      iconPath: "/repo/assets/tray/baby_menuTemplate.png",
-    });
-    expect(appModule.getActiveBabyMenuTray()).toBe(trayInstance);
+      await expect(appModule.startBabyMenuApp()).resolves.toBeUndefined();
+
+      expect(createBabyMenuTray).toHaveBeenCalledWith(expect.any(Function), {
+        iconPath: "/repo/assets/tray/baby_menuTemplate.png",
+      });
+      expect(appModule.getActiveBabyMenuTray()).toBe(trayInstance);
+    } finally {
+      if (originalPlatform) Object.defineProperty(process, "platform", originalPlatform);
+    }
   });
 
   it("creates the popover with the CommonJS preload bridge", async () => {

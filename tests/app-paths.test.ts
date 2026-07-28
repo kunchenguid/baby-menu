@@ -17,6 +17,7 @@ describe("Baby Menu runtime paths", () => {
     const paths = createBabyMenuRuntimePaths({
       isPackaged: false,
       sourceRoot: "/repo",
+      platform: "darwin",
       env: { BABY_MENU_EXTENSIONS_DIR: "extensions-dev" },
     });
 
@@ -45,6 +46,7 @@ describe("Baby Menu runtime paths", () => {
       sourceRoot: "/ignored/source",
       homeDir: "/Users/me",
       resourcesPath: "/Applications/Baby Menu.app/Contents/Resources",
+      platform: "darwin",
     });
 
     expect(paths).toMatchObject({
@@ -58,6 +60,40 @@ describe("Baby Menu runtime paths", () => {
       trayIconPath: "/Applications/Baby Menu.app/Contents/Resources/tray/baby_menuTemplate.png",
       isPackaged: true,
     });
+  });
+
+  it("resolves linux colored tray icon in source mode", () => {
+    const paths = createBabyMenuRuntimePaths({
+      isPackaged: false,
+      sourceRoot: "/repo",
+      platform: "linux",
+      env: {},
+    });
+
+    expect(paths.trayIconPath).toBe("/repo/assets/tray/baby_menu-linux.png");
+  });
+
+  it("resolves linux colored tray icon in packaged mode", () => {
+    const paths = createBabyMenuRuntimePaths({
+      isPackaged: true,
+      sourceRoot: "/ignored/source",
+      platform: "linux",
+      homeDir: "/home/test-user",
+      resourcesPath: "/opt/Baby Menu/resources",
+    });
+
+    expect(paths.trayIconPath).toBe("/opt/Baby Menu/resources/tray/baby_menu-linux.png");
+  });
+
+  it("keeps macOS template icon on darwin", () => {
+    const paths = createBabyMenuRuntimePaths({
+      isPackaged: false,
+      sourceRoot: "/repo",
+      platform: "darwin",
+      env: {},
+    });
+
+    expect(paths.trayIconPath).toBe("/repo/assets/tray/baby_menuTemplate.png");
   });
 
   it("refreshes bundled template files while preserving user-created extensions", async () => {

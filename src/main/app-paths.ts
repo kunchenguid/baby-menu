@@ -28,9 +28,11 @@ type CreateBabyMenuRuntimePathsOptions = {
   env?: BabyMenuPathEnv;
   homeDir?: string;
   resourcesPath?: string;
+  platform?: NodeJS.Platform;
 };
 
 export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOptions): BabyMenuRuntimePaths {
+  const platform = options.platform ?? process.platform;
   if (!options.isPackaged) {
     const cacheDir = join(options.sourceRoot, ".cache", "baby-menu");
     const extensionsDir = resolveSourceExtensionsDir(options.sourceRoot, options.env);
@@ -45,7 +47,7 @@ export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOp
       agentStateDir: join(cacheDir, "acp-sessions"),
       devExtensionSnapshotDir: join(cacheDir, "dev-extension-snapshots"),
       bundledExtensionTemplateDir: null,
-      trayIconPath: join(options.sourceRoot, "assets", "tray", "baby_menuTemplate.png"),
+      trayIconPath: join(options.sourceRoot, "assets", "tray", trayIconFileName(platform)),
       databasePath: join(cacheDir, "baby-menu.db"),
       // Dev/source: adapters are esbuild-bundled into the checkout's out/.
       adaptersDir: join(options.sourceRoot, "out", "adapters"),
@@ -70,7 +72,7 @@ export function createBabyMenuRuntimePaths(options: CreateBabyMenuRuntimePathsOp
     agentStateDir: join(cacheDir, "acp-sessions"),
     devExtensionSnapshotDir: join(cacheDir, "snapshots"),
     bundledExtensionTemplateDir: join(options.resourcesPath, "extensions-template"),
-    trayIconPath: join(options.resourcesPath, "tray", "baby_menuTemplate.png"),
+    trayIconPath: join(options.resourcesPath, "tray", trayIconFileName(platform)),
     databasePath: join(appDataRoot, "baby-menu.db"),
     // Packaged: adapters are asar-unpacked (a standalone Node process cannot read
     // inside app.asar), so they live alongside the asar in app.asar.unpacked.
@@ -100,4 +102,11 @@ function resolveSourceExtensionsDir(
   const configured = env[EXTENSIONS_DIR_ENV];
   if (!configured) return join(sourceRoot, "extensions");
   return isAbsolute(configured) ? configured : join(sourceRoot, configured);
+}
+
+// setTemplateImage macOS-only concept, so black template PNG is
+// invisible on dark Linux panel, StatusNotifierItem cannot recolor
+// pixmap. Linux therefore ships colored icon reads on either panel.
+function trayIconFileName(platform: NodeJS.Platform): string {
+  return platform === "linux" ? "baby_menu-linux.png" : "baby_menuTemplate.png";
 }
