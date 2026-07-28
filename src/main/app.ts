@@ -63,8 +63,6 @@ export function getActiveBabyMenuTray(): BabyMenuTray | null {
   return activeTray;
 }
 
-export const TOGGLE_ARGUMENT = "--toggle";
-
 function currentDirname(): string {
   return typeof __dirname === "string" ? __dirname : fileURLToPath(new URL(".", import.meta.url));
 }
@@ -115,8 +113,8 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
   return popoverWindow;
 }
 
-async function togglePopover(trayBounds: Rectangle | null): Promise<void> {
-  if (trayBounds) latestTrayBounds = trayBounds;
+async function togglePopover(trayBounds: Rectangle): Promise<void> {
+  latestTrayBounds = trayBounds;
   const window = await createPopoverWindow();
   if (window.isVisible()) {
     window.hide();
@@ -162,12 +160,24 @@ function setPopoverKeyWindowActive(active: boolean): void {
   if (active) app.focus({ steal: true });
 }
 
+// The display the popover lives on. Sizing and clamping must agree on one work
+// area, and Tray.getBounds() is macOS and Windows only - on Linux it reports an
+// empty rectangle at the origin, which is the wrong display for anyone whose
+// popover is not on the one containing (0, 0).
+function popoverWorkArea(): Rectangle | undefined {
+  const liveWindow = popoverWindow && !popoverWindow.isDestroyed() ? popoverWindow : null;
+  const anchor = isLinux ? liveWindow?.getBounds() : latestTrayBounds;
+  if (!anchor) return undefined;
+  return screen.getDisplayNearestPoint({ x: anchor.x, y: anchor.y }).workArea;
+}
+
 // setContentSize keeps the window's top-left anchored, so growth runs off the
 // bottom or right edge of the screen and stays there - the Linux path never
 // re-anchors against tray bounds the way calculatePopoverBounds does.
 function clampPopoverIntoWorkArea(window: BrowserWindow): void {
+  const workArea = popoverWorkArea();
+  if (!workArea) return;
   const bounds = window.getBounds();
-  const { workArea } = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
   const position = clampPopoverPosition(bounds, latestPopoverSize, workArea);
   if (position.x === bounds.x && position.y === bounds.y) return;
   window.setPosition(position.x, position.y);
@@ -183,10 +193,7 @@ function sendPopoverVisibility(visible: boolean): void {
 }
 
 function setPopoverContentSize(size: { width: number; height: number }) {
-  const workArea = latestTrayBounds
-    ? screen.getDisplayNearestPoint({ x: latestTrayBounds.x, y: latestTrayBounds.y }).workArea
-    : undefined;
-  latestPopoverSize = responsivePopoverSize(size, workArea);
+  latestPopoverSize = responsivePopoverSize(size, popoverWorkArea());
   if (!popoverWindow || popoverWindow.isDestroyed()) return;
 
   if (isLinux) {
@@ -214,6 +221,9 @@ export async function startBabyMenuApp(): Promise<void> {
   // Chromium cannot grab global keys under native Wayland, so users bind this
   // command in their own compositor config instead of an in-app hotkey.
   if (!app.requestSingleInstanceLock()) {
+    // Say so: a second `pnpm dev` from another checkout otherwise exits without
+    // a word and toggles the already-running instance's popover instead.
+    console.log("[baby-menu] another instance already holds the single-instance lock; toggling it instead");
     app.quit();
     return;
   }

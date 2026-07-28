@@ -14,7 +14,7 @@ Read-only or otherwise invalid targets are skipped with a log message instead of
 ### Linux autostart
 
 Linux has no `setLoginItemSettings` API, so Baby Menu manages open-at-login itself.
-Toggling it on writes `~/.config/autostart/baby-menu.desktop`; toggling it off removes the file.
+Toggling it on writes `$XDG_CONFIG_HOME/autostart/baby-menu.desktop`, falling back to `~/.config/autostart/baby-menu.desktop` when `$XDG_CONFIG_HOME` is unset or not an absolute path; toggling it off removes the file.
 When running as an AppImage, the entry launches `$APPIMAGE` instead of the extracted executable path, since that path does not survive a reboot.
 If writing or removing the file fails (for example, a read-only `~/.config`), the failure is logged to the app console.
 The Settings toggle still shows the new value, so it can disagree with what the session manager will actually do.

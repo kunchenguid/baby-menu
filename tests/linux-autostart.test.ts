@@ -1,9 +1,10 @@
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyLinuxAutostart,
+  createLinuxLoginItem,
   linuxAutostartEntry,
   linuxAutostartExecPath,
   linuxAutostartExecValue,
@@ -24,7 +25,20 @@ describe("linux autostart", () => {
   }
 
   it("uses the XDG autostart location", () => {
-    expect(linuxAutostartFilePath("/home/test-user")).toBe("/home/test-user/.config/autostart/baby-menu.desktop");
+    expect(linuxAutostartFilePath("/home/test-user", {})).toBe("/home/test-user/.config/autostart/baby-menu.desktop");
+  });
+
+  it("honors $XDG_CONFIG_HOME, which is where the session manager actually looks", () => {
+    expect(linuxAutostartFilePath("/home/test-user", { XDG_CONFIG_HOME: "/home/test-user/.local/config" })).toBe(
+      "/home/test-user/.local/config/autostart/baby-menu.desktop",
+    );
+    // The spec says a relative or empty value is invalid and must be ignored.
+    expect(linuxAutostartFilePath("/home/test-user", { XDG_CONFIG_HOME: "  " })).toBe(
+      "/home/test-user/.config/autostart/baby-menu.desktop",
+    );
+    expect(linuxAutostartFilePath("/home/test-user", { XDG_CONFIG_HOME: "relative/config" })).toBe(
+      "/home/test-user/.config/autostart/baby-menu.desktop",
+    );
   });
 
   it("prefers $APPIMAGE over the extracted executable path", () => {
@@ -59,7 +73,7 @@ describe("linux autostart", () => {
 
   it("creates the entry, including the autostart directory", async () => {
     const home = await tempHome();
-    const filePath = linuxAutostartFilePath(home);
+    const filePath = linuxAutostartFilePath(home, {});
 
     await applyLinuxAutostart(filePath, "/usr/bin/baby-menu", true);
 
@@ -68,7 +82,7 @@ describe("linux autostart", () => {
 
   it("removes the entry when autostart is disabled", async () => {
     const home = await tempHome();
-    const filePath = linuxAutostartFilePath(home);
+    const filePath = linuxAutostartFilePath(home, {});
     await applyLinuxAutostart(filePath, "/usr/bin/baby-menu", true);
 
     await applyLinuxAutostart(filePath, "/usr/bin/baby-menu", false);
@@ -76,9 +90,46 @@ describe("linux autostart", () => {
     await expect(access(filePath)).rejects.toThrow();
   });
 
+  it("lands the last requested state when two toggles overlap", async () => {
+    const home = await tempHome();
+    const loginItem = createLinuxLoginItem({ exePath: "/usr/bin/baby-menu", homeDir: home, env: {} });
+
+    // The facade is synchronous, so a fast double toggle starts a write and a
+    // remove with nothing between them to order the two.
+    loginItem.setLoginItemSettings({ openAtLogin: true });
+    loginItem.setLoginItemSettings({ openAtLogin: false });
+    loginItem.setLoginItemSettings({ openAtLogin: true });
+
+    const filePath = linuxAutostartFilePath(home, {});
+    await vi.waitFor(async () => {
+      await expect(readFile(filePath, "utf8")).resolves.toContain("Exec=/usr/bin/baby-menu");
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await expect(readFile(filePath, "utf8")).resolves.toContain("Exec=/usr/bin/baby-menu");
+  });
+
+  it("resolves the autostart path through $XDG_CONFIG_HOME", async () => {
+    const home = await tempHome();
+    const configHome = join(home, "xdg-config");
+    const loginItem = createLinuxLoginItem({
+      exePath: "/usr/bin/baby-menu",
+      homeDir: home,
+      env: { XDG_CONFIG_HOME: configHome },
+    });
+
+    loginItem.setLoginItemSettings({ openAtLogin: true });
+
+    await vi.waitFor(async () => {
+      await expect(readFile(join(configHome, "autostart", "baby-menu.desktop"), "utf8")).resolves.toContain(
+        "Exec=/usr/bin/baby-menu",
+      );
+    });
+    await expect(access(join(home, ".config", "autostart", "baby-menu.desktop"))).rejects.toThrow();
+  });
+
   it("is idempotent in both directions", async () => {
     const home = await tempHome();
-    const filePath = linuxAutostartFilePath(home);
+    const filePath = linuxAutostartFilePath(home, {});
 
     await applyLinuxAutostart(filePath, "/usr/bin/baby-menu", true);
     await applyLinuxAutostart(filePath, "/usr/bin/baby-menu", true);

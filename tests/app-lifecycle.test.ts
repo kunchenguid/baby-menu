@@ -47,7 +47,7 @@ const browserWindowInstance = {
 const BrowserWindow = vi.fn(function BrowserWindowMock() {
   return browserWindowInstance;
 });
-const getDisplayNearestPoint = vi.fn(() => ({
+const getDisplayNearestPoint = vi.fn((_point: { x: number; y: number }) => ({
   workArea: { x: 0, y: 0, width: 1440, height: 900 },
 }));
 const protocol = {
@@ -538,6 +538,28 @@ describe("linux popover placement", () => {
     expect(browserWindowInstance.center).toHaveBeenCalledTimes(1);
   });
 
+  it("caps the size against the popover's own display, not the tray-bounds origin", async () => {
+    // Linux tray bounds are an empty rectangle at the origin, so a popover on a
+    // second, shorter display was previously capped by whichever display holds
+    // (0, 0) and then clamped by its own - the two disagreeing on one work area.
+    getDisplayNearestPoint.mockImplementation((point: { x: number; y: number }) =>
+      point.x >= 1440
+        ? { workArea: { x: 1440, y: 0, width: 1280, height: 500 } }
+        : { workArea: { x: 0, y: 0, width: 1440, height: 900 } },
+    );
+    browserWindowInstance.getBounds.mockReturnValue({ x: 1500, y: 40, width: 504, height: 400 });
+    const { startBabyMenuApp } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+    const setContentSize = registerIpcHandlers.mock.calls[0][4].setContentSize as (size: {
+      width: number;
+      height: number;
+    }) => void;
+    setContentSize({ width: 504, height: 700 });
+
+    expect(browserWindowInstance.setContentSize).toHaveBeenLastCalledWith(504, 484);
+  });
+
   it("does not re-center on a second popover open", async () => {
     const { startBabyMenuApp } = await import("../src/main/app");
 
@@ -650,7 +672,7 @@ describe("single instance lock", () => {
   });
 
   it("ignores a --toggle second instance that arrives before the app is ready", async () => {
-    const { startBabyMenuApp, TOGGLE_ARGUMENT } = await import("../src/main/app");
+    const { startBabyMenuApp } = await import("../src/main/app");
 
     await startBabyMenuApp();
     // A --toggle launch can land while this instance is still starting up.
@@ -658,7 +680,7 @@ describe("single instance lock", () => {
     // escape the fire-and-forget call and kill the main process.
     electronApp.isReady.mockReturnValue(false);
 
-    appHandler("second-instance")?.({}, ["/usr/bin/baby-menu", TOGGLE_ARGUMENT]);
+    appHandler("second-instance")?.({}, ["/usr/bin/baby-menu", "--toggle"]);
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     expect(browserWindowInstance.show).not.toHaveBeenCalled();
@@ -676,12 +698,12 @@ describe("single instance lock", () => {
   });
 
   it("toggles the popover when a second instance passes --toggle", async () => {
-    const { startBabyMenuApp, TOGGLE_ARGUMENT } = await import("../src/main/app");
+    const { startBabyMenuApp } = await import("../src/main/app");
 
     await startBabyMenuApp();
     expect(browserWindowInstance.show).not.toHaveBeenCalled();
 
-    appHandler("second-instance")?.({}, ["/usr/bin/baby-menu", TOGGLE_ARGUMENT]);
+    appHandler("second-instance")?.({}, ["/usr/bin/baby-menu", "--toggle"]);
     await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalledTimes(1));
   });
 
@@ -698,12 +720,12 @@ describe("single instance lock", () => {
   });
 
   it("ignores a second instance that arrives before startup finishes", async () => {
-    const { startBabyMenuApp, TOGGLE_ARGUMENT } = await import("../src/main/app");
+    const { startBabyMenuApp } = await import("../src/main/app");
     // Readiness is not the end of startup: IPC handlers and the tray are only
     // registered several awaits later, so a popover opened here would come up
     // with every window.babyMenu.* call rejecting as unhandled.
     electronApp.whenReady.mockImplementationOnce(async () => {
-      appHandler("second-instance")?.({}, ["/usr/bin/baby-menu", TOGGLE_ARGUMENT]);
+      appHandler("second-instance")?.({}, ["/usr/bin/baby-menu", "--toggle"]);
     });
 
     await startBabyMenuApp();
@@ -717,6 +739,7 @@ describe("single instance lock", () => {
 describe("linux autostart wiring", () => {
   const originalPlatform = process.platform;
   const originalResourcesPath = Object.getOwnPropertyDescriptor(process, "resourcesPath");
+  const originalConfigHome = process.env.XDG_CONFIG_HOME;
   const tempDirs: string[] = [];
 
   beforeEach(() => {
@@ -727,11 +750,16 @@ describe("linux autostart wiring", () => {
     trayInstance.getBounds.mockReturnValue({ x: 0, y: 0, width: 0, height: 0 });
     electronApp.requestSingleInstanceLock.mockReturnValue(true);
     delete process.env.BABY_MENU_PACKAGED_TEST_HOME;
+    // The real entry path follows $XDG_CONFIG_HOME, so a developer session that
+    // sets it would otherwise send these writes outside the temp home below.
+    delete process.env.XDG_CONFIG_HOME;
     Object.defineProperty(process, "platform", { configurable: true, value: "linux" });
   });
 
   afterEach(async () => {
     electronApp.isPackaged = false;
+    if (originalConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = originalConfigHome;
     Object.defineProperty(process, "platform", { configurable: true, value: originalPlatform });
     // vi.clearAllMocks() clears recorded calls but not a configured implementation,
     // so a getPath pointing at a temp home deleted below would outlive this block.
@@ -771,6 +799,32 @@ describe("linux autostart wiring", () => {
     });
 
     expect(electronApp.setLoginItemSettings).not.toHaveBeenCalled();
+  });
+
+  it("writes the autostart entry under $XDG_CONFIG_HOME when the session sets one", async () => {
+    const { mkdtemp, readFile } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const home = await mkdtemp(join(tmpdir(), "baby-menu-linux-home-"));
+    tempDirs.push(home);
+    process.env.XDG_CONFIG_HOME = join(home, "xdg-config");
+
+    electronApp.isPackaged = true;
+    electronApp.getPath.mockImplementation((name: string) => {
+      if (name === "home") return home;
+      if (name === "exe") return "/usr/bin/baby-menu";
+      return home;
+    });
+    Object.defineProperty(process, "resourcesPath", { configurable: true, value: join(home, "resources") });
+
+    const { startBabyMenuApp } = await import("../src/main/app");
+    await startBabyMenuApp();
+
+    await vi.waitFor(async () => {
+      await expect(
+        readFile(join(home, "xdg-config", "autostart", "baby-menu.desktop"), "utf8"),
+      ).resolves.toContain("Exec=/usr/bin/baby-menu");
+    });
   });
 
   it("does not create an autostart entry for a packaged dev-build Linux executable", async () => {

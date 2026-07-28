@@ -136,7 +136,7 @@ GNOME: Settings, Keyboard, Custom Shortcuts, command `baby-menu --toggle`.
 GNOME also shows no tray icon at all without the AppIndicator extension, so on a stock GNOME session the shortcut and re-launching from the app grid are the only entry points.
 
 Launch at login is a Settings toggle in packaged Linux builds.
-It writes or removes `~/.config/autostart/baby-menu.desktop`. Running from source the toggle stays off, because only a packaged production build may touch your session autostart.
+It writes or removes `$XDG_CONFIG_HOME/autostart/baby-menu.desktop` (`~/.config/autostart/baby-menu.desktop` when `$XDG_CONFIG_HOME` is unset). Running from source the toggle stays off, because only a packaged production build may touch your session autostart.
 
 ## How It Works
 
