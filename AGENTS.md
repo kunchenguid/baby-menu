@@ -65,7 +65,7 @@ The extension-facing slice of that contract is a generated public surface, treat
 - `app.ts` - Electron lifecycle, popover window creation, packaged path setup, extension seeding, preferences, selectable-agent catalog wiring, protocols, tray, and IPC. `package.json#main` points here via `out/main/index.js`.
 - `app-paths.ts` - resolves source paths versus packaged `~/.baby-menu` paths.
 - `tray.ts` - macOS tray icon and click handling (`createBabyMenuTray`), plus a Linux-only context menu (`Open Baby Menu`, `Quit`); `setTemplateImage` is applied only on darwin.
-- `linux-autostart.ts` - writes and removes `~/.config/autostart/baby-menu.desktop`, standing in for `setLoginItemSettings` on Linux, and prefers `$APPIMAGE` over the extracted executable path.
+- `linux-autostart.ts` - writes and removes the autostart desktop entry described in `docs/configuration.md#linux-autostart`, standing in for `setLoginItemSettings` on Linux, and prefers `$APPIMAGE` over the extracted executable path.
 - `popover.ts` - popover `BrowserWindow` options (`createPopoverOptions`), adaptive width/height sizing (`responsivePopoverSize`), macOS bounds math (`calculatePopoverBounds`), and renderer URL/file loading (`loadPopoverRenderer`). `calculatePopoverBounds` is macOS only: Wayland ignores absolute toplevel coordinates, so `app.ts` sizes and centers the popover on Linux instead.
 - `ipc.ts` - registers all `ipcMain` handlers exposed via the preload bridge; the single place new generic IPC routes are added.
 - `agent-catalog.ts` - defines built-in agents, parses custom `agents.json`, computes Settings availability, and builds `acpx` registry overrides.
