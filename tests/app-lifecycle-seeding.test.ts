@@ -27,6 +27,8 @@ const electronApp = {
   isPackaged: false,
   on: vi.fn(),
   whenReady: vi.fn(async () => undefined),
+  requestSingleInstanceLock: vi.fn(() => true),
+  quit: vi.fn(),
 };
 const browserWindowInstance = {
   isDestroyed: vi.fn(() => false),

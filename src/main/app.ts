@@ -54,6 +54,8 @@ export function getActiveBabyMenuTray(): BabyMenuTray | null {
   return activeTray;
 }
 
+export const TOGGLE_ARGUMENT = "--toggle";
+
 function currentDirname(): string {
   return typeof __dirname === "string" ? __dirname : fileURLToPath(new URL(".", import.meta.url));
 }
@@ -175,6 +177,20 @@ function setPopoverContentHeight(height: number) {
 
 export async function startBabyMenuApp(): Promise<void> {
   expandProcessPathForGuiLaunch();
+
+  // Without the lock, a .desktop launcher or a second `pnpm dev` spawns a second
+  // tray icon. It is also how `baby-menu --toggle` reaches the running app:
+  // Chromium cannot grab global keys under native Wayland, so users bind this
+  // command in their own compositor config instead of an in-app hotkey.
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+    return;
+  }
+  app.on("second-instance", (_event, argv) => {
+    if (!argv.includes(TOGGLE_ARGUMENT)) return;
+    void togglePopover(getActiveBabyMenuTray()?.getBounds() ?? null);
+  });
+
   await app.whenReady();
 
   // Anonymous, best-effort usage telemetry. No-op unless a build-time Umami

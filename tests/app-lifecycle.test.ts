@@ -22,6 +22,8 @@ const electronApp = {
   isPackaged: false,
   on: vi.fn(),
   whenReady: vi.fn(async () => undefined),
+  requestSingleInstanceLock: vi.fn(() => true),
+  quit: vi.fn(),
 };
 
 const createBabyMenuTray = vi.fn((_onClick: (bounds: Rectangle) => void) => trayInstance);
@@ -144,6 +146,7 @@ describe("startBabyMenuApp", () => {
     browserWindowInstance.isDestroyed.mockReturnValue(false);
     browserWindowInstance.isVisible.mockReturnValue(false);
     trayInstance.getBounds.mockReturnValue({ x: 100, y: 10, width: 24, height: 24 });
+    electronApp.requestSingleInstanceLock.mockReturnValue(true);
     delete process.env.BABY_MENU_OPEN_POPOVER_ON_START;
     delete process.env.BABY_MENU_REMOTE_DEBUGGING_PORT;
     Object.defineProperty(process, "platform", {
@@ -568,5 +571,61 @@ describe("popover blur guard", () => {
     windowHandler("blur")?.();
 
     expect(browserWindowInstance.hide).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("single instance lock", () => {
+  const originalPlatform = process.platform;
+
+  function appHandler(event: string): ((...args: unknown[]) => void) | undefined {
+    const call = electronApp.on.mock.calls.find(([name]) => name === event);
+    return call?.[1] as ((...args: unknown[]) => void) | undefined;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    electronApp.isPackaged = false;
+    electronApp.requestSingleInstanceLock.mockReturnValue(true);
+    browserWindowInstance.isDestroyed.mockReturnValue(false);
+    browserWindowInstance.isVisible.mockReturnValue(false);
+    trayInstance.getBounds.mockReturnValue({ x: 0, y: 0, width: 0, height: 0 });
+    delete process.env.BABY_MENU_OPEN_POPOVER_ON_START;
+    Object.defineProperty(process, "platform", { configurable: true, value: "linux" });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { configurable: true, value: originalPlatform });
+  });
+
+  it("quits a second instance instead of creating a second tray icon", async () => {
+    electronApp.requestSingleInstanceLock.mockReturnValueOnce(false);
+    const { startBabyMenuApp } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+
+    expect(electronApp.quit).toHaveBeenCalledTimes(1);
+    expect(createBabyMenuTray).not.toHaveBeenCalled();
+    expect(electronApp.whenReady).not.toHaveBeenCalled();
+  });
+
+  it("toggles the popover when a second instance passes --toggle", async () => {
+    const { startBabyMenuApp, TOGGLE_ARGUMENT } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+    expect(browserWindowInstance.show).not.toHaveBeenCalled();
+
+    appHandler("second-instance")?.({}, ["/usr/bin/baby-menu", TOGGLE_ARGUMENT]);
+    await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalledTimes(1));
+  });
+
+  it("ignores a second instance launched without --toggle", async () => {
+    const { startBabyMenuApp } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+    appHandler("second-instance")?.({}, ["/usr/bin/baby-menu"]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(browserWindowInstance.show).not.toHaveBeenCalled();
   });
 });
