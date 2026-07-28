@@ -74,6 +74,9 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
   const dirname = currentDirname();
   popoverWindow = new BrowserWindow(createPopoverOptions(join(dirname, "../preload/index.cjs")));
   popoverHasFocused = false;
+  // A genuinely new window has no placement to preserve, so it must be centered
+  // again. Only reachable when a compositor closes the frameless popover.
+  popoverCentered = false;
   popoverWindow.on("focus", () => {
     popoverHasFocused = true;
   });
@@ -196,6 +199,11 @@ export async function startBabyMenuApp(): Promise<void> {
   }
   app.on("second-instance", (_event, argv) => {
     if (!argv.includes(TOGGLE_ARGUMENT)) return;
+    // A --toggle launch can land while this instance is still starting up.
+    // Creating a BrowserWindow before readiness throws, and the rejection would
+    // escape this fire-and-forget call and take down the main process. Dropping
+    // the toggle is right: the popover is about to open on startup anyway.
+    if (!app.isReady()) return;
     void togglePopover(getActiveBabyMenuTray()?.getBounds() ?? null);
   });
 

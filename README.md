@@ -74,7 +74,7 @@ Linux packages are not published yet, so this describes the app once you build a
 
 Toggle the popover:
 
-- Click the tray icon, or right click, then `Open Baby Menu`.
+- Click the tray icon. On GNOME and KDE the AppIndicator host maps left click to the menu, so use `Open Baby Menu` there.
 - `baby-menu --toggle`, bound to a key in your own compositor config.
 
 There is no built-in global hotkey on purpose: Chromium cannot grab global keys under native Wayland, so a built-in binding would look broken instead of just missing.
@@ -93,7 +93,8 @@ KDE Plasma: System Settings, Shortcuts, Add Command, `baby-menu --toggle`.
 GNOME: Settings, Keyboard, Custom Shortcuts, command `baby-menu --toggle`.
 GNOME also shows no tray icon at all without the AppIndicator extension, so on a stock GNOME session the `--toggle` shortcut is the only entry point.
 
-Launch at login is a Settings toggle. It writes or removes `~/.config/autostart/baby-menu.desktop`.
+Launch at login is a Settings toggle in packaged Linux builds, which are not published yet.
+It writes or removes `~/.config/autostart/baby-menu.desktop`. Running from source the toggle stays off, because only a packaged production build may touch your session autostart.
 
 ## How It Works
 

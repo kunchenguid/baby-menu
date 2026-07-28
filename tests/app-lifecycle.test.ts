@@ -22,6 +22,7 @@ const electronApp = {
   isPackaged: false,
   on: vi.fn(),
   whenReady: vi.fn(async () => undefined),
+  isReady: vi.fn(() => true),
   requestSingleInstanceLock: vi.fn(() => true),
   quit: vi.fn(),
 };
@@ -606,6 +607,7 @@ describe("single instance lock", () => {
     vi.resetModules();
     electronApp.isPackaged = false;
     electronApp.requestSingleInstanceLock.mockReturnValue(true);
+    electronApp.isReady.mockReturnValue(true);
     browserWindowInstance.isDestroyed.mockReturnValue(false);
     browserWindowInstance.isVisible.mockReturnValue(false);
     trayInstance.getBounds.mockReturnValue({ x: 0, y: 0, width: 0, height: 0 });
@@ -615,6 +617,21 @@ describe("single instance lock", () => {
 
   afterEach(() => {
     Object.defineProperty(process, "platform", { configurable: true, value: originalPlatform });
+  });
+
+  it("ignores a --toggle second instance that arrives before the app is ready", async () => {
+    const { startBabyMenuApp, TOGGLE_ARGUMENT } = await import("../src/main/app");
+
+    await startBabyMenuApp();
+    // A --toggle launch can land while this instance is still starting up.
+    // Creating a BrowserWindow before readiness throws, and the rejection would
+    // escape the fire-and-forget call and kill the main process.
+    electronApp.isReady.mockReturnValue(false);
+
+    appHandler("second-instance")?.({}, ["/usr/bin/baby-menu", TOGGLE_ARGUMENT]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(browserWindowInstance.show).not.toHaveBeenCalled();
   });
 
   it("quits a second instance instead of creating a second tray icon", async () => {
@@ -651,6 +668,7 @@ describe("single instance lock", () => {
 
 describe("linux autostart wiring", () => {
   const originalPlatform = process.platform;
+  const originalResourcesPath = Object.getOwnPropertyDescriptor(process, "resourcesPath");
   const tempDirs: string[] = [];
 
   beforeEach(() => {
@@ -667,6 +685,16 @@ describe("linux autostart wiring", () => {
   afterEach(async () => {
     electronApp.isPackaged = false;
     Object.defineProperty(process, "platform", { configurable: true, value: originalPlatform });
+    // vi.clearAllMocks() clears recorded calls but not a configured implementation,
+    // so a getPath pointing at a temp home deleted below would outlive this block.
+    // createLinuxLoginItem reads getPath("home") unconditionally on Linux, where a
+    // stale value is a startup TypeError rather than a silent no-op.
+    electronApp.getPath.mockImplementation((name: string) => {
+      if (name === "home") return "/home/test-user";
+      if (name === "exe") return "/tmp/Baby Menu Dev.app/Contents/MacOS/Baby Menu Dev";
+      return "/tmp";
+    });
+    if (originalResourcesPath) Object.defineProperty(process, "resourcesPath", originalResourcesPath);
     const { rm } = await import("node:fs/promises");
     await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });
