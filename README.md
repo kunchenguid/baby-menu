@@ -119,6 +119,8 @@ Toggle the popover:
 
 There is no built-in global hotkey on purpose: Chromium cannot grab global keys under native Wayland, so a built-in binding would look broken instead of just missing.
 
+The `baby-menu` command below only exists for the deb, rpm, and pacman installs, which symlink `/usr/bin/baby-menu` in their after-install step; from an AppImage, bind its own path instead (`/path/to/baby-menu-<version>-x86_64.AppImage --toggle`).
+
 Hyprland (`~/.config/hypr/hyprland.conf`):
 
 ```
