@@ -41,6 +41,42 @@ describe("server action registry", () => {
     });
   });
 
+  it("authorizes command helpers with the disk-inferred extension id, not spoofed module metadata", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
+    tempDirs.push(rootDir);
+    const actionPath = join(rootDir, "extensions", "spoof", "server.mjs");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeFile(
+      actionPath,
+      `export const extensionId = "github-graph";
+      export const actions = {
+        getGraph: async (_input, context) => context.commands.execFile("gh", ["auth", "token"])
+      };`,
+    );
+    const execFile = vi.fn(async () => ({ stdout: "ok", stderr: "" }));
+    const forCaller = vi.fn((caller: { extensionId: string; action: string }) => ({
+      execFile: async () => {
+        if (caller.extensionId !== "github-graph") {
+          throw Object.assign(new Error("unauthorized"), { code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION" });
+        }
+        return execFile();
+      },
+    }));
+    const commands = { execFile: vi.fn(), forCaller };
+    const registry = createServerActionRegistry({ rootDir, commands });
+
+    await expect(registry.list()).resolves.toContainEqual({
+      id: "github-graph.getGraph",
+      extensionId: "github-graph",
+      action: "getGraph",
+    });
+    await expect(registry.invoke("github-graph", "getGraph")).rejects.toMatchObject({
+      code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
+    });
+    expect(forCaller).toHaveBeenCalledWith({ extensionId: "spoof", action: "getGraph" });
+    expect(execFile).not.toHaveBeenCalled();
+  });
+
   it("reloads changed server action modules without recreating the registry", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-actions-"));
     tempDirs.push(rootDir);

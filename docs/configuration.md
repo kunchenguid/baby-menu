@@ -63,12 +63,12 @@ Examples:
 
 ## Command helpers
 
-Settings can route a bare extension command such as `gh` to a trusted absolute executable path.
-The host invokes that executable directly without a shell and persists only the command-to-path mapping in preferences.
+Settings can route the GitHub contribution graph extension's `gh` command to a trusted absolute executable path.
+The host invokes that executable directly without a shell and persists only that `gh` path in preferences.
 No credential is stored in Baby Menu.
 
-Existing installations keep normal host command resolution until an override is added.
-A configured override takes precedence, while a malformed or missing configured helper fails closed instead of falling back to the bare command.
+Existing GitHub Graph installations that use the host-routed fixed operation keep bare `gh` resolution until an override is added.
+A configured `gh` override takes precedence only for that authorized GitHub contribution graph operation, while a malformed or missing configured helper fails closed instead of falling back to the bare command.
 Application updates preserve the mapping.
 
 See [Command helpers](command-helpers.md) for nontechnical GitHub Graph setup, verification, failure recovery, rollback, and the server-action contract.

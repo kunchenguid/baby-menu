@@ -56,8 +56,10 @@ declare module "@babymenu/contracts" {
 
   export type BabyMenuHostCommands = {
     /**
-     * Run a bare command through the host's configured executable override, or
-     * normal host resolution when no override exists. No shell is ever involved.
+     * Run a bare command through normal host resolution. The `gh` command is
+     * limited to the built-in GitHub contribution-graph policy, with or without a
+     * configured helper.
+     * No shell is ever involved.
      */
     execFile: (
       command: string,

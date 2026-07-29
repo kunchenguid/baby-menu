@@ -1,6 +1,6 @@
 # Command helpers
 
-Command helpers let an extension route one bare command name to a trusted executable selected in Baby Menu Settings.
+Command helpers let the GitHub contribution graph extension route the `gh` command to a trusted executable selected in Baby Menu Settings.
 They are useful when a credential manager, enterprise launcher, or signed helper must own the child-process identity instead of Baby Menu.
 
 The command-helper setting stores only the command name and executable path, never a credential.
@@ -68,8 +68,8 @@ Follow the helper provider's own rollback instructions if that policy must also 
 
 ## Defaults, migration, and updates
 
-An installation with no command-helper setting keeps normal host command resolution for compatibility with existing extensions.
-A configured override always wins for extensions that use `context.commands.execFile`.
+An installation with no command-helper setting keeps bare `gh` resolution for the authorized GitHub Graph operation.
+A configured override always wins for that operation when it uses `context.commands.execFile`.
 A malformed configured override fails closed and never falls back to the bare command.
 
 Command-helper settings live in Baby Menu preferences under the mutable app-data directory.
@@ -78,12 +78,13 @@ Removing or reinstalling a user-created extension does not remove the command-he
 
 ## Extension contract
 
-Server actions and background tasks receive `context.commands.execFile(command, args, options)`.
+Server actions and background tasks receive `context.commands.execFile(command, args, options)`, but `gh` is authorized only for the GitHub contribution graph server action.
 The host resolves only a syntactically safe bare command name, invokes the resolved executable directly with `execFile` semantics, and never starts a shell.
 It rejects null bytes and oversized argument lists, applies a 15-second default timeout and 1 MiB default output bound, and caps explicit values at 30 seconds and 8 MiB.
 Timeout and output-limit failures use deterministic error codes.
 When Settings maps a command to a helper executable, the host requires a built-in operation policy matching the requesting extension id, action name, operation name, command, and exact argv.
 The GitHub contribution-calendar policy authorizes only `github-graph.getGraph` with the fixed `github.contributionGraph` operation and the contribution GraphQL request below.
+Other extensions, other actions, background tasks, and alternate `gh` argv are rejected instead of reaching bare `gh` or a configured helper.
 
 A GitHub Graph action should keep its GraphQL document and every argument in extension-owned constants:
 

@@ -167,8 +167,11 @@ describe("preferences service", () => {
       "Enter a command name and an executable path.",
     );
     await expect(
-      service.setCommandOverride({ command: "gh; open /tmp/pwned", executable: nonExecutable }),
+      service.setCommandOverride({ command: "gh; open /tmp/pwned", executable: nonExecutable } as never),
     ).rejects.toThrow("Command names must contain only letters, numbers, dot, dash, underscore, or plus.");
+    await expect(
+      service.setCommandOverride({ command: "git", executable: nonExecutable } as never),
+    ).rejects.toThrow("Only the GitHub contribution graph helper command is supported.");
     await expect(service.setCommandOverride({ command: "gh", executable: "relative/helper" })).rejects.toThrow(
       "Choose an absolute executable path.",
     );

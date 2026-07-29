@@ -49,7 +49,7 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
 - **Live custom agent catalog.**
   Settings-owned custom ACP agents persist to `agents.json` and register as `acpx` overrides immediately, kept separate from read-only built-ins.
 - **No-shell command routing.**
-  Settings-owned command overrides persist in preferences, while `host-command-runner.ts` validates the bare command and argv, resolves the selected executable in the main process, and invokes it with `execFile` semantics.
+  The Settings-owned `gh` helper override persists in preferences, while `host-command-runner.ts` validates the bare command and argv, resolves the selected executable in the main process, and invokes it with `execFile` semantics only for the GitHub contribution graph policy.
   Extensions keep operations and arguments fixed; renderer input never chooses the executable, query, flags, environment, or URL.
 
 ## Change tracking

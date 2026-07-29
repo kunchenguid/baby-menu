@@ -3,7 +3,11 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createHostCommandRunner } from "../src/main/host-command-runner";
+import {
+  GITHUB_CONTRIBUTION_GRAPH_ARGS,
+  GITHUB_CONTRIBUTION_GRAPH_OPERATION,
+  createHostCommandRunner,
+} from "../src/main/host-command-runner";
 
 const GRAPH_QUERY = "query { viewer { login contributionsCollection { contributionCalendar { totalContributions } } } }";
 
@@ -61,7 +65,7 @@ describe("host command runner", () => {
     const runner = createHostCommandRunner({ resolveExecutable: async () => ({ executable: helper, overridden: false }) });
     const argument = `; touch ${injectedFile}`;
 
-    await runner.execFile("gh", [argument]);
+    await runner.execFile("literal-helper", [argument]);
 
     expect((await readFile(argvLog)).toString().split("\0").filter(Boolean)).toEqual([argument]);
     await expect(readFile(injectedFile)).rejects.toMatchObject({ code: "ENOENT" });
@@ -77,7 +81,7 @@ describe("host command runner", () => {
     await chmod(helper, 0o700);
     const runner = createHostCommandRunner({ resolveExecutable: async () => ({ executable: helper, overridden: false }) });
 
-    await expect(runner.execFile("gh", [], { timeoutMs: 500 })).rejects.toMatchObject({
+    await expect(runner.execFile("slow-helper", [], { timeoutMs: 500 })).rejects.toMatchObject({
       code: "BABY_MENU_COMMAND_TIMEOUT",
       message: "Command timed out after 500 milliseconds.",
     });
@@ -93,7 +97,7 @@ describe("host command runner", () => {
     await chmod(helper, 0o700);
     const runner = createHostCommandRunner({ resolveExecutable: async () => ({ executable: helper, overridden: false }) });
 
-    await expect(runner.execFile("gh", [], { maxBufferBytes: 64 })).rejects.toMatchObject({
+    await expect(runner.execFile("large-output-helper", [], { maxBufferBytes: 64 })).rejects.toMatchObject({
       code: "BABY_MENU_COMMAND_OUTPUT_LIMIT",
       message: "Command output exceeded 64 bytes.",
     });
@@ -129,10 +133,10 @@ describe("host command runner", () => {
     await chmod(helper, 0o700);
     const runner = createHostCommandRunner({ resolveExecutable: async () => ({ executable: helper, overridden: false }) });
 
-    await expect(runner.execFile("gh", [])).rejects.toMatchObject({
+    await expect(runner.execFile("failing-helper", [])).rejects.toMatchObject({
       code: "BABY_MENU_COMMAND_FAILED",
       exitCode: 7,
-      message: 'Command "gh" exited with status 7.',
+      message: 'Command "failing-helper" exited with status 7.',
       stderr: "GitHub sign-in required\n",
     });
   });
@@ -157,6 +161,91 @@ describe("host command runner", () => {
 
     await expect(runner.execFile("gh", args, { operation: "github.contributionGraph" })).rejects.toMatchObject({
       code: "ENOENT",
+    });
+  });
+
+  it("rejects credential-oriented argv before launching a configured helper", async () => {
+    const resolveExecutable = vi.fn(async () => ({ executable: "/never/launched", overridden: true }));
+    const runner = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "getGraph" },
+      resolveExecutable,
+    });
+
+    await expect(
+      runner.execFile("gh", ["auth", "token"], { operation: GITHUB_CONTRIBUTION_GRAPH_OPERATION }),
+    ).rejects.toMatchObject({
+      code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
+      message: "The configured command helper is not authorized for this extension operation.",
+    });
+  });
+
+  it("allows bare gh migration only for the exact GitHub contribution graph policy", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
+    tempDirs.push(rootDir);
+    const helper = join(rootDir, "bare-gh");
+    await writeFile(helper, "#!/bin/sh\nprintf '{\"data\":{\"viewer\":{\"login\":\"bare-account\"}}}\\n'\n");
+    await chmod(helper, 0o700);
+    const runner = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "getGraph" },
+      resolveExecutable: async () => ({ executable: helper, overridden: false }),
+    });
+
+    const result = await runner.execFile("gh", GITHUB_CONTRIBUTION_GRAPH_ARGS, {
+      operation: GITHUB_CONTRIBUTION_GRAPH_OPERATION,
+    });
+
+    expect(JSON.parse(result.stdout).data.viewer.login).toBe("bare-account");
+  });
+
+  it("rejects same-extension alternate argv for the GitHub contribution graph helper", async () => {
+    const runner = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "getGraph" },
+      resolveExecutable: async () => ({ executable: "/never/launched", overridden: true }),
+    });
+
+    await expect(
+      runner.execFile("gh", ["api", "user"], { operation: GITHUB_CONTRIBUTION_GRAPH_OPERATION }),
+    ).rejects.toMatchObject({
+      code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
+    });
+  });
+
+  it("rejects unrelated extensions and actions for the configured GitHub helper", async () => {
+    const resolveExecutable = async () => ({ executable: "/never/launched", overridden: true });
+    const unrelatedExtension = createHostCommandRunner({
+      caller: { extensionId: "other-extension", action: "getGraph" },
+      resolveExecutable,
+    });
+    const unrelatedAction = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "refresh" },
+      resolveExecutable,
+    });
+
+    await expect(
+      unrelatedExtension.execFile("gh", GITHUB_CONTRIBUTION_GRAPH_ARGS, {
+        operation: GITHUB_CONTRIBUTION_GRAPH_OPERATION,
+      }),
+    ).rejects.toMatchObject({
+      code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
+    });
+    await expect(
+      unrelatedAction.execFile("gh", GITHUB_CONTRIBUTION_GRAPH_ARGS, {
+        operation: GITHUB_CONTRIBUTION_GRAPH_OPERATION,
+      }),
+    ).rejects.toMatchObject({
+      code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
+    });
+  });
+
+  it("rejects configured helpers without a server-action caller, including background tasks", async () => {
+    const runner = createHostCommandRunner({
+      resolveExecutable: async () => ({ executable: "/never/launched", overridden: true }),
+    });
+
+    await expect(
+      runner.execFile("gh", GITHUB_CONTRIBUTION_GRAPH_ARGS, { operation: GITHUB_CONTRIBUTION_GRAPH_OPERATION }),
+    ).rejects.toMatchObject({
+      code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
     });
   });
 

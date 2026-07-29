@@ -129,7 +129,7 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
   function openAddCommandForm() {
     setCommandListError(null);
     setCommandFormError(null);
-    setCommandForm({ mode: "add", command: "", executable: "" });
+    setCommandForm({ mode: "add", command: "gh", executable: "" });
   }
 
   function openEditCommandForm(override: BabyMenuCommandOverride) {
@@ -145,7 +145,7 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
     try {
       applySettings(
         await window.babyMenu.settings.setCommandOverride({
-          command: commandForm.command.trim(),
+          command: "gh",
           executable: commandForm.executable.trim(),
         }),
       );
@@ -243,7 +243,7 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
       <section className="flex flex-col gap-2">
         <span className="text-xxs uppercase tracking-caps text-ink-label">command helpers</span>
         <span className="text-xs leading-relaxed text-ink-soft">
-          Route an extension command to a trusted executable without changing your system path.
+          Route the GitHub contribution graph command to a trusted executable without changing your system path.
         </span>
         {commandOverrides.length === 0 ? (
           <span className="text-xs text-ink-muted">No helpers configured. Commands use normal app lookup.</span>
@@ -331,18 +331,11 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
         <DialogContent className="max-w-sm">
           <DialogTitle>{commandForm?.mode === "edit" ? "edit command helper" : "add command helper"}</DialogTitle>
           <DialogDescription>
-            When an extension requests this command, Baby Menu runs the selected executable directly with no shell.
+            When the GitHub Graph extension requests its fixed contribution query, Baby Menu runs this executable directly with no shell.
           </DialogDescription>
           <DialogBody className="flex flex-col gap-3">
-            <Field label="command name" hint="The bare command used by the extension, for example gh.">
-              <Input
-                value={commandForm?.command ?? ""}
-                disabled={commandForm?.mode === "edit"}
-                placeholder="gh"
-                onChange={(event) =>
-                  setCommandForm((form) => (form ? { ...form, command: event.target.value } : form))
-                }
-              />
+            <Field label="command name" hint="Fixed to gh for the GitHub contribution graph policy.">
+              <Input value="gh" disabled placeholder="gh" />
             </Field>
             <Field label="executable path" hint="Paste the absolute path supplied by your helper provider.">
               <Input

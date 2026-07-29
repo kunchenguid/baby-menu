@@ -3,7 +3,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/renderer/App";
 import { SettingsView } from "../src/renderer/settings/SettingsView";
-import type { BabyMenuApi, BabyMenuCustomAgentInput, BabyMenuSettings, PopoverVisibilityState } from "../src/shared/contracts";
+import type {
+  BabyMenuApi,
+  BabyMenuCommandOverride,
+  BabyMenuCustomAgentInput,
+  BabyMenuSettings,
+  PopoverVisibilityState,
+} from "../src/shared/contracts";
 
 function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
   const base: BabyMenuSettings = {
@@ -67,7 +73,7 @@ function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
         current = { ...current, agents: current.agents.filter((agent) => agent.name !== name) };
         return current;
       }),
-      setCommandOverride: vi.fn(async (input: { command: string; executable: string }) => {
+      setCommandOverride: vi.fn(async (input: BabyMenuCommandOverride) => {
         current = {
           ...current,
           commandOverrides: [

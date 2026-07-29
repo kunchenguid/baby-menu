@@ -228,7 +228,8 @@ export async function startBabyMenuApp(): Promise<void> {
       agentSwitchDisabledReason: agentRuntime.agentSwitchDisabledReason,
       agents: agentCatalog.options(),
       commandOverrides: Object.entries(current.commandOverrides ?? {})
-        .map(([command, executable]) => ({ command, executable }))
+        .filter(([command]) => command === "gh")
+        .map(([, executable]) => ({ command: "gh" as const, executable }))
         .sort((left, right) => left.command.localeCompare(right.command)),
     };
   }

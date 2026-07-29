@@ -72,9 +72,9 @@ export type BabyMenuAgentOption = {
 };
 
 export type BabyMenuCommandOverride = {
-  /** Bare command requested by an extension, for example `gh`. */
-  command: string;
-  /** Absolute executable or no-shell wrapper selected by the user. */
+  /** The only supported configured helper command: GitHub CLI for the GitHub Graph extension. */
+  command: "gh";
+  /** Absolute executable or no-shell wrapper selected by the user for `gh`. */
   executable: string;
 };
 
@@ -140,8 +140,10 @@ export type BabyMenuCommandResult = {
 
 export type BabyMenuHostCommands = {
   /**
-   * Run a bare command through the host's configured executable override, or
-   * normal host resolution when no override exists. No shell is ever involved.
+   * Run a bare command through normal host resolution. The `gh` command is
+   * limited to the built-in GitHub contribution-graph policy, with or without a
+   * configured helper.
+   * No shell is ever involved.
    */
   execFile: (
     command: string,
@@ -346,9 +348,9 @@ export type BabyMenuApi = {
     updateAgent: (name: string, input: { label?: string; command: string }) => Promise<BabyMenuSettings>;
     /** Removes a custom agent. Rejects if the agent is currently active. */
     removeAgent: (name: string) => Promise<BabyMenuSettings>;
-    /** Adds or replaces a no-shell executable override for an extension command. */
+    /** Adds or replaces the no-shell `gh` executable override for the GitHub Graph helper. */
     setCommandOverride: (input: BabyMenuCommandOverride) => Promise<BabyMenuSettings>;
-    /** Removes an override so the command returns to normal host resolution. */
+    /** Removes the `gh` override while keeping `gh` limited to the GitHub Graph policy. */
     removeCommandOverride: (command: string) => Promise<BabyMenuSettings>;
   };
   app: {

@@ -30,6 +30,7 @@ export type ServerActionRegistry = {
 };
 
 type LoadedServerAction = BabyMenuCapabilityDescriptor & {
+  diskExtensionId: string;
   handler: ServerActionHandler;
 };
 
@@ -91,7 +92,7 @@ export function createServerActionRegistry(options: CreateServerActionRegistryOp
       return capability.handler(input, {
         rootDir: options.rootDir,
         db: getDatabase(),
-        commands: commandsForCaller(commands, { extensionId: capability.extensionId, action: capability.action }),
+        commands: commandsForCaller(commands, { extensionId: capability.diskExtensionId, action: capability.action }),
         notify: options.notify ?? (() => undefined),
       });
     },
@@ -165,7 +166,7 @@ async function discoverServerActionFiles(rootDir: string): Promise<string[]> {
   return files.flat().sort();
 }
 
-export type ServerModuleLoad = { extensionId: string; module: ServerActionModule };
+export type ServerModuleLoad = { extensionId: string; diskExtensionId: string; module: ServerActionModule };
 
 export type ServerModuleLoader = {
   load: (filePath: string, rootDir: string) => Promise<ServerModuleLoad>;
@@ -251,7 +252,7 @@ export function createServerModuleLoader(options: CreateServerModuleLoaderOption
       const signature = await sourceSignature(compiled.sourceFiles);
       if (signature !== compiled.sourceSignature) continue;
       const extensionId = normalizeExtensionId(module.extensionId ?? module.id) ?? inferredId;
-      const result: ServerModuleLoad = { extensionId, module };
+      const result: ServerModuleLoad = { extensionId, diskExtensionId: inferredId, module };
 
       return {
         signature,
@@ -325,12 +326,13 @@ async function sourceSignature(files: string[]): Promise<string> {
 }
 
 async function loadServerActionFile(loader: ServerModuleLoader, filePath: string, rootDir: string): Promise<LoadedServerAction[]> {
-  const { extensionId, module } = await loader.load(filePath, rootDir);
+  const { extensionId, diskExtensionId, module } = await loader.load(filePath, rootDir);
   const actions = normalizeActions(module.actions);
 
   return Object.entries(actions).map(([action, handler]) => ({
     id: `${extensionId}.${action}`,
     extensionId,
+    diskExtensionId,
     action,
     handler,
   }));

@@ -13,6 +13,8 @@ export type BabyMenuPreferences = {
 
 export type CommandOverrideInput = BabyMenuCommandOverride;
 
+const SUPPORTED_COMMAND_OVERRIDE = "gh";
+
 type LoginItemApp = {
   setLoginItemSettings: (settings: { openAtLogin: boolean }) => void;
 };
@@ -152,6 +154,9 @@ async function validateCommandOverrideInput(input: CommandOverrideInput): Promis
   const command = input.command.trim();
   const executable = input.executable.trim();
   assertCommandName(command);
+  if (command !== SUPPORTED_COMMAND_OVERRIDE) {
+    throw new Error("Only the GitHub contribution graph helper command is supported.");
+  }
   if (!isAbsolute(executable) || executable.includes("\0")) {
     throw new Error("Choose an absolute executable path.");
   }
@@ -169,7 +174,7 @@ async function validateCommandOverrideInput(input: CommandOverrideInput): Promis
   } catch {
     throw new Error("The selected file is not executable.");
   }
-  return { command, executable };
+  return { command: SUPPORTED_COMMAND_OVERRIDE, executable };
 }
 
 function assertCommandName(command: string): void {
@@ -188,7 +193,8 @@ function isMissingPathError(error: unknown): boolean {
 function normalizeCommandOverrides(value: unknown): Record<string, string> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const entries = Object.entries(value).filter(
-    (entry): entry is [string, string] => Boolean(entry[0].trim()) && typeof entry[1] === "string" && Boolean(entry[1].trim()),
+    (entry): entry is [string, string] =>
+      entry[0] === SUPPORTED_COMMAND_OVERRIDE && typeof entry[1] === "string" && Boolean(entry[1].trim()),
   );
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }

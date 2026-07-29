@@ -44,8 +44,8 @@ const MAX_BUFFER_BYTES = 8 * 1024 * 1024;
 const MAX_ARGUMENTS = 64;
 const MAX_ARGUMENT_BYTES = 64 * 1024;
 const MAX_TOTAL_ARGUMENT_BYTES = 256 * 1024;
-const GITHUB_CONTRIBUTION_GRAPH_OPERATION = "github.contributionGraph";
-const GITHUB_CONTRIBUTION_GRAPH_QUERY = `{
+export const GITHUB_CONTRIBUTION_GRAPH_OPERATION = "github.contributionGraph";
+export const GITHUB_CONTRIBUTION_GRAPH_QUERY = `{
   viewer {
     login
     contributionsCollection {
@@ -56,13 +56,14 @@ const GITHUB_CONTRIBUTION_GRAPH_QUERY = `{
     }
   }
 }`;
+export const GITHUB_CONTRIBUTION_GRAPH_ARGS = ["api", "graphql", "-f", `query=${GITHUB_CONTRIBUTION_GRAPH_QUERY}`] as const;
 const DEFAULT_OPERATION_POLICIES: readonly HostCommandOperationPolicy[] = [
   {
     extensionId: "github-graph",
     action: "getGraph",
     operation: GITHUB_CONTRIBUTION_GRAPH_OPERATION,
     command: "gh",
-    args: ["api", "graphql", "-f", `query=${GITHUB_CONTRIBUTION_GRAPH_QUERY}`],
+    args: GITHUB_CONTRIBUTION_GRAPH_ARGS,
   },
 ];
 
@@ -76,7 +77,7 @@ export function createHostCommandRunner(options: CreateHostCommandRunnerOptions 
       const normalizedArgs = validateArguments(args);
       const normalizedOptions = validateExecOptions(execOptions);
       const resolution = normalizeExecutableResolution(command, await resolveExecutable(command));
-      if (resolution.overridden) {
+      if (resolution.overridden || command === "gh") {
         authorizeOverriddenCommand({
           caller: options.caller,
           policies: operationPolicies,
