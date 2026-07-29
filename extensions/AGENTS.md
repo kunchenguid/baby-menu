@@ -394,6 +394,7 @@ The `context` is `{ rootDir, db, commands, notify }`:
 - `rootDir` is Baby Menu's app-data root, used for host-owned runtime state such as caches and local storage.
 - `db` is the shared SQL store (see "Storage").
 - `commands.execFile(command, args, options)` runs a bare command through the executable selected in Baby Menu Settings, or normal app command lookup when no override exists.
+  When Settings maps a command to a helper executable, the host authorizes only explicit operation policies matching the current extension id, action name, operation name, command, and exact argv.
 - `notify({ title, body })` shows a native system notification.
 
 Use `context.commands.execFile` instead of importing `node:child_process` when a command may need a trusted helper or another user-selected executable.
@@ -408,7 +409,7 @@ Treat the helper as privileged infrastructure: select only a helper whose identi
 const { stdout } = await context.commands.execFile(
   "example-cli",
   ["fixed", "read-only", "operation"],
-  { timeoutMs: 15_000, maxBufferBytes: 1024 * 1024 },
+  { operation: "example.operation", timeoutMs: 15_000, maxBufferBytes: 1024 * 1024 },
 );
 ```
 

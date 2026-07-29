@@ -8,9 +8,32 @@ import type {
 export type HostCommandExecOptions = BabyMenuCommandExecOptions;
 export type HostCommandResult = BabyMenuCommandResult;
 export type HostCommandRunner = BabyMenuHostCommands;
+export type ScopableHostCommandRunner = HostCommandRunner & {
+  forCaller: (caller: HostCommandCaller) => HostCommandRunner;
+};
+
+export type HostCommandExecutableResolution = {
+  executable: string;
+  overridden: boolean;
+};
+
+export type HostCommandCaller = {
+  extensionId: string;
+  action: string;
+};
+
+export type HostCommandOperationPolicy = {
+  extensionId: string;
+  action: string;
+  operation: string;
+  command: string;
+  args: readonly string[];
+};
 
 type CreateHostCommandRunnerOptions = {
-  resolveExecutable?: (command: string) => string | Promise<string>;
+  resolveExecutable?: (command: string) => string | HostCommandExecutableResolution | Promise<string | HostCommandExecutableResolution>;
+  caller?: HostCommandCaller;
+  operationPolicies?: readonly HostCommandOperationPolicy[];
 };
 
 const COMMAND_NAME_PATTERN = /^[A-Za-z0-9._+-]+$/;
@@ -21,19 +44,50 @@ const MAX_BUFFER_BYTES = 8 * 1024 * 1024;
 const MAX_ARGUMENTS = 64;
 const MAX_ARGUMENT_BYTES = 64 * 1024;
 const MAX_TOTAL_ARGUMENT_BYTES = 256 * 1024;
+const GITHUB_CONTRIBUTION_GRAPH_OPERATION = "github.contributionGraph";
+const GITHUB_CONTRIBUTION_GRAPH_QUERY = `{
+  viewer {
+    login
+    contributionsCollection {
+      contributionCalendar {
+        totalContributions
+        weeks { firstDay contributionDays { date contributionCount weekday } }
+      }
+    }
+  }
+}`;
+const DEFAULT_OPERATION_POLICIES: readonly HostCommandOperationPolicy[] = [
+  {
+    extensionId: "github-graph",
+    action: "getGraph",
+    operation: GITHUB_CONTRIBUTION_GRAPH_OPERATION,
+    command: "gh",
+    args: ["api", "graphql", "-f", `query=${GITHUB_CONTRIBUTION_GRAPH_QUERY}`],
+  },
+];
 
-export function createHostCommandRunner(options: CreateHostCommandRunnerOptions = {}): HostCommandRunner {
+export function createHostCommandRunner(options: CreateHostCommandRunnerOptions = {}): ScopableHostCommandRunner {
   const resolveExecutable = options.resolveExecutable ?? ((command: string) => command);
+  const operationPolicies = options.operationPolicies ?? DEFAULT_OPERATION_POLICIES;
 
-  return {
+  const runner: ScopableHostCommandRunner = {
     async execFile(command, args, execOptions = {}) {
       assertCommandName(command);
       const normalizedArgs = validateArguments(args);
       const normalizedOptions = validateExecOptions(execOptions);
-      const executable = await resolveExecutable(command);
+      const resolution = normalizeExecutableResolution(command, await resolveExecutable(command));
+      if (resolution.overridden) {
+        authorizeOverriddenCommand({
+          caller: options.caller,
+          policies: operationPolicies,
+          operation: normalizedOptions.operation,
+          command,
+          args: normalizedArgs,
+        });
+      }
       return new Promise<HostCommandResult>((resolve, reject) => {
         execFile(
-          executable,
+          resolution.executable,
           normalizedArgs,
           {
             encoding: "utf8",
@@ -89,7 +143,11 @@ export function createHostCommandRunner(options: CreateHostCommandRunnerOptions 
         );
       });
     },
+    forCaller(caller) {
+      return createHostCommandRunner({ ...options, caller, operationPolicies });
+    },
   };
+  return runner;
 }
 
 function validateArguments(args: readonly string[]): string[] {
@@ -120,6 +178,10 @@ function validateExecOptions(options: HostCommandExecOptions): Required<HostComm
   }
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxBufferBytes = options.maxBufferBytes ?? DEFAULT_MAX_BUFFER_BYTES;
+  const operation = options.operation ?? "";
+  if (typeof operation !== "string" || operation.includes("\0")) {
+    throw commandError("BABY_MENU_COMMAND_INVALID_OPTIONS", "Command operations must be strings without null bytes.");
+  }
   if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMEOUT_MS) {
     throw commandError(
       "BABY_MENU_COMMAND_INVALID_OPTIONS",
@@ -132,7 +194,7 @@ function validateExecOptions(options: HostCommandExecOptions): Required<HostComm
       `Command output limits must be between 1 and ${MAX_BUFFER_BYTES} bytes.`,
     );
   }
-  return { timeoutMs, maxBufferBytes };
+  return { timeoutMs, maxBufferBytes, operation };
 }
 
 function assertCommandName(command: string): void {
@@ -145,4 +207,43 @@ function assertCommandName(command: string): void {
 
 function commandError(code: string, message: string): Error & { code: string } {
   return Object.assign(new Error(message), { code });
+}
+
+function normalizeExecutableResolution(command: string, resolution: string | HostCommandExecutableResolution): HostCommandExecutableResolution {
+  if (typeof resolution === "string") return { executable: resolution, overridden: resolution !== command };
+  if (
+    resolution &&
+    typeof resolution === "object" &&
+    typeof resolution.executable === "string" &&
+    typeof resolution.overridden === "boolean"
+  ) {
+    return resolution;
+  }
+  throw commandError("BABY_MENU_COMMAND_INVALID_RESOLUTION", "Command executable resolution was invalid.");
+}
+
+function authorizeOverriddenCommand(input: {
+  caller?: HostCommandCaller;
+  policies: readonly HostCommandOperationPolicy[];
+  operation: string;
+  command: string;
+  args: readonly string[];
+}): void {
+  const policy = input.policies.find(
+    (candidate) =>
+      candidate.extensionId === input.caller?.extensionId &&
+      candidate.action === input.caller.action &&
+      candidate.operation === input.operation &&
+      candidate.command === input.command,
+  );
+  if (!policy || !sameStringArray(policy.args, input.args)) {
+    throw commandError(
+      "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
+      "The configured command helper is not authorized for this extension operation.",
+    );
+  }
+}
+
+function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }

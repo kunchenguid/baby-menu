@@ -24,12 +24,26 @@ describe("host command runner", () => {
       `#!/bin/sh\nprintf '%s\\0' "$@" > ${shellQuote(argvLog)}\nprintf '{"data":{"viewer":{"login":"expected-account"}}}\\n'\n`,
     );
     await chmod(helper, 0o700);
-    const runner = createHostCommandRunner({
-      resolveExecutable: async (command) => (command === "gh" ? helper : command),
-    });
     const args = ["api", "graphql", "-f", `query=${GRAPH_QUERY}`];
+    const runner = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "getGraph" },
+      operationPolicies: [
+        {
+          extensionId: "github-graph",
+          action: "getGraph",
+          operation: "github.contributionGraph",
+          command: "gh",
+          args,
+        },
+      ],
+      resolveExecutable: async (command) => (command === "gh" ? { executable: helper, overridden: true } : command),
+    });
 
-    const result = await runner.execFile("gh", args, { timeoutMs: 15_000, maxBufferBytes: 8 * 1024 * 1024 });
+    const result = await runner.execFile("gh", args, {
+      operation: "github.contributionGraph",
+      timeoutMs: 15_000,
+      maxBufferBytes: 8 * 1024 * 1024,
+    });
 
     expect(JSON.parse(result.stdout).data.viewer.login).toBe("expected-account");
     expect(result.stderr).toBe("");
@@ -44,7 +58,7 @@ describe("host command runner", () => {
     const injectedFile = join(rootDir, "must-not-exist");
     await writeFile(helper, `#!/bin/sh\nprintf '%s\\0' "$@" > ${shellQuote(argvLog)}\n`);
     await chmod(helper, 0o700);
-    const runner = createHostCommandRunner({ resolveExecutable: async () => helper });
+    const runner = createHostCommandRunner({ resolveExecutable: async () => ({ executable: helper, overridden: false }) });
     const argument = `; touch ${injectedFile}`;
 
     await runner.execFile("gh", [argument]);
@@ -61,7 +75,7 @@ describe("host command runner", () => {
     // invocation and no child process can mask an orphaned helper.
     await writeFile(helper, "#!/bin/sh\nwhile :; do :; done\n");
     await chmod(helper, 0o700);
-    const runner = createHostCommandRunner({ resolveExecutable: async () => helper });
+    const runner = createHostCommandRunner({ resolveExecutable: async () => ({ executable: helper, overridden: false }) });
 
     await expect(runner.execFile("gh", [], { timeoutMs: 500 })).rejects.toMatchObject({
       code: "BABY_MENU_COMMAND_TIMEOUT",
@@ -77,7 +91,7 @@ describe("host command runner", () => {
     const helper = join(rootDir, "large-output-helper");
     await writeFile(helper, "#!/bin/sh\nhead -c 1024 /dev/zero\n");
     await chmod(helper, 0o700);
-    const runner = createHostCommandRunner({ resolveExecutable: async () => helper });
+    const runner = createHostCommandRunner({ resolveExecutable: async () => ({ executable: helper, overridden: false }) });
 
     await expect(runner.execFile("gh", [], { maxBufferBytes: 64 })).rejects.toMatchObject({
       code: "BABY_MENU_COMMAND_OUTPUT_LIMIT",
@@ -113,7 +127,7 @@ describe("host command runner", () => {
     const helper = join(rootDir, "failing-helper");
     await writeFile(helper, "#!/bin/sh\nprintf 'GitHub sign-in required\\n' >&2\nexit 7\n");
     await chmod(helper, 0o700);
-    const runner = createHostCommandRunner({ resolveExecutable: async () => helper });
+    const runner = createHostCommandRunner({ resolveExecutable: async () => ({ executable: helper, overridden: false }) });
 
     await expect(runner.execFile("gh", [])).rejects.toMatchObject({
       code: "BABY_MENU_COMMAND_FAILED",
@@ -126,9 +140,24 @@ describe("host command runner", () => {
   it("fails a missing configured helper without falling back to the bare command", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
     tempDirs.push(rootDir);
-    const runner = createHostCommandRunner({ resolveExecutable: async () => join(rootDir, "missing-helper") });
+    const args: string[] = [];
+    const runner = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "getGraph" },
+      operationPolicies: [
+        {
+          extensionId: "github-graph",
+          action: "getGraph",
+          operation: "github.contributionGraph",
+          command: "gh",
+          args,
+        },
+      ],
+      resolveExecutable: async () => ({ executable: join(rootDir, "missing-helper"), overridden: true }),
+    });
 
-    await expect(runner.execFile("gh", [])).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(runner.execFile("gh", args, { operation: "github.contributionGraph" })).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("rejects path and shell syntax in logical command names before resolution", async () => {

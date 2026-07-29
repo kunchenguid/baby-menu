@@ -125,6 +125,8 @@ export type BabyMenuNotification = {
 };
 
 export type BabyMenuCommandExecOptions = {
+  /** Host-owned operation policy to use when a configured helper override is present. */
+  operation?: string;
   /** Terminate the process after this duration. The host applies a safe upper bound. */
   timeoutMs?: number;
   /** Maximum bytes accepted from each output stream. The host applies a safe upper bound. */

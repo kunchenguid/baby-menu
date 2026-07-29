@@ -46,7 +46,7 @@ export const actions = {
     const { stdout } = await context.commands.execFile(
       "gh",
       ["api", "graphql", "-f", \`query=\${QUERY}\`],
-      { timeoutMs: 15_000, maxBufferBytes: 8 * 1024 * 1024 },
+      { operation: "github.contributionGraph", timeoutMs: 15_000, maxBufferBytes: 8 * 1024 * 1024 },
     );
     return { ok: true, data: JSON.parse(stdout) };
   },
@@ -194,6 +194,67 @@ describe("GitHub command routing E2E", () => {
       `api\ngraphql\n-f\nquery=${GRAPH_QUERY}\n`,
     );
     await expect(readFile(rawGhLog, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects same-extension auth token argv before invoking a configured helper", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-github-routing-"));
+    tempDirs.push(rootDir);
+    const helperLog = join(rootDir, "configured-helper.log");
+    const helper = join(rootDir, "configured-github-helper");
+    const actionPath = join(rootDir, "extensions", "github-graph", "server.ts");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeExecutable(helper, `#!/bin/sh\nprintf '%s\\n' "$@" > ${shellQuote(helperLog)}\n`);
+    await writeFile(
+      actionPath,
+      `export const actions = {
+        getGraph: (_input, context) => context.commands.execFile(
+          "gh",
+          ["auth", "token"],
+          { operation: "github.contributionGraph" },
+        ),
+      };`,
+    );
+    const preferences = createPreferencesService({
+      userDataDir: rootDir,
+      app: { setLoginItemSettings: vi.fn() },
+      defaultOpenAtLogin: false,
+    });
+    await preferences.setCommandOverride({ command: "gh", executable: helper });
+    const commands = createHostCommandRunner({
+      resolveExecutable: (command) => preferences.resolveCommandExecutable(command),
+    });
+    const registry = createServerActionRegistry({ rootDir, commands });
+
+    await expect(registry.invoke("github-graph", "getGraph", {})).rejects.toMatchObject({
+      code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
+    });
+    await expect(readFile(helperLog, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects unrelated extensions before invoking a configured helper", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-github-routing-"));
+    tempDirs.push(rootDir);
+    const helperLog = join(rootDir, "configured-helper.log");
+    const helper = join(rootDir, "configured-github-helper");
+    const actionPath = join(rootDir, "extensions", "unrelated", "server.ts");
+    await mkdir(dirname(actionPath), { recursive: true });
+    await writeExecutable(helper, `#!/bin/sh\nprintf '%s\\n' "$@" > ${shellQuote(helperLog)}\n`);
+    await writeFile(actionPath, HOST_ROUTED_GH_SERVER);
+    const preferences = createPreferencesService({
+      userDataDir: rootDir,
+      app: { setLoginItemSettings: vi.fn() },
+      defaultOpenAtLogin: false,
+    });
+    await preferences.setCommandOverride({ command: "gh", executable: helper });
+    const commands = createHostCommandRunner({
+      resolveExecutable: (command) => preferences.resolveCommandExecutable(command),
+    });
+    const registry = createServerActionRegistry({ rootDir, commands });
+
+    await expect(registry.invoke("unrelated", "getGraph", {})).rejects.toMatchObject({
+      code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
+    });
+    await expect(readFile(helperLog, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("returns a fresh expected-account snapshot across four cold host cycles with no helper left running", async () => {

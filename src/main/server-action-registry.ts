@@ -4,7 +4,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import type { BabyMenuBackgroundTask, BabyMenuCapabilityDescriptor, BabyMenuServerContext } from "../shared/contracts";
 import { createExtensionDatabase, type ExtensionDatabase } from "./extension-database";
 import { compileExtensionModule, rewriteExtensionModuleImports, type CompiledExtensionModule } from "./extension-module-compiler";
-import { createHostCommandRunner } from "./host-command-runner";
+import { createHostCommandRunner, type HostCommandCaller, type HostCommandRunner } from "./host-command-runner";
 
 export type ServerActionContext = BabyMenuServerContext & {
   db: ExtensionDatabase;
@@ -91,11 +91,22 @@ export function createServerActionRegistry(options: CreateServerActionRegistryOp
       return capability.handler(input, {
         rootDir: options.rootDir,
         db: getDatabase(),
-        commands,
+        commands: commandsForCaller(commands, { extensionId: capability.extensionId, action: capability.action }),
         notify: options.notify ?? (() => undefined),
       });
     },
   };
+}
+
+export function commandsForCaller(commands: ServerActionContext["commands"], caller: HostCommandCaller): HostCommandRunner {
+  if (isScopableHostCommandRunner(commands)) return commands.forCaller(caller);
+  return commands;
+}
+
+function isScopableHostCommandRunner(
+  commands: ServerActionContext["commands"],
+): commands is ServerActionContext["commands"] & { forCaller: (caller: HostCommandCaller) => HostCommandRunner } {
+  return typeof (commands as { forCaller?: unknown }).forCaller === "function";
 }
 
 // Discovers `export const background` tasks from extension server modules. Shares the

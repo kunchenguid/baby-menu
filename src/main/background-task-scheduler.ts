@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from "node:fs";
 import type { BabyMenuServerContext } from "../shared/contracts";
-import type { BackgroundTaskSource, DiscoveredBackgroundTask } from "./server-action-registry";
+import { commandsForCaller, type BackgroundTaskSource, type DiscoveredBackgroundTask } from "./server-action-registry";
 
 // Background work runs whether or not the popover is open and keeps the machine awake
 // on its cadence, so the framework enforces a hard floor. Tray data does not need to
@@ -52,7 +52,10 @@ export function createBackgroundTaskScheduler(options: BackgroundTaskSchedulerOp
     if (task.running) return;
     task.running = true;
     try {
-      await task.run(options.context);
+      await task.run({
+        ...options.context,
+        commands: commandsForCaller(options.context.commands, { extensionId: task.extensionId, action: "__background__" }),
+      });
       options.onTaskRun?.(task.extensionId);
     } catch (error) {
       onError(task.extensionId, error);

@@ -82,6 +82,8 @@ Server actions and background tasks receive `context.commands.execFile(command, 
 The host resolves only a syntactically safe bare command name, invokes the resolved executable directly with `execFile` semantics, and never starts a shell.
 It rejects null bytes and oversized argument lists, applies a 15-second default timeout and 1 MiB default output bound, and caps explicit values at 30 seconds and 8 MiB.
 Timeout and output-limit failures use deterministic error codes.
+When Settings maps a command to a helper executable, the host requires a built-in operation policy matching the requesting extension id, action name, operation name, command, and exact argv.
+The GitHub contribution-calendar policy authorizes only `github-graph.getGraph` with the fixed `github.contributionGraph` operation and the contribution GraphQL request below.
 
 A GitHub Graph action should keep its GraphQL document and every argument in extension-owned constants:
 
@@ -89,10 +91,10 @@ A GitHub Graph action should keep its GraphQL document and every argument in ext
 const { stdout } = await context.commands.execFile(
   "gh",
   ["api", "graphql", "-f", `query=${QUERY}`],
-  { timeoutMs: 15_000, maxBufferBytes: 8 * 1024 * 1024 },
+  { operation: "github.contributionGraph", timeoutMs: 15_000, maxBufferBytes: 8 * 1024 * 1024 },
 );
 ```
 
 Never pass renderer input into the command name, executable path, arguments, query, URL, environment, timeout, or output limit.
-Command helpers are routing, not a sandbox for untrusted extensions.
+Command helpers are scoped routing, not a sandbox for untrusted extensions.
 Server extensions are already privileged and must be reviewed before they are kept.
