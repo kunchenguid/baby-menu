@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { BabyMenuHostCommands, GitHubContributionGraph } from "../shared/contracts";
 
 export type HostCommandExecOptions = {
@@ -31,6 +31,7 @@ type CreateHostCommandRunnerOptions = {
   resolveExecutable?: (command: string) => string | HostCommandExecutableResolution | Promise<string | HostCommandExecutableResolution>;
   caller?: HostCommandCaller;
   operationPolicies?: readonly HostCommandOperationPolicy[];
+  commandExecOptions?: HostCommandExecOptions;
 };
 
 const COMMAND_NAME_PATTERN = /^[A-Za-z0-9._+-]+$/;
@@ -80,8 +81,8 @@ export function createHostCommandRunner(options: CreateHostCommandRunnerOptions 
         command,
         args: GITHUB_CONTRIBUTION_GRAPH_ARGS,
         execOptions: {
-          timeoutMs: DEFAULT_TIMEOUT_MS,
-          maxBufferBytes: MAX_BUFFER_BYTES,
+          timeoutMs: options.commandExecOptions?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+          maxBufferBytes: options.commandExecOptions?.maxBufferBytes ?? MAX_BUFFER_BYTES,
         },
         resolveExecutable,
       });
@@ -106,45 +107,92 @@ async function runHostCommand(input: {
   const normalizedOptions = validateExecOptions(execOptions);
   const resolution = normalizeExecutableResolution(command, await resolveExecutable(command));
   return new Promise<{ stdout: string }>((resolve, reject) => {
-    execFile(
-      resolution.executable,
-      normalizedArgs,
-      {
-        encoding: "utf8",
+    let child: ChildProcessWithoutNullStreams;
+    try {
+      child = spawn(resolution.executable, normalizedArgs, {
+        detached: process.platform !== "win32",
         shell: false,
-        timeout: normalizedOptions.timeoutMs,
-        maxBuffer: normalizedOptions.maxBufferBytes,
-        killSignal: "SIGKILL",
-      },
-      (error, stdout, _stderr) => {
-        if (error) {
-          if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
-            reject(
-              commandError("BABY_MENU_COMMAND_OUTPUT_LIMIT", `Command output exceeded ${normalizedOptions.maxBufferBytes} bytes.`),
-            );
-            return;
-          }
-          if (error.killed || error.signal === "SIGKILL") {
-            reject(
-              commandError("BABY_MENU_COMMAND_TIMEOUT", `Command timed out after ${normalizedOptions.timeoutMs} milliseconds.`),
-            );
-            return;
-          }
-          if (typeof error.code === "number") {
-            reject(
-              Object.assign(commandError("BABY_MENU_COMMAND_FAILED", `Command "${command}" exited with status ${error.code}.`), {
-                exitCode: error.code,
-              }),
-            );
-            return;
-          }
-          reject(commandError("BABY_MENU_COMMAND_LAUNCH_FAILED", "Command helper could not be launched."));
+        windowsHide: true,
+      });
+    } catch {
+      reject(commandError("BABY_MENU_COMMAND_LAUNCH_FAILED", "Command helper could not be launched."));
+      return;
+    }
+
+    const stdoutChunks: Buffer[] = [];
+    let stdoutBytes = 0;
+    let pendingFailure: (Error & { code: string }) | null = null;
+    let termination: Promise<void> | null = null;
+    let settled = false;
+    const failAndTerminate = (failure: Error & { code: string }) => {
+      pendingFailure = failure;
+      termination ??= terminateProcessTree(child);
+    };
+    const timeout = setTimeout(() => {
+      failAndTerminate(commandError("BABY_MENU_COMMAND_TIMEOUT", `Command timed out after ${normalizedOptions.timeoutMs} milliseconds.`));
+    }, normalizedOptions.timeoutMs);
+    timeout.unref?.();
+
+    child.stdout.on("data", (chunk: Buffer | string) => {
+      if (pendingFailure) return;
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      stdoutBytes += buffer.length;
+      if (stdoutBytes > normalizedOptions.maxBufferBytes) {
+        failAndTerminate(
+          commandError("BABY_MENU_COMMAND_OUTPUT_LIMIT", `Command output exceeded ${normalizedOptions.maxBufferBytes} bytes.`),
+        );
+        stdoutChunks.length = 0;
+        return;
+      }
+      stdoutChunks.push(buffer);
+    });
+    child.stderr.resume();
+    child.on("error", () => {
+      if (!pendingFailure) pendingFailure = commandError("BABY_MENU_COMMAND_LAUNCH_FAILED", "Command helper could not be launched.");
+    });
+    child.on("close", (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      void (async () => {
+        if (termination) await termination;
+        if (pendingFailure) {
+          reject(pendingFailure);
           return;
         }
-        resolve({ stdout });
-      },
-    );
+        if (code === 0) {
+          resolve({ stdout: Buffer.concat(stdoutChunks).toString("utf8") });
+          return;
+        }
+        if (signal === "SIGKILL") {
+          reject(commandError("BABY_MENU_COMMAND_TIMEOUT", `Command timed out after ${normalizedOptions.timeoutMs} milliseconds.`));
+          return;
+        }
+        reject(
+          Object.assign(commandError("BABY_MENU_COMMAND_FAILED", `Command "${command}" exited with status ${code ?? "unknown"}.`), {
+            exitCode: code,
+          }),
+        );
+      })();
+    });
   });
+}
+
+function terminateProcessTree(child: ChildProcessWithoutNullStreams): Promise<void> {
+  if (!child.pid) return Promise.resolve();
+  if (process.platform === "win32") {
+    return new Promise((resolve) => {
+      execFile("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true }, () => resolve());
+    });
+  }
+  try {
+    process.kill(-child.pid, "SIGKILL");
+  } catch {
+    try {
+      child.kill("SIGKILL");
+    } catch {}
+  }
+  return Promise.resolve();
 }
 
 function parseGitHubContributionGraph(stdout: string): GitHubContributionGraph {

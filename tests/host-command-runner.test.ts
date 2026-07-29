@@ -50,6 +50,52 @@ describe("host command runner", () => {
     });
   });
 
+  it("terminates helper descendants before resolving an output-limit error", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
+    tempDirs.push(rootDir);
+    const helper = join(rootDir, `flood-helper-${crypto.randomUUID()}`);
+    const descendantToken = `baby-menu-descendant-${crypto.randomUUID()}`;
+    await writeFile(
+      helper,
+      `#!/bin/sh\nnode -e 'setInterval(() => {}, 1000)' ${shellQuote(descendantToken)} &\nnode -e 'process.stdout.write(Buffer.alloc(9437184))'\nsleep 60\n`,
+    );
+    await chmod(helper, 0o700);
+    const runner = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "getGraph" },
+      commandExecOptions: { maxBufferBytes: 1024 },
+      resolveExecutable: async () => ({ executable: helper, overridden: true }),
+    });
+
+    await expect(runner.getGitHubContributionGraph()).rejects.toMatchObject({
+      code: "BABY_MENU_COMMAND_OUTPUT_LIMIT",
+    });
+
+    await expectNoProcessContaining(descendantToken);
+    await expectNoProcessContaining(helper);
+  });
+
+  it("terminates helper descendants before resolving a timeout error", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
+    tempDirs.push(rootDir);
+    const helper = join(rootDir, `timeout-helper-${crypto.randomUUID()}`);
+    const descendantToken = `baby-menu-descendant-${crypto.randomUUID()}`;
+    await writeFile(helper, `#!/bin/sh\nnode -e 'setInterval(() => {}, 1000)' ${shellQuote(descendantToken)} &\nsleep 60\n`);
+    await chmod(helper, 0o700);
+    const runner = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "getGraph" },
+      commandExecOptions: { timeoutMs: 250 },
+      resolveExecutable: async () => ({ executable: helper, overridden: true }),
+    });
+
+    await expect(runner.getGitHubContributionGraph()).rejects.toMatchObject({
+      code: "BABY_MENU_COMMAND_TIMEOUT",
+      message: "Command timed out after 250 milliseconds.",
+    });
+
+    await expectNoProcessContaining(descendantToken);
+    await expectNoProcessContaining(helper);
+  });
+
   it("reports a deterministic nonzero-exit error without exposing stderr", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
     tempDirs.push(rootDir);
@@ -298,4 +344,15 @@ function validGraphJson(login: string): string {
       },
     },
   });
+}
+
+async function expectNoProcessContaining(pattern: string): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    const processCommands = execFileSync("/bin/ps", ["-axo", "command="], { encoding: "utf8" });
+    if (!processCommands.includes(pattern)) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  const processCommands = execFileSync("/bin/ps", ["-axo", "command="], { encoding: "utf8" });
+  expect(processCommands).not.toContain(pattern);
 }
