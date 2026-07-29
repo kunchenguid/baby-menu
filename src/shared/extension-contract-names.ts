@@ -24,7 +24,6 @@ export const EXTENSION_CONTRACT_NAMES = [
   "BabyMenuDatabase",
   "BabyMenuNotification",
   "BabyMenuHostCommands",
-  "BabyMenuCommandExecOptions",
   "BabyMenuCommandResult",
   "BabyMenuBackgroundTask",
   "SqlParams",

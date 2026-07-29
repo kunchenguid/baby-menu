@@ -9,7 +9,7 @@ import type { BackgroundTaskSource, DiscoveredBackgroundTask } from "../src/main
 const context: BabyMenuServerContext = {
   rootDir: "/repo",
   db: {} as BabyMenuServerContext["db"],
-  commands: { execFile: vi.fn() },
+  commands: { getGitHubContributionGraph: vi.fn() },
   notify: vi.fn(),
 };
 

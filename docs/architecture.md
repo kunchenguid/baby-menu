@@ -20,7 +20,7 @@ For the at-a-glance picture, see the "How It Works" diagram in the [README](../R
 | Custom layouts | An optional root `layout.tsx` arranges the popover canvas. Without it, widgets stack in a column. |
 | Settings sections | Extensions export `BabyMenuSettingsSection` from `widget.tsx`; the host frames each body. |
 | Server actions | Privileged work (shell, network, credentials) lives in `<extension-id>/server.ts`, called via `window.babyMenu.capabilities.invoke(...)`. No per-widget IPC. |
-| Command helpers | `context.commands.execFile` routes a fixed extension command through a Settings-owned executable override with no shell, bounded argv/output/time, and fail-closed configured-path errors. |
+| Command helpers | `context.commands.getGitHubContributionGraph()` routes the host-owned GitHub contribution query through a Settings-owned `gh` executable override with no shell, bounded output/time, and fail-closed configured-path errors. |
 | Local storage | A shared SQLite store: `context.db` server-side, `window.babyMenu.db` in the renderer. Use it for anything that must survive reloads. |
 | Stable contracts | Extensions import host types with type-only `import ... from "@babymenu/contracts"`, shipped into each workspace. |
 
@@ -49,8 +49,8 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
 - **Live custom agent catalog.**
   Settings-owned custom ACP agents persist to `agents.json` and register as `acpx` overrides immediately, kept separate from read-only built-ins.
 - **No-shell command routing.**
-  The Settings-owned `gh` helper override persists in preferences, while `host-command-runner.ts` validates the bare command and argv, resolves the selected executable in the main process, and invokes it with `execFile` semantics only for the GitHub contribution graph policy.
-  Extensions keep operations and arguments fixed; renderer input never chooses the executable, query, flags, environment, or URL.
+  The Settings-owned `gh` helper override persists in preferences, while `host-command-runner.ts` authorizes only the disk-inferred `github-graph.getGraph` caller, constructs the fixed contribution GraphQL argv in the main process, and invokes it with `execFile` semantics.
+  Extensions cannot supply a command, argv, query, timeout, output limit, executable, environment, or URL.
 
 ## Change tracking
 

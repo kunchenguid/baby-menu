@@ -63,11 +63,11 @@ Examples:
 
 ## Command helpers
 
-Settings can route the GitHub contribution graph extension's `gh` command to a trusted absolute executable path.
+Settings can route Baby Menu's fixed GitHub contribution graph `gh` operation to a trusted absolute executable path.
 The host invokes that executable directly without a shell and persists only that `gh` path in preferences.
 No credential is stored in Baby Menu.
 
-Existing GitHub Graph installations that use the host-routed fixed operation keep bare `gh` resolution until an override is added.
+Existing GitHub Graph installations that use `context.commands.getGitHubContributionGraph()` keep bare `gh` resolution until an override is added.
 A configured `gh` override takes precedence only for that authorized GitHub contribution graph operation, while a malformed or missing configured helper fails closed instead of falling back to the bare command.
 Application updates preserve the mapping.
 

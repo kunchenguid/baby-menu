@@ -31,6 +31,14 @@ describe("@babymenu/contracts public surface contract", () => {
     expect(declaration).toContain("babyMenu?: import(\"@babymenu/contracts\").BabyMenuExtensionApi;");
   });
 
+  it("does not expose arbitrary command execution in server-action commands", async () => {
+    const declaration = await readFile(declarationPath, "utf8");
+
+    expect(declaration).toContain("getGitHubContributionGraph: () => Promise<BabyMenuCommandResult>;");
+    expect(declaration).not.toContain("execFile:");
+    expect(declaration).not.toContain("BabyMenuCommandExecOptions");
+  });
+
   it("only names types that actually exist in contracts.ts", async () => {
     const contracts = await readFile(contractsPath, "utf8");
     const exported = new Set([...contracts.matchAll(/^export\s+type\s+([A-Za-z0-9_]+)/gm)].map((m) => m[1]));

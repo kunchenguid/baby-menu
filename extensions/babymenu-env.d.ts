@@ -40,15 +40,6 @@ declare module "@babymenu/contracts" {
     body?: string;
   };
 
-  export type BabyMenuCommandExecOptions = {
-    /** Host-owned operation policy to use when a configured helper override is present. */
-    operation?: string;
-    /** Terminate the process after this duration. The host applies a safe upper bound. */
-    timeoutMs?: number;
-    /** Maximum bytes accepted from each output stream. The host applies a safe upper bound. */
-    maxBufferBytes?: number;
-  };
-
   export type BabyMenuCommandResult = {
     stdout: string;
     stderr: string;
@@ -56,23 +47,18 @@ declare module "@babymenu/contracts" {
 
   export type BabyMenuHostCommands = {
     /**
-     * Run a bare command through normal host resolution. The `gh` command is
-     * limited to the built-in GitHub contribution-graph policy, with or without a
-     * configured helper.
+     * Run the host-owned GitHub contribution graph operation for the
+     * `github-graph.getGraph` server action.
      * No shell is ever involved.
      */
-    execFile: (
-      command: string,
-      args: readonly string[],
-      options?: BabyMenuCommandExecOptions,
-    ) => Promise<BabyMenuCommandResult>;
+    getGitHubContributionGraph: () => Promise<BabyMenuCommandResult>;
   };
 
   // Passed to every server action and background task. Privileged, main-process side.
   export type BabyMenuServerContext = {
     rootDir: string;
     db: BabyMenuDatabase;
-    // Execute fixed extension-owned argv through a user-configured host command.
+    // Execute host-owned command operations through user-configured helpers.
     commands: BabyMenuHostCommands;
     // Show a native system notification. The main reason a background task is worth
     // having: it can alert the user (e.g. a threshold breach) while the popover is closed.

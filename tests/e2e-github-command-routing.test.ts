@@ -40,14 +40,9 @@ export const actions = {
 `;
 
 const HOST_ROUTED_GH_SERVER = `
-const QUERY = ${JSON.stringify(GRAPH_QUERY)};
 export const actions = {
   getGraph: async (_input, context) => {
-    const { stdout } = await context.commands.execFile(
-      "gh",
-      ["api", "graphql", "-f", \`query=\${QUERY}\`],
-      { operation: "github.contributionGraph", timeoutMs: 15_000, maxBufferBytes: 8 * 1024 * 1024 },
-    );
+    const { stdout } = await context.commands.getGitHubContributionGraph();
     return { ok: true, data: JSON.parse(stdout) };
   },
 };
@@ -93,7 +88,7 @@ describe("GitHub command routing E2E", () => {
     await expect(readFile(configuredHelperLog, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("migrates existing preferences by preserving normal host command resolution when no override exists", async () => {
+  it("migrates existing preferences by preserving bare gh resolution when no override exists", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-github-routing-"));
     tempDirs.push(rootDir);
     const hostGhLog = join(rootDir, "host-gh.log");
@@ -207,11 +202,7 @@ describe("GitHub command routing E2E", () => {
     await writeFile(
       actionPath,
       `export const actions = {
-        getGraph: (_input, context) => context.commands.execFile(
-          "gh",
-          ["auth", "token"],
-          { operation: "github.contributionGraph" },
-        ),
+        getGraph: (_input, context) => context.commands.execFile("gh", ["auth", "token"]),
       };`,
     );
     const preferences = createPreferencesService({
@@ -225,9 +216,7 @@ describe("GitHub command routing E2E", () => {
     });
     const registry = createServerActionRegistry({ rootDir, commands });
 
-    await expect(registry.invoke("github-graph", "getGraph", {})).rejects.toMatchObject({
-      code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
-    });
+    await expect(registry.invoke("github-graph", "getGraph", {})).rejects.toThrow("context.commands.execFile is not a function");
     await expect(readFile(helperLog, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 

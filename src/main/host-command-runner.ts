@@ -1,11 +1,10 @@
 import { execFile } from "node:child_process";
-import type {
-  BabyMenuCommandExecOptions,
-  BabyMenuCommandResult,
-  BabyMenuHostCommands,
-} from "../shared/contracts";
+import type { BabyMenuCommandResult, BabyMenuHostCommands } from "../shared/contracts";
 
-export type HostCommandExecOptions = BabyMenuCommandExecOptions;
+export type HostCommandExecOptions = {
+  timeoutMs?: number;
+  maxBufferBytes?: number;
+};
 export type HostCommandResult = BabyMenuCommandResult;
 export type HostCommandRunner = BabyMenuHostCommands;
 export type ScopableHostCommandRunner = HostCommandRunner & {
@@ -25,9 +24,7 @@ export type HostCommandCaller = {
 export type HostCommandOperationPolicy = {
   extensionId: string;
   action: string;
-  operation: string;
   command: string;
-  args: readonly string[];
 };
 
 type CreateHostCommandRunnerOptions = {
@@ -44,7 +41,6 @@ const MAX_BUFFER_BYTES = 8 * 1024 * 1024;
 const MAX_ARGUMENTS = 64;
 const MAX_ARGUMENT_BYTES = 64 * 1024;
 const MAX_TOTAL_ARGUMENT_BYTES = 256 * 1024;
-export const GITHUB_CONTRIBUTION_GRAPH_OPERATION = "github.contributionGraph";
 export const GITHUB_CONTRIBUTION_GRAPH_QUERY = `{
   viewer {
     login
@@ -61,9 +57,7 @@ const DEFAULT_OPERATION_POLICIES: readonly HostCommandOperationPolicy[] = [
   {
     extensionId: "github-graph",
     action: "getGraph",
-    operation: GITHUB_CONTRIBUTION_GRAPH_OPERATION,
     command: "gh",
-    args: GITHUB_CONTRIBUTION_GRAPH_ARGS,
   },
 ];
 
@@ -72,76 +66,20 @@ export function createHostCommandRunner(options: CreateHostCommandRunnerOptions 
   const operationPolicies = options.operationPolicies ?? DEFAULT_OPERATION_POLICIES;
 
   const runner: ScopableHostCommandRunner = {
-    async execFile(command, args, execOptions = {}) {
-      assertCommandName(command);
-      const normalizedArgs = validateArguments(args);
-      const normalizedOptions = validateExecOptions(execOptions);
-      const resolution = normalizeExecutableResolution(command, await resolveExecutable(command));
-      if (resolution.overridden || command === "gh") {
-        authorizeOverriddenCommand({
-          caller: options.caller,
-          policies: operationPolicies,
-          operation: normalizedOptions.operation,
-          command,
-          args: normalizedArgs,
-        });
-      }
-      return new Promise<HostCommandResult>((resolve, reject) => {
-        execFile(
-          resolution.executable,
-          normalizedArgs,
-          {
-            encoding: "utf8",
-            shell: false,
-            timeout: normalizedOptions.timeoutMs,
-            maxBuffer: normalizedOptions.maxBufferBytes,
-            killSignal: "SIGKILL",
-          },
-          (error, stdout, stderr) => {
-            if (error) {
-              if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
-                reject(
-                  Object.assign(
-                    commandError(
-                      "BABY_MENU_COMMAND_OUTPUT_LIMIT",
-                      `Command output exceeded ${normalizedOptions.maxBufferBytes} bytes.`,
-                    ),
-                    { stdout, stderr },
-                  ),
-                );
-                return;
-              }
-              if (error.killed || error.signal === "SIGKILL") {
-                reject(
-                  Object.assign(
-                    commandError(
-                      "BABY_MENU_COMMAND_TIMEOUT",
-                      `Command timed out after ${normalizedOptions.timeoutMs} milliseconds.`,
-                    ),
-                    { stdout, stderr },
-                  ),
-                );
-                return;
-              }
-              if (typeof error.code === "number") {
-                reject(
-                  Object.assign(
-                    commandError(
-                      "BABY_MENU_COMMAND_FAILED",
-                      `Command "${command}" exited with status ${error.code}.`,
-                    ),
-                    { exitCode: error.code, stdout, stderr },
-                  ),
-                );
-                return;
-              }
-              Object.assign(error, { stdout, stderr });
-              reject(error);
-              return;
-            }
-            resolve({ stdout, stderr });
-          },
-        );
+    async getGitHubContributionGraph() {
+      const command = "gh";
+      authorizeGitHubContributionGraph({
+        caller: options.caller,
+        policies: operationPolicies,
+      });
+      return runHostCommand({
+        command,
+        args: GITHUB_CONTRIBUTION_GRAPH_ARGS,
+        execOptions: {
+          timeoutMs: DEFAULT_TIMEOUT_MS,
+          maxBufferBytes: MAX_BUFFER_BYTES,
+        },
+        resolveExecutable,
       });
     },
     forCaller(caller) {
@@ -149,6 +87,73 @@ export function createHostCommandRunner(options: CreateHostCommandRunnerOptions 
     },
   };
   return runner;
+}
+
+async function runHostCommand(input: {
+  command: string;
+  args: readonly string[];
+  execOptions?: HostCommandExecOptions;
+  resolveExecutable: (command: string) => string | HostCommandExecutableResolution | Promise<string | HostCommandExecutableResolution>;
+}): Promise<HostCommandResult> {
+  const { command, args, execOptions = {}, resolveExecutable } = input;
+  assertCommandName(command);
+  const normalizedArgs = validateArguments(args);
+  const normalizedOptions = validateExecOptions(execOptions);
+  const resolution = normalizeExecutableResolution(command, await resolveExecutable(command));
+  return new Promise<HostCommandResult>((resolve, reject) => {
+    execFile(
+      resolution.executable,
+      normalizedArgs,
+      {
+        encoding: "utf8",
+        shell: false,
+        timeout: normalizedOptions.timeoutMs,
+        maxBuffer: normalizedOptions.maxBufferBytes,
+        killSignal: "SIGKILL",
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
+            reject(
+              Object.assign(
+                commandError(
+                  "BABY_MENU_COMMAND_OUTPUT_LIMIT",
+                  `Command output exceeded ${normalizedOptions.maxBufferBytes} bytes.`,
+                ),
+                { stdout, stderr },
+              ),
+            );
+            return;
+          }
+          if (error.killed || error.signal === "SIGKILL") {
+            reject(
+              Object.assign(
+                commandError(
+                  "BABY_MENU_COMMAND_TIMEOUT",
+                  `Command timed out after ${normalizedOptions.timeoutMs} milliseconds.`,
+                ),
+                { stdout, stderr },
+              ),
+            );
+            return;
+          }
+          if (typeof error.code === "number") {
+            reject(
+              Object.assign(
+                commandError("BABY_MENU_COMMAND_FAILED", `Command "${command}" exited with status ${error.code}.`),
+                { exitCode: error.code, stdout, stderr },
+              ),
+            );
+            return;
+          }
+          Object.assign(error, { stdout, stderr });
+          reject(error);
+          return;
+        }
+        resolve({ stdout, stderr });
+      },
+    );
+  });
 }
 
 function validateArguments(args: readonly string[]): string[] {
@@ -179,10 +184,6 @@ function validateExecOptions(options: HostCommandExecOptions): Required<HostComm
   }
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxBufferBytes = options.maxBufferBytes ?? DEFAULT_MAX_BUFFER_BYTES;
-  const operation = options.operation ?? "";
-  if (typeof operation !== "string" || operation.includes("\0")) {
-    throw commandError("BABY_MENU_COMMAND_INVALID_OPTIONS", "Command operations must be strings without null bytes.");
-  }
   if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMEOUT_MS) {
     throw commandError(
       "BABY_MENU_COMMAND_INVALID_OPTIONS",
@@ -195,7 +196,7 @@ function validateExecOptions(options: HostCommandExecOptions): Required<HostComm
       `Command output limits must be between 1 and ${MAX_BUFFER_BYTES} bytes.`,
     );
   }
-  return { timeoutMs, maxBufferBytes, operation };
+  return { timeoutMs, maxBufferBytes };
 }
 
 function assertCommandName(command: string): void {
@@ -223,28 +224,20 @@ function normalizeExecutableResolution(command: string, resolution: string | Hos
   throw commandError("BABY_MENU_COMMAND_INVALID_RESOLUTION", "Command executable resolution was invalid.");
 }
 
-function authorizeOverriddenCommand(input: {
+function authorizeGitHubContributionGraph(input: {
   caller?: HostCommandCaller;
   policies: readonly HostCommandOperationPolicy[];
-  operation: string;
-  command: string;
-  args: readonly string[];
 }): void {
   const policy = input.policies.find(
     (candidate) =>
       candidate.extensionId === input.caller?.extensionId &&
       candidate.action === input.caller.action &&
-      candidate.operation === input.operation &&
-      candidate.command === input.command,
+      candidate.command === "gh",
   );
-  if (!policy || !sameStringArray(policy.args, input.args)) {
+  if (!policy) {
     throw commandError(
       "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
       "The configured command helper is not authorized for this extension operation.",
     );
   }
-}
-
-function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
 }

@@ -393,25 +393,20 @@ The `context` is `{ rootDir, db, commands, notify }`:
 
 - `rootDir` is Baby Menu's app-data root, used for host-owned runtime state such as caches and local storage.
 - `db` is the shared SQL store (see "Storage").
-- `commands.execFile(command, args, options)` runs a bare command through normal app command lookup for commands other than `gh`.
-  The `gh` command is supported only for the `github-graph.getGraph` server action calling the fixed `github.contributionGraph` operation and exact contribution GraphQL argv, with or without a configured helper.
-  Other extensions, other actions, background tasks, and alternate `gh` argv are rejected.
+- `commands.getGitHubContributionGraph()` runs Baby Menu's fixed GitHub contribution graph operation.
+  It is supported only for the disk-inferred `github-graph.getGraph` server action, with or without a configured `gh` helper.
+  Other extensions, other actions, background tasks, and arbitrary argv command execution are rejected.
 - `notify({ title, body })` shows a native system notification.
 
-Use `context.commands.execFile` instead of importing `node:child_process` for the GitHub contribution graph helper policy or for plain no-shell host command execution without a configured helper.
-Pass only a constant bare command name and a fixed argument array owned by the extension.
-Never derive the command, executable, flags, GraphQL document, URL, or other arguments from renderer input.
-The host never uses a shell, rejects shell syntax in command names and null bytes in arguments, defaults to a 15-second timeout and 1 MiB per output stream, and caps explicit requests at 30 seconds and 8 MiB.
+Use `context.commands.getGitHubContributionGraph()` instead of importing `node:child_process` for the GitHub contribution graph helper policy.
+Never derive the operation, executable, GraphQL document, URL, timeout, output limit, or other command behavior from renderer input.
+The host never uses a shell, constructs the exact `gh api graphql -f query=...` argv itself, applies a 15-second timeout and 8 MiB output bound.
 A configured helper path must be absolute, regular, and executable when saved.
 If a configured helper later disappears or a manually edited setting is malformed, execution fails closed instead of falling back to the bare command.
 Treat the helper as privileged infrastructure: select only a helper whose identity and authority the user or provider has independently reviewed, and return normalized non-secret results to the renderer.
 
 ```ts
-const { stdout } = await context.commands.execFile(
-  "gh",
-  ["api", "graphql", "-f", `query=${CONTRIBUTION_QUERY}`],
-  { operation: "github.contributionGraph", timeoutMs: 15_000, maxBufferBytes: 8 * 1024 * 1024 },
-);
+const { stdout } = await context.commands.getGitHubContributionGraph();
 ```
 
 ### Module-scope state in server.ts is not durable

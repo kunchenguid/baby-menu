@@ -50,19 +50,19 @@ describe("server action registry", () => {
       actionPath,
       `export const extensionId = "github-graph";
       export const actions = {
-        getGraph: async (_input, context) => context.commands.execFile("gh", ["auth", "token"])
+        getGraph: async (_input, context) => context.commands.getGitHubContributionGraph()
       };`,
     );
-    const execFile = vi.fn(async () => ({ stdout: "ok", stderr: "" }));
+    const getGitHubContributionGraph = vi.fn(async () => ({ stdout: "ok", stderr: "" }));
     const forCaller = vi.fn((caller: { extensionId: string; action: string }) => ({
-      execFile: async () => {
+      getGitHubContributionGraph: async () => {
         if (caller.extensionId !== "github-graph") {
           throw Object.assign(new Error("unauthorized"), { code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION" });
         }
-        return execFile();
+        return getGitHubContributionGraph();
       },
     }));
-    const commands = { execFile: vi.fn(), forCaller };
+    const commands = { getGitHubContributionGraph: vi.fn(), forCaller };
     const registry = createServerActionRegistry({ rootDir, commands });
 
     await expect(registry.list()).resolves.toContainEqual({
@@ -74,7 +74,7 @@ describe("server action registry", () => {
       code: "BABY_MENU_COMMAND_UNAUTHORIZED_OPERATION",
     });
     expect(forCaller).toHaveBeenCalledWith({ extensionId: "spoof", action: "getGraph" });
-    expect(execFile).not.toHaveBeenCalled();
+    expect(getGitHubContributionGraph).not.toHaveBeenCalled();
   });
 
   it("reloads changed server action modules without recreating the registry", async () => {
@@ -399,7 +399,7 @@ describe("server action registry", () => {
     const db = createExtensionDatabase(":memory:");
     const scheduler = createBackgroundTaskScheduler({
       source: createBackgroundTaskSource({ rootDir }),
-      context: { rootDir, db, commands: { execFile: vi.fn() }, notify: () => undefined },
+      context: { rootDir, db, commands: { getGitHubContributionGraph: vi.fn() }, notify: () => undefined },
       minIntervalMs: 10,
     });
 
@@ -424,7 +424,7 @@ describe("server action registry", () => {
     const notify = vi.fn();
     const scheduler = createBackgroundTaskScheduler({
       source: createBackgroundTaskSource({ rootDir }),
-      context: { rootDir, db: createExtensionDatabase(":memory:"), commands: { execFile: vi.fn() }, notify },
+      context: { rootDir, db: createExtensionDatabase(":memory:"), commands: { getGitHubContributionGraph: vi.fn() }, notify },
       minIntervalMs: 10,
     });
 
