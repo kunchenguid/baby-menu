@@ -124,9 +124,21 @@ export type BabyMenuNotification = {
   body?: string;
 };
 
-export type BabyMenuCommandResult = {
-  stdout: string;
-  stderr: string;
+export type GitHubContributionDay = {
+  date: string;
+  contributionCount: number;
+  weekday: number;
+};
+
+export type GitHubContributionWeek = {
+  firstDay: string;
+  contributionDays: GitHubContributionDay[];
+};
+
+export type GitHubContributionGraph = {
+  login: string;
+  totalContributions: number;
+  weeks: GitHubContributionWeek[];
 };
 
 export type BabyMenuHostCommands = {
@@ -135,7 +147,7 @@ export type BabyMenuHostCommands = {
    * `github-graph.getGraph` server action.
    * No shell is ever involved.
    */
-  getGitHubContributionGraph: () => Promise<BabyMenuCommandResult>;
+  getGitHubContributionGraph: () => Promise<GitHubContributionGraph>;
 };
 
 // Passed to every server action and background task. Privileged, main-process side.

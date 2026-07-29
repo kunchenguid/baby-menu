@@ -4,7 +4,7 @@ Command helpers let the GitHub contribution graph extension route Baby Menu's fi
 They are useful when a credential manager, enterprise launcher, or signed helper must own the child-process identity instead of Baby Menu.
 
 The command-helper setting stores only the command name and executable path, never a credential.
-Baby Menu owns the complete contribution-calendar command line, never requests a token, and returns only that operation's normal output.
+Baby Menu owns the complete contribution-calendar command line, never requests a token, and returns only normalized contribution-calendar fields.
 
 ## One-time GitHub Graph setup
 
@@ -90,9 +90,10 @@ Other extensions, other actions, background tasks, and any attempt to call arbit
 A GitHub Graph action should call the named host operation:
 
 ```ts
-const { stdout } = await context.commands.getGitHubContributionGraph();
+const graph = await context.commands.getGitHubContributionGraph();
 ```
 
 Never pass renderer input into the operation, executable path, query, URL, or environment.
+Never expect raw stdout or stderr from the helper.
 Command helpers are scoped routing, not a sandbox for untrusted extensions.
 Server extensions are already privileged and must be reviewed before they are kept.

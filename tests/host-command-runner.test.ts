@@ -19,7 +19,7 @@ describe("host command runner", () => {
     const argvLog = join(rootDir, "argv.log");
     await writeFile(
       helper,
-      `#!/bin/sh\nprintf '%s\\0' "$@" > ${shellQuote(argvLog)}\nprintf '{"data":{"viewer":{"login":"expected-account"}}}\\n'\n`,
+      `#!/bin/sh\nprintf '%s\\0' "$@" > ${shellQuote(argvLog)}\nprintf '%s\\n' ${shellQuote(validGraphJson("expected-account"))}\nprintf 'diagnostic token ghp_secret\\n' >&2\n`,
     );
     await chmod(helper, 0o700);
     const runner = createHostCommandRunner({
@@ -29,8 +29,7 @@ describe("host command runner", () => {
 
     const result = await runner.getGitHubContributionGraph();
 
-    expect(JSON.parse(result.stdout).data.viewer.login).toBe("expected-account");
-    expect(result.stderr).toBe("");
+    expect(result).toEqual(validGraph("expected-account"));
     expect((await readFile(argvLog)).toString().split("\0").filter(Boolean)).toEqual(GITHUB_CONTRIBUTION_GRAPH_ARGS);
   });
 
@@ -51,7 +50,7 @@ describe("host command runner", () => {
     });
   });
 
-  it("reports a deterministic nonzero-exit error while preserving bounded stderr", async () => {
+  it("reports a deterministic nonzero-exit error without exposing stderr", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
     tempDirs.push(rootDir);
     const helper = join(rootDir, "failing-helper");
@@ -62,12 +61,15 @@ describe("host command runner", () => {
       resolveExecutable: async () => ({ executable: helper, overridden: true }),
     });
 
-    await expect(runner.getGitHubContributionGraph()).rejects.toMatchObject({
+    const failure = await runner.getGitHubContributionGraph().catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({
       code: "BABY_MENU_COMMAND_FAILED",
       exitCode: 7,
       message: 'Command "gh" exited with status 7.',
-      stderr: "GitHub sign-in required\n",
     });
+    expect(failure).not.toHaveProperty("stdout");
+    expect(failure).not.toHaveProperty("stderr");
   });
 
   it("fails a missing configured helper without falling back to the bare command", async () => {
@@ -79,7 +81,7 @@ describe("host command runner", () => {
     });
 
     await expect(runner.getGitHubContributionGraph()).rejects.toMatchObject({
-      code: "ENOENT",
+      code: "BABY_MENU_COMMAND_LAUNCH_FAILED",
     });
   });
 
@@ -87,7 +89,7 @@ describe("host command runner", () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
     tempDirs.push(rootDir);
     const helper = join(rootDir, "bare-gh");
-    await writeFile(helper, "#!/bin/sh\nprintf '{\"data\":{\"viewer\":{\"login\":\"bare-account\"}}}\\n'\n");
+    await writeFile(helper, `#!/bin/sh\nprintf '%s\\n' ${shellQuote(validGraphJson("bare-account"))}\n`);
     await chmod(helper, 0o700);
     const runner = createHostCommandRunner({
       caller: { extensionId: "github-graph", action: "getGraph" },
@@ -96,7 +98,112 @@ describe("host command runner", () => {
 
     const result = await runner.getGitHubContributionGraph();
 
-    expect(JSON.parse(result.stdout).data.viewer.login).toBe("bare-account");
+    expect(result).toEqual(validGraph("bare-account"));
+  });
+
+  it("returns only normalized calendar data and drops extra helper fields", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
+    tempDirs.push(rootDir);
+    const helper = join(rootDir, "extra-fields-helper");
+    await writeFile(
+      helper,
+      `#!/bin/sh\nprintf '%s\\n' ${shellQuote(
+        JSON.stringify({
+          data: {
+            viewer: {
+              login: "expected-account",
+              token: "ghp_secret_from_stdout",
+              contributionsCollection: {
+                contributionCalendar: {
+                  totalContributions: 3,
+                  weeks: [
+                    {
+                      firstDay: "2026-07-26",
+                      leaked: "gho_secret",
+                      contributionDays: [
+                        { date: "2026-07-29", contributionCount: 3, weekday: 3, secret: "github_pat_secret" },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          private: "ghs_secret",
+        }),
+      )}\n`,
+    );
+    await chmod(helper, 0o700);
+    const runner = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "getGraph" },
+      resolveExecutable: async () => ({ executable: helper, overridden: true }),
+    });
+
+    const result = await runner.getGitHubContributionGraph();
+
+    expect(result).toEqual(validGraph("expected-account"));
+    expect(JSON.stringify(result)).not.toContain("secret");
+  });
+
+  it("rejects malformed JSON without exposing raw stdout", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
+    tempDirs.push(rootDir);
+    const helper = join(rootDir, "malformed-json-helper");
+    await writeFile(helper, "#!/bin/sh\nprintf 'ghp_secret_not_json\\n'\n");
+    await chmod(helper, 0o700);
+    const runner = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "getGraph" },
+      resolveExecutable: async () => ({ executable: helper, overridden: true }),
+    });
+
+    const failure = await runner.getGitHubContributionGraph().catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({
+      code: "BABY_MENU_GITHUB_GRAPH_INVALID_JSON",
+      message: "GitHub contribution graph response was not valid JSON.",
+    });
+    expect(failure).not.toHaveProperty("stdout");
+    expect(JSON.stringify(failure)).not.toContain("ghp_secret_not_json");
+  });
+
+  it("rejects GraphQL errors without exposing error payload text", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
+    tempDirs.push(rootDir);
+    const helper = join(rootDir, "graphql-error-helper");
+    await writeFile(helper, `#!/bin/sh\nprintf '%s\\n' ${shellQuote(JSON.stringify({ errors: [{ message: "ghp_secret_denied" }] }))}\n`);
+    await chmod(helper, 0o700);
+    const runner = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "getGraph" },
+      resolveExecutable: async () => ({ executable: helper, overridden: true }),
+    });
+
+    const failure = await runner.getGitHubContributionGraph().catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({
+      code: "BABY_MENU_GITHUB_GRAPH_GRAPHQL_ERROR",
+      message: "GitHub contribution graph query returned an error.",
+    });
+    expect(JSON.stringify(failure)).not.toContain("ghp_secret_denied");
+  });
+
+  it("rejects token-like values in expected fields", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
+    tempDirs.push(rootDir);
+    const helper = join(rootDir, "token-login-helper");
+    await writeFile(helper, `#!/bin/sh\nprintf '%s\\n' ${shellQuote(validGraphJson("ghp_secret_token"))}\n`);
+    await chmod(helper, 0o700);
+    const runner = createHostCommandRunner({
+      caller: { extensionId: "github-graph", action: "getGraph" },
+      resolveExecutable: async () => ({ executable: helper, overridden: true }),
+    });
+
+    const failure = await runner.getGitHubContributionGraph().catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({
+      code: "BABY_MENU_GITHUB_GRAPH_INVALID_SCHEMA",
+      message: "GitHub contribution graph response had an unexpected schema.",
+    });
+    expect(JSON.stringify(failure)).not.toContain("ghp_secret_token");
   });
 
   it("rejects unrelated extensions and actions before resolving any helper", async () => {
@@ -141,7 +248,7 @@ describe("host command runner", () => {
     const rootDir = await mkdtemp(join(tmpdir(), "baby-menu-command-"));
     tempDirs.push(rootDir);
     const helper = join(rootDir, `github-helper-${crypto.randomUUID()}`);
-    await writeFile(helper, "#!/bin/sh\nprintf '{}\\n'\n");
+    await writeFile(helper, `#!/bin/sh\nprintf '%s\\n' ${shellQuote(validGraphJson("expected-account"))}\n`);
     await chmod(helper, 0o700);
     const runner = createHostCommandRunner({
       caller: { extensionId: "github-graph", action: "getGraph" },
@@ -157,4 +264,38 @@ describe("host command runner", () => {
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+function validGraph(login: string) {
+  return {
+    login,
+    totalContributions: 3,
+    weeks: [
+      {
+        firstDay: "2026-07-26",
+        contributionDays: [{ date: "2026-07-29", contributionCount: 3, weekday: 3 }],
+      },
+    ],
+  };
+}
+
+function validGraphJson(login: string): string {
+  return JSON.stringify({
+    data: {
+      viewer: {
+        login,
+        contributionsCollection: {
+          contributionCalendar: {
+            totalContributions: 3,
+            weeks: [
+              {
+                firstDay: "2026-07-26",
+                contributionDays: [{ date: "2026-07-29", contributionCount: 3, weekday: 3 }],
+              },
+            ],
+          },
+        },
+      },
+    },
+  });
 }

@@ -1,11 +1,11 @@
 import { execFile } from "node:child_process";
-import type { BabyMenuCommandResult, BabyMenuHostCommands } from "../shared/contracts";
+import type { BabyMenuHostCommands, GitHubContributionGraph } from "../shared/contracts";
 
 export type HostCommandExecOptions = {
   timeoutMs?: number;
   maxBufferBytes?: number;
 };
-export type HostCommandResult = BabyMenuCommandResult;
+export type HostCommandResult = GitHubContributionGraph;
 export type HostCommandRunner = BabyMenuHostCommands;
 export type ScopableHostCommandRunner = HostCommandRunner & {
   forCaller: (caller: HostCommandCaller) => HostCommandRunner;
@@ -41,6 +41,10 @@ const MAX_BUFFER_BYTES = 8 * 1024 * 1024;
 const MAX_ARGUMENTS = 64;
 const MAX_ARGUMENT_BYTES = 64 * 1024;
 const MAX_TOTAL_ARGUMENT_BYTES = 256 * 1024;
+const MAX_GITHUB_WEEKS = 60;
+const MAX_GITHUB_DAYS = 400;
+const GITHUB_LOGIN_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 export const GITHUB_CONTRIBUTION_GRAPH_QUERY = `{
   viewer {
     login
@@ -72,7 +76,7 @@ export function createHostCommandRunner(options: CreateHostCommandRunnerOptions 
         caller: options.caller,
         policies: operationPolicies,
       });
-      return runHostCommand({
+      const result = await runHostCommand({
         command,
         args: GITHUB_CONTRIBUTION_GRAPH_ARGS,
         execOptions: {
@@ -81,6 +85,7 @@ export function createHostCommandRunner(options: CreateHostCommandRunnerOptions 
         },
         resolveExecutable,
       });
+      return parseGitHubContributionGraph(result.stdout);
     },
     forCaller(caller) {
       return createHostCommandRunner({ ...options, caller, operationPolicies });
@@ -94,13 +99,13 @@ async function runHostCommand(input: {
   args: readonly string[];
   execOptions?: HostCommandExecOptions;
   resolveExecutable: (command: string) => string | HostCommandExecutableResolution | Promise<string | HostCommandExecutableResolution>;
-}): Promise<HostCommandResult> {
+}): Promise<{ stdout: string }> {
   const { command, args, execOptions = {}, resolveExecutable } = input;
   assertCommandName(command);
   const normalizedArgs = validateArguments(args);
   const normalizedOptions = validateExecOptions(execOptions);
   const resolution = normalizeExecutableResolution(command, await resolveExecutable(command));
-  return new Promise<HostCommandResult>((resolve, reject) => {
+  return new Promise<{ stdout: string }>((resolve, reject) => {
     execFile(
       resolution.executable,
       normalizedArgs,
@@ -111,49 +116,106 @@ async function runHostCommand(input: {
         maxBuffer: normalizedOptions.maxBufferBytes,
         killSignal: "SIGKILL",
       },
-      (error, stdout, stderr) => {
+      (error, stdout, _stderr) => {
         if (error) {
           if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
             reject(
-              Object.assign(
-                commandError(
-                  "BABY_MENU_COMMAND_OUTPUT_LIMIT",
-                  `Command output exceeded ${normalizedOptions.maxBufferBytes} bytes.`,
-                ),
-                { stdout, stderr },
-              ),
+              commandError("BABY_MENU_COMMAND_OUTPUT_LIMIT", `Command output exceeded ${normalizedOptions.maxBufferBytes} bytes.`),
             );
             return;
           }
           if (error.killed || error.signal === "SIGKILL") {
             reject(
-              Object.assign(
-                commandError(
-                  "BABY_MENU_COMMAND_TIMEOUT",
-                  `Command timed out after ${normalizedOptions.timeoutMs} milliseconds.`,
-                ),
-                { stdout, stderr },
-              ),
+              commandError("BABY_MENU_COMMAND_TIMEOUT", `Command timed out after ${normalizedOptions.timeoutMs} milliseconds.`),
             );
             return;
           }
           if (typeof error.code === "number") {
             reject(
-              Object.assign(
-                commandError("BABY_MENU_COMMAND_FAILED", `Command "${command}" exited with status ${error.code}.`),
-                { exitCode: error.code, stdout, stderr },
-              ),
+              Object.assign(commandError("BABY_MENU_COMMAND_FAILED", `Command "${command}" exited with status ${error.code}.`), {
+                exitCode: error.code,
+              }),
             );
             return;
           }
-          Object.assign(error, { stdout, stderr });
-          reject(error);
+          reject(commandError("BABY_MENU_COMMAND_LAUNCH_FAILED", "Command helper could not be launched."));
           return;
         }
-        resolve({ stdout, stderr });
+        resolve({ stdout });
       },
     );
   });
+}
+
+function parseGitHubContributionGraph(stdout: string): GitHubContributionGraph {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    throw commandError("BABY_MENU_GITHUB_GRAPH_INVALID_JSON", "GitHub contribution graph response was not valid JSON.");
+  }
+  const root = asRecord(parsed);
+  if (Array.isArray(root.errors) && root.errors.length > 0) {
+    throw commandError("BABY_MENU_GITHUB_GRAPH_GRAPHQL_ERROR", "GitHub contribution graph query returned an error.");
+  }
+  const viewer = asRecord(asRecord(root.data).viewer);
+  const login = readGitHubLogin(viewer.login);
+  const calendar = asRecord(asRecord(asRecord(viewer.contributionsCollection).contributionCalendar));
+  const totalContributions = readNonNegativeInteger(calendar.totalContributions);
+  const weeksInput = calendar.weeks;
+  if (!Array.isArray(weeksInput) || weeksInput.length > MAX_GITHUB_WEEKS) {
+    throw commandError("BABY_MENU_GITHUB_GRAPH_INVALID_SCHEMA", "GitHub contribution graph response had an unexpected schema.");
+  }
+
+  let totalDays = 0;
+  const weeks = weeksInput.map((weekInput) => {
+    const week = asRecord(weekInput);
+    const contributionDaysInput = week.contributionDays;
+    if (!Array.isArray(contributionDaysInput) || contributionDaysInput.length > 7) {
+      throw commandError("BABY_MENU_GITHUB_GRAPH_INVALID_SCHEMA", "GitHub contribution graph response had an unexpected schema.");
+    }
+    totalDays += contributionDaysInput.length;
+    if (totalDays > MAX_GITHUB_DAYS) {
+      throw commandError("BABY_MENU_GITHUB_GRAPH_INVALID_SCHEMA", "GitHub contribution graph response had an unexpected schema.");
+    }
+    return {
+      firstDay: readIsoDate(week.firstDay),
+      contributionDays: contributionDaysInput.map((dayInput) => {
+        const day = asRecord(dayInput);
+        const weekday = readNonNegativeInteger(day.weekday);
+        if (weekday > 6) {
+          throw commandError("BABY_MENU_GITHUB_GRAPH_INVALID_SCHEMA", "GitHub contribution graph response had an unexpected schema.");
+        }
+        return {
+          date: readIsoDate(day.date),
+          contributionCount: readNonNegativeInteger(day.contributionCount),
+          weekday,
+        };
+      }),
+    };
+  });
+
+  return { login, totalContributions, weeks };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  throw commandError("BABY_MENU_GITHUB_GRAPH_INVALID_SCHEMA", "GitHub contribution graph response had an unexpected schema.");
+}
+
+function readGitHubLogin(value: unknown): string {
+  if (typeof value === "string" && GITHUB_LOGIN_PATTERN.test(value)) return value;
+  throw commandError("BABY_MENU_GITHUB_GRAPH_INVALID_SCHEMA", "GitHub contribution graph response had an unexpected schema.");
+}
+
+function readIsoDate(value: unknown): string {
+  if (typeof value === "string" && ISO_DATE_PATTERN.test(value)) return value;
+  throw commandError("BABY_MENU_GITHUB_GRAPH_INVALID_SCHEMA", "GitHub contribution graph response had an unexpected schema.");
+}
+
+function readNonNegativeInteger(value: unknown): number {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
+  throw commandError("BABY_MENU_GITHUB_GRAPH_INVALID_SCHEMA", "GitHub contribution graph response had an unexpected schema.");
 }
 
 function validateArguments(args: readonly string[]): string[] {

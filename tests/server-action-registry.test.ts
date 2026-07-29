@@ -53,7 +53,7 @@ describe("server action registry", () => {
         getGraph: async (_input, context) => context.commands.getGitHubContributionGraph()
       };`,
     );
-    const getGitHubContributionGraph = vi.fn(async () => ({ stdout: "ok", stderr: "" }));
+    const getGitHubContributionGraph = vi.fn(async () => ({ login: "ok", totalContributions: 0, weeks: [] }));
     const forCaller = vi.fn((caller: { extensionId: string; action: string }) => ({
       getGitHubContributionGraph: async () => {
         if (caller.extensionId !== "github-graph") {

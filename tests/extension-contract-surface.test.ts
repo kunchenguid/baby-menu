@@ -34,7 +34,8 @@ describe("@babymenu/contracts public surface contract", () => {
   it("does not expose arbitrary command execution in server-action commands", async () => {
     const declaration = await readFile(declarationPath, "utf8");
 
-    expect(declaration).toContain("getGitHubContributionGraph: () => Promise<BabyMenuCommandResult>;");
+    expect(declaration).toContain("getGitHubContributionGraph: () => Promise<GitHubContributionGraph>;");
+    expect(declaration).not.toContain("BabyMenuCommandResult");
     expect(declaration).not.toContain("execFile:");
     expect(declaration).not.toContain("BabyMenuCommandExecOptions");
   });

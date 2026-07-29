@@ -42,8 +42,7 @@ export const actions = {
 const HOST_ROUTED_GH_SERVER = `
 export const actions = {
   getGraph: async (_input, context) => {
-    const { stdout } = await context.commands.getGitHubContributionGraph();
-    return { ok: true, data: JSON.parse(stdout) };
+    return { ok: true, data: await context.commands.getGitHubContributionGraph() };
   },
 };
 `;
@@ -98,7 +97,7 @@ describe("GitHub command routing E2E", () => {
     await mkdir(dirname(actionPath), { recursive: true });
     await writeExecutable(
       join(binDir, "gh"),
-      `#!/bin/sh\nprintf '%s\\n' "$@" > ${shellQuote(hostGhLog)}\nprintf '{"data":{"viewer":{"login":"expected-account"}}}\\n'\n`,
+      `#!/bin/sh\nprintf '%s\\n' "$@" > ${shellQuote(hostGhLog)}\nprintf '%s\\n' ${shellQuote(validGraphJson("expected-account"))}\n`,
     );
     await writeFile(actionPath, HOST_ROUTED_GH_SERVER);
     await writeFile(join(rootDir, "preferences.json"), '{"openAtLogin":false}\n');
@@ -115,7 +114,7 @@ describe("GitHub command routing E2E", () => {
 
     await expect(registry.invoke("github-graph", "getGraph", {})).resolves.toEqual({
       ok: true,
-      data: { data: { viewer: { login: "expected-account" } } },
+      data: validGraph("expected-account"),
     });
     await expect(readFile(hostGhLog, "utf8")).resolves.toBe(`api\ngraphql\n-f\nquery=${GRAPH_QUERY}\n`);
   });
@@ -167,7 +166,7 @@ describe("GitHub command routing E2E", () => {
     );
     await writeExecutable(
       helper,
-      `#!/bin/sh\nprintf '%s\\n' "$@" > ${shellQuote(configuredHelperLog)}\nprintf '{"data":{"viewer":{"login":"expected-account"}}}\\n'\n`,
+      `#!/bin/sh\nprintf '%s\\n' "$@" > ${shellQuote(configuredHelperLog)}\nprintf '%s\\n' ${shellQuote(validGraphJson("expected-account"))}\nprintf 'ghp_secret_diagnostic\\n' >&2\n`,
     );
     await writeFile(actionPath, HOST_ROUTED_GH_SERVER);
     vi.stubEnv("PATH", `${binDir}:${process.env.PATH ?? ""}`);
@@ -184,7 +183,8 @@ describe("GitHub command routing E2E", () => {
 
     const result = await registry.invoke("github-graph", "getGraph", { args: ["auth", "token"] });
 
-    expect(result).toEqual({ ok: true, data: { data: { viewer: { login: "expected-account" } } } });
+    expect(result).toEqual({ ok: true, data: validGraph("expected-account") });
+    expect(JSON.stringify(result)).not.toContain("ghp_secret_diagnostic");
     await expect(readFile(configuredHelperLog, "utf8")).resolves.toBe(
       `api\ngraphql\n-f\nquery=${GRAPH_QUERY}\n`,
     );
@@ -256,7 +256,7 @@ describe("GitHub command routing E2E", () => {
     await mkdir(dirname(actionPath), { recursive: true });
     await writeExecutable(
       helper,
-      `#!/bin/sh\ncount=0\n[ ! -f ${shellQuote(counterFile)} ] || count=$(cat ${shellQuote(counterFile)})\ncount=$((count + 1))\nprintf '%s' "$count" > ${shellQuote(counterFile)}\nprintf '%s %s\\n' "$$" "$count" >> ${shellQuote(invocationLog)}\nprintf '{"data":{"viewer":{"login":"expected-account","snapshot":%s}}}\\n' "$count"\n`,
+      `#!/bin/sh\ncount=0\n[ ! -f ${shellQuote(counterFile)} ] || count=$(cat ${shellQuote(counterFile)})\ncount=$((count + 1))\nprintf '%s' "$count" > ${shellQuote(counterFile)}\nprintf '%s %s\\n' "$$" "$count" >> ${shellQuote(invocationLog)}\nprintf '{"data":{"viewer":{"login":"expected-account","contributionsCollection":{"contributionCalendar":{"totalContributions":%s,"weeks":[{"firstDay":"2026-07-26","contributionDays":[{"date":"2026-07-29","contributionCount":%s,"weekday":3}]}]}}}}}\\n' "$count" "$count"\n`,
     );
     await writeFile(actionPath, HOST_ROUTED_GH_SERVER);
     const preferences = createPreferencesService({
@@ -279,10 +279,10 @@ describe("GitHub command routing E2E", () => {
       });
       const registry = createServerActionRegistry({ rootDir, commands });
       const result = (await registry.invoke("github-graph", "getGraph", {})) as {
-        data: { data: { viewer: { login: string; snapshot: number } } };
+        data: { login: string; totalContributions: number };
       };
-      expect(result.data.data.viewer.login).toBe("expected-account");
-      snapshots.push(result.data.data.viewer.snapshot);
+      expect(result.data.login).toBe("expected-account");
+      snapshots.push(result.data.totalContributions);
       expect(execFileSync("/bin/ps", ["-axo", "command="], { encoding: "utf8" })).not.toContain(helper);
     }
 
@@ -298,4 +298,38 @@ async function writeExecutable(filePath: string, source: string): Promise<void> 
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+function validGraph(login: string) {
+  return {
+    login,
+    totalContributions: 3,
+    weeks: [
+      {
+        firstDay: "2026-07-26",
+        contributionDays: [{ date: "2026-07-29", contributionCount: 3, weekday: 3 }],
+      },
+    ],
+  };
+}
+
+function validGraphJson(login: string): string {
+  return JSON.stringify({
+    data: {
+      viewer: {
+        login,
+        contributionsCollection: {
+          contributionCalendar: {
+            totalContributions: 3,
+            weeks: [
+              {
+                firstDay: "2026-07-26",
+                contributionDays: [{ date: "2026-07-29", contributionCount: 3, weekday: 3 }],
+              },
+            ],
+          },
+        },
+      },
+    },
+  });
 }

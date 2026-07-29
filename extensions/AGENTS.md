@@ -406,7 +406,7 @@ If a configured helper later disappears or a manually edited setting is malforme
 Treat the helper as privileged infrastructure: select only a helper whose identity and authority the user or provider has independently reviewed, and return normalized non-secret results to the renderer.
 
 ```ts
-const { stdout } = await context.commands.getGitHubContributionGraph();
+const graph = await context.commands.getGitHubContributionGraph();
 ```
 
 ### Module-scope state in server.ts is not durable
