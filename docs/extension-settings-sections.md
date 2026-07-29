@@ -6,7 +6,7 @@ The open questions below were resolved along the recommended lines; see "Resolve
 ## Goal
 
 Let an extension contribute its own section to the Settings page, so a user can configure the extension (API account, thresholds, units, which calendar, refresh cadence) without editing code.
-`SettingsView` renders app-level settings first (launch at login, embedded agent selection, and custom ACP agent management), followed by any settings sections discovered from extensions.
+`SettingsView` renders app-level settings first (launch at login, embedded agent selection, custom ACP agent management, and command-helper management), followed by any settings sections discovered from extensions.
 
 ## Why this shape
 
@@ -65,7 +65,7 @@ The three open questions were resolved along the recommended lines:
 - `extensions/babymenu-env.d.ts` - generated `@babymenu/contracts` declaration that exposes `BabyMenuSettingsSection` inside extension workspaces.
 - `src/renderer/extension-modules.ts` - shared module loader (discovery, dynamic import, packaged-mode stylesheet injection) used by both the widget host and the settings view.
 - `src/renderer/settings/settings-sections.ts` - `settingsSectionsFromModule` and `loadRuntimeSettingsSections` (sorted by extension id).
-- `src/renderer/settings/SettingsView.tsx` - renders app settings first, including custom ACP agent management, then one framed section per discovered extension section.
+- `src/renderer/settings/SettingsView.tsx` - renders app settings first, including custom ACP agent and command-helper management, then one framed section per discovered extension section.
 - `extensions/AGENTS.md` - "Settings Sections" authoring contract for the embedded agent.
 - Tests: `tests/settings-sections.test.tsx` and an added case in `tests/settings-view.test.tsx`.
 

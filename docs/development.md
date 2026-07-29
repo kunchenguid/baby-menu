@@ -28,7 +28,7 @@ If that Node 24 failure appears, switch to Node 22.14.0 and remove only the inco
 | `pnpm package:mac` | Clean `release/` and create an ad-hoc-signed `Baby Menu Dev.app` without release credentials |
 | `pnpm dist:mac` | Build the local `Baby Menu Dev.app` and create a universal DMG in `release/` |
 | `pnpm test` | Run all Vitest tests |
-| `pnpm test:e2e` | Only e2e tests (including `acpx/runtime` plus bundled adapter coverage) |
+| `pnpm test:e2e` | Only e2e tests, including `acpx/runtime`, bundled adapter, and GitHub command-routing coverage |
 | `pnpm test:e2e:packaged-mac` | Check that a packaged macOS app starts its renderer and preload bridge |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm lint` | `tsc --noEmit` (same as typecheck) |
