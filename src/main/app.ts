@@ -1,7 +1,7 @@
 import { app, BrowserWindow, screen, shell, type Rectangle } from "electron";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { BabyMenuCustomAgentInput, BabyMenuSettings } from "../shared/contracts";
+import type { BabyMenuCommandOverride, BabyMenuCustomAgentInput, BabyMenuSettings } from "../shared/contracts";
 import { getRepoRoot } from "../shared/paths";
 import { createAgentCatalogController } from "./agent-catalog-controller";
 import { BabyMenuAgentRuntime, commandExists } from "./agent-runtime";
@@ -18,6 +18,7 @@ import {
 } from "./popover";
 import { createBackgroundTaskScheduler } from "./background-task-scheduler";
 import { createExtensionDatabase } from "./extension-database";
+import { createHostCommandRunner } from "./host-command-runner";
 import { createNotifier } from "./notifier";
 import { createPreferencesService } from "./preferences";
 import { createBackgroundTaskSource, createServerActionRegistry } from "./server-action-registry";
@@ -226,6 +227,9 @@ export async function startBabyMenuApp(): Promise<void> {
       agentName: agentRuntime.currentAgent,
       agentSwitchDisabledReason: agentRuntime.agentSwitchDisabledReason,
       agents: agentCatalog.options(),
+      commandOverrides: Object.entries(current.commandOverrides ?? {})
+        .map(([command, executable]) => ({ command, executable }))
+        .sort((left, right) => left.command.localeCompare(right.command)),
     };
   }
 
@@ -252,13 +256,25 @@ export async function startBabyMenuApp(): Promise<void> {
       await agentCatalog.removeAgent(name);
       return buildSettings();
     },
+    async setCommandOverride(input: BabyMenuCommandOverride) {
+      await preferences.setCommandOverride(input);
+      return buildSettings();
+    },
+    async removeCommandOverride(command: string) {
+      await preferences.removeCommandOverride(command);
+      return buildSettings();
+    },
   };
 
+  const commands = createHostCommandRunner({
+    resolveExecutable: (command) => preferences.resolveCommandExecutable(command),
+  });
   const serverActions = createServerActionRegistry({
     rootDir: paths.appDataRoot,
     actionRoots: [paths.extensionsDir],
     cacheDir: paths.serverActionCacheDir,
     db: database,
+    commands,
     notify,
   });
   const widgetRegistryOptions = {
@@ -315,7 +331,7 @@ export async function startBabyMenuApp(): Promise<void> {
       actionRoots: [paths.extensionsDir],
       cacheDir: paths.serverActionCacheDir,
     }),
-    context: { rootDir: paths.appDataRoot, db: database, notify },
+    context: { rootDir: paths.appDataRoot, db: database, commands, notify },
     watchDir: paths.extensionsDir,
     onTaskRun: (extensionId) => {
       if (!popoverWindow?.isVisible()) return;

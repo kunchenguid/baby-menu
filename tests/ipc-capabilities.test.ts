@@ -260,6 +260,8 @@ describe("capabilities IPC", () => {
       addAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
       updateAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
       removeAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
+      setCommandOverride: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
+      removeCommandOverride: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
     };
 
     registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, settings);
@@ -282,6 +284,8 @@ describe("capabilities IPC", () => {
       addAgent: vi.fn(async () => result),
       updateAgent: vi.fn(async () => result),
       removeAgent: vi.fn(async () => result),
+      setCommandOverride: vi.fn(async () => result),
+      removeCommandOverride: vi.fn(async () => result),
     };
 
     registerIpcHandlers("/repo", agentRuntime, undefined, undefined, undefined, settings);
@@ -295,5 +299,12 @@ describe("capabilities IPC", () => {
 
     await expect(handlers.get("baby-menu:settings:remove-agent")?.({}, "gemini")).resolves.toEqual(result);
     expect(settings.removeAgent).toHaveBeenCalledWith("gemini");
+
+    const override = { command: "gh", executable: "/Users/person/.local/bin/github-helper" };
+    await expect(handlers.get("baby-menu:settings:set-command-override")?.({}, override)).resolves.toEqual(result);
+    expect(settings.setCommandOverride).toHaveBeenCalledWith(override);
+
+    await expect(handlers.get("baby-menu:settings:remove-command-override")?.({}, "gh")).resolves.toEqual(result);
+    expect(settings.removeCommandOverride).toHaveBeenCalledWith("gh");
   });
 });

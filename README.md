@@ -49,7 +49,7 @@ The bar labels the real diff (`Added the cpu extension`, `Updated the layout`) s
 
 Open the popover header to reload the layout, reach Settings (an overlay that preserves your menu state), quit, or install an update.
 Reloading the layout remounts the widget canvas and root layout while preserving the agent conversation and Settings state.
-Settings lets you toggle launch-at-login, pick the embedded agent, and manage custom ACP agents.
+Settings lets you toggle launch-at-login, pick the embedded agent, manage custom ACP agents, and route extension commands through trusted executable helpers.
 
 ## Install Details
 
@@ -65,7 +65,8 @@ brew upgrade --cask baby-menu
 
 When a newer release exists, Baby Menu shows an update indicator in the popover header.
 
-For agent selection, custom ACP agents, telemetry, and environment flags, see [docs/configuration.md](docs/configuration.md).
+For agent selection, custom ACP agents, command helpers, telemetry, and environment flags, see [docs/configuration.md](docs/configuration.md).
+For no-shell GitHub helper setup and recovery, see [docs/command-helpers.md](docs/command-helpers.md).
 
 ## How It Works
 
@@ -112,7 +113,8 @@ For the full design notes and repository layout, see [docs/architecture.md](docs
 
 ## Docs
 
-- [docs/configuration.md](docs/configuration.md) - agent selection, custom ACP agents, telemetry, environment flags
+- [docs/configuration.md](docs/configuration.md) - agent selection, custom ACP agents, command helpers, telemetry, environment flags
+- [docs/command-helpers.md](docs/command-helpers.md) - trusted executable setup, verification, recovery, and rollback
 - [docs/architecture.md](docs/architecture.md) - runtime design notes and repository layout
 - [docs/development.md](docs/development.md) - building, testing, and packaging Baby Menu itself
 

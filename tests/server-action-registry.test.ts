@@ -363,7 +363,7 @@ describe("server action registry", () => {
     const db = createExtensionDatabase(":memory:");
     const scheduler = createBackgroundTaskScheduler({
       source: createBackgroundTaskSource({ rootDir }),
-      context: { rootDir, db, notify: () => undefined },
+      context: { rootDir, db, commands: { execFile: vi.fn() }, notify: () => undefined },
       minIntervalMs: 10,
     });
 
@@ -388,7 +388,7 @@ describe("server action registry", () => {
     const notify = vi.fn();
     const scheduler = createBackgroundTaskScheduler({
       source: createBackgroundTaskSource({ rootDir }),
-      context: { rootDir, db: createExtensionDatabase(":memory:"), notify },
+      context: { rootDir, db: createExtensionDatabase(":memory:"), commands: { execFile: vi.fn() }, notify },
       minIntervalMs: 10,
     });
 

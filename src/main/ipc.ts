@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import type {
   AgentActiveTurn,
   AgentChatResult,
+  BabyMenuCommandOverride,
   BabyMenuCustomAgentInput,
   BabyMenuSettings,
   GitActionResult,
@@ -44,6 +45,8 @@ type SettingsController = {
   addAgent: (input: BabyMenuCustomAgentInput) => Promise<BabyMenuSettings> | BabyMenuSettings;
   updateAgent: (name: string, input: { label?: string; command: string }) => Promise<BabyMenuSettings> | BabyMenuSettings;
   removeAgent: (name: string) => Promise<BabyMenuSettings> | BabyMenuSettings;
+  setCommandOverride: (input: BabyMenuCommandOverride) => Promise<BabyMenuSettings> | BabyMenuSettings;
+  removeCommandOverride: (command: string) => Promise<BabyMenuSettings> | BabyMenuSettings;
 };
 
 type AppController = {
@@ -69,12 +72,14 @@ export function registerIpcHandlers(
     getVisibility: () => ({ visible: false }),
   },
   settings: SettingsController = {
-    get: () => ({ openAtLogin: false, agentName: "", agents: [] }),
-    setOpenAtLogin: (openAtLogin) => ({ openAtLogin, agentName: "", agents: [] }),
-    setAgent: (agentName) => ({ openAtLogin: false, agentName, agents: [] }),
-    addAgent: () => ({ openAtLogin: false, agentName: "", agents: [] }),
-    updateAgent: () => ({ openAtLogin: false, agentName: "", agents: [] }),
-    removeAgent: () => ({ openAtLogin: false, agentName: "", agents: [] }),
+    get: () => ({ openAtLogin: false, agentName: "", agents: [], commandOverrides: [] }),
+    setOpenAtLogin: (openAtLogin) => ({ openAtLogin, agentName: "", agents: [], commandOverrides: [] }),
+    setAgent: (agentName) => ({ openAtLogin: false, agentName, agents: [], commandOverrides: [] }),
+    addAgent: () => ({ openAtLogin: false, agentName: "", agents: [], commandOverrides: [] }),
+    updateAgent: () => ({ openAtLogin: false, agentName: "", agents: [], commandOverrides: [] }),
+    removeAgent: () => ({ openAtLogin: false, agentName: "", agents: [], commandOverrides: [] }),
+    setCommandOverride: () => ({ openAtLogin: false, agentName: "", agents: [], commandOverrides: [] }),
+    removeCommandOverride: () => ({ openAtLogin: false, agentName: "", agents: [], commandOverrides: [] }),
   },
   appController: AppController = { quit: () => electronApp.quit() },
   runtimeOptions: IpcRuntimeOptions = {},
@@ -177,6 +182,14 @@ export function registerIpcHandlers(
 
   ipcMain.handle("baby-menu:settings:remove-agent", async (_event, name: string) => {
     return settings.removeAgent(name);
+  });
+
+  ipcMain.handle("baby-menu:settings:set-command-override", async (_event, input: BabyMenuCommandOverride) => {
+    return settings.setCommandOverride(input);
+  });
+
+  ipcMain.handle("baby-menu:settings:remove-command-override", async (_event, command: string) => {
+    return settings.removeCommandOverride(command);
   });
 
   ipcMain.handle("baby-menu:app:quit", async () => {

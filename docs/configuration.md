@@ -4,7 +4,7 @@ How a running Baby Menu install stores state, picks an agent, and can be tuned.
 
 ## Where state lives
 
-The packaged app keeps everything mutable under `~/.baby-menu`: extensions, the local SQLite database, caches, agent sessions, the custom agent catalog, and preferences.
+The packaged app keeps everything mutable under `~/.baby-menu`: extensions, the local SQLite database, caches, agent sessions, the custom agent catalog, command-helper overrides, and preferences.
 Upgrades preserve this directory, so generated widgets and extension state survive.
 
 On launch, packaged Baby Menu refreshes bundled defaults (`AGENTS.md`, `babymenu-env.d.ts`, recipes, starter extensions) from the app template while leaving your own extension directories untouched.
@@ -60,6 +60,18 @@ Examples:
 | GitHub Copilot | `copilot --acp --stdio` |
 | Qwen Code | `qwen --acp` |
 | OpenCode | `npx -y opencode-ai acp` |
+
+## Command helpers
+
+Settings can route a bare extension command such as `gh` to a trusted absolute executable path.
+The host invokes that executable directly without a shell and persists only the command-to-path mapping in preferences.
+No credential is stored in Baby Menu.
+
+Existing installations keep normal host command resolution until an override is added.
+A configured override takes precedence, while a malformed or missing configured helper fails closed instead of falling back to the bare command.
+Application updates preserve the mapping.
+
+See [Command helpers](command-helpers.md) for nontechnical GitHub Graph setup, verification, failure recovery, rollback, and the server-action contract.
 
 ## Updates
 

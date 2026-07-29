@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type {
   AgentRuntimeStatus,
   BabyMenuApi,
+  BabyMenuCommandOverride,
   BabyMenuCustomAgentInput,
   BackgroundTaskUpdate,
   PopoverVisibilityState,
@@ -69,6 +70,10 @@ const api: BabyMenuApi = {
     updateAgent: (name: string, input: { label?: string; command: string }) =>
       ipcRenderer.invoke("baby-menu:settings:update-agent", name, input),
     removeAgent: (name: string) => ipcRenderer.invoke("baby-menu:settings:remove-agent", name),
+    setCommandOverride: (input: BabyMenuCommandOverride) =>
+      ipcRenderer.invoke("baby-menu:settings:set-command-override", input),
+    removeCommandOverride: (command: string) =>
+      ipcRenderer.invoke("baby-menu:settings:remove-command-override", command),
   },
   app: {
     quit: () => ipcRenderer.invoke("baby-menu:app:quit"),

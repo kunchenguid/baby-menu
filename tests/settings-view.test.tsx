@@ -10,6 +10,7 @@ function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
     openAtLogin: false,
     agentName: "claude",
     agents: [{ name: "claude", label: "Claude Code", available: true }],
+    commandOverrides: [],
     ...settings,
   };
   let current = base;
@@ -64,6 +65,23 @@ function installBabyMenuApi(settings?: Partial<BabyMenuSettings>): BabyMenuApi {
       }),
       removeAgent: vi.fn(async (name: string) => {
         current = { ...current, agents: current.agents.filter((agent) => agent.name !== name) };
+        return current;
+      }),
+      setCommandOverride: vi.fn(async (input: { command: string; executable: string }) => {
+        current = {
+          ...current,
+          commandOverrides: [
+            ...(current.commandOverrides ?? []).filter((override) => override.command !== input.command),
+            input,
+          ],
+        };
+        return current;
+      }),
+      removeCommandOverride: vi.fn(async (command: string) => {
+        current = {
+          ...current,
+          commandOverrides: (current.commandOverrides ?? []).filter((override) => override.command !== command),
+        };
         return current;
       }),
     },
@@ -259,6 +277,57 @@ describe("settings view", () => {
     fireEvent.click(await screen.findByRole("button", { name: /remove Gemini/i }));
     await waitFor(() => expect(api.settings.removeAgent).toHaveBeenCalledWith("gemini"));
     await waitFor(() => expect(screen.queryByRole("radio", { name: /Gemini/i })).toBeNull());
+  });
+
+  it("adds a command helper override through Settings without requiring a terminal", async () => {
+    const api = installBabyMenuApi();
+    await openSettings();
+
+    fireEvent.click(screen.getByRole("button", { name: /add command helper/i }));
+    fireEvent.change(screen.getByLabelText(/^command name$/i), { target: { value: "gh" } });
+    fireEvent.change(screen.getByLabelText(/^executable path$/i), {
+      target: { value: "/Users/person/.local/bin/github-helper" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^save helper$/i }));
+
+    await waitFor(() =>
+      expect(api.settings.setCommandOverride).toHaveBeenCalledWith({
+        command: "gh",
+        executable: "/Users/person/.local/bin/github-helper",
+      }),
+    );
+    expect(await screen.findByText("/Users/person/.local/bin/github-helper")).toBeTruthy();
+  });
+
+  it("warns before removing a command helper and returns it to host resolution on confirmation", async () => {
+    const api = installBabyMenuApi({
+      commandOverrides: [{ command: "gh", executable: "/Users/person/.local/bin/github-helper" }],
+    });
+    await openSettings();
+
+    fireEvent.click(screen.getByRole("button", { name: /remove gh command helper/i }));
+
+    expect(await screen.findByText(/may prompt again/i)).toBeTruthy();
+    expect(api.settings.removeCommandOverride).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /^remove helper$/i }));
+    await waitFor(() => expect(api.settings.removeCommandOverride).toHaveBeenCalledWith("gh"));
+  });
+
+  it("surfaces command-helper validation errors and keeps the dialog open", async () => {
+    const api = installBabyMenuApi();
+    api.settings.setCommandOverride = vi.fn(async () => {
+      throw new Error("The selected file is not executable.");
+    });
+    await openSettings();
+
+    fireEvent.click(screen.getByRole("button", { name: /add command helper/i }));
+    fireEvent.change(screen.getByLabelText(/^command name$/i), { target: { value: "gh" } });
+    fireEvent.change(screen.getByLabelText(/^executable path$/i), { target: { value: "/missing/helper" } });
+    fireEvent.click(screen.getByRole("button", { name: /^save helper$/i }));
+
+    expect(await screen.findByText("The selected file is not executable.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^save helper$/i })).toBeTruthy();
   });
 
   it("surfaces the error when adding an invalid agent and keeps the dialog open", async () => {

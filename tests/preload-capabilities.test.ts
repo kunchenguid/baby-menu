@@ -54,6 +54,15 @@ describe("preload capabilities bridge", () => {
     await api.settings.setOpenAtLogin(true);
     expect(invoke).toHaveBeenCalledWith("baby-menu:settings:set-open-at-login", true);
 
+    await api.settings.setCommandOverride({ command: "gh", executable: "/path/to/github-helper" });
+    expect(invoke).toHaveBeenCalledWith("baby-menu:settings:set-command-override", {
+      command: "gh",
+      executable: "/path/to/github-helper",
+    });
+
+    await api.settings.removeCommandOverride("gh");
+    expect(invoke).toHaveBeenCalledWith("baby-menu:settings:remove-command-override", "gh");
+
     await api.app.quit();
     expect(invoke).toHaveBeenCalledWith("baby-menu:app:quit");
   });

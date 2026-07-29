@@ -6,7 +6,12 @@ import {
 } from "../src/main/background-task-scheduler";
 import type { BackgroundTaskSource, DiscoveredBackgroundTask } from "../src/main/server-action-registry";
 
-const context: BabyMenuServerContext = { rootDir: "/repo", db: {} as BabyMenuServerContext["db"], notify: vi.fn() };
+const context: BabyMenuServerContext = {
+  rootDir: "/repo",
+  db: {} as BabyMenuServerContext["db"],
+  commands: { execFile: vi.fn() },
+  notify: vi.fn(),
+};
 
 function sourceOf(tasks: DiscoveredBackgroundTask[]): BackgroundTaskSource & { tasks: DiscoveredBackgroundTask[] } {
   const state = { tasks };

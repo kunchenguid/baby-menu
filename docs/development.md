@@ -13,6 +13,9 @@ pnpm dev
 ```
 
 Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
+Node 22.14.0 is the known-good installation toolchain.
+On macOS in July 2026, two clean `pnpm install --frozen-lockfile` attempts under Node 24.4.1 crashed inside a pnpm worker with `FATAL ERROR: invalid array length`, including a retry with a 4 GiB heap, while the same lockfile installed successfully under Node 22.14.0 in 8.7 seconds.
+If that Node 24 failure appears, switch to Node 22.14.0 and remove only the incomplete untracked `node_modules/` directory before retrying once.
 
 ## Commands
 

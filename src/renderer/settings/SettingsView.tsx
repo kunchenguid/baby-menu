@@ -14,7 +14,12 @@ import {
   Switch,
   cn,
 } from "../../ui";
-import type { BabyMenuAgentOption, BabyMenuSettings, BabyMenuSettingsSection } from "../../shared/contracts";
+import type {
+  BabyMenuAgentOption,
+  BabyMenuCommandOverride,
+  BabyMenuSettings,
+  BabyMenuSettingsSection,
+} from "../../shared/contracts";
 import { importRuntimeModule, type RuntimeModuleImporter } from "../extension-modules";
 import { loadRuntimeSettingsSections } from "./settings-sections";
 
@@ -36,6 +41,12 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
   const [agentFormError, setAgentFormError] = useState<string | null>(null);
   const [savingAgent, setSavingAgent] = useState(false);
   const [agentListError, setAgentListError] = useState<string | null>(null);
+  const [commandOverrides, setCommandOverrides] = useState<BabyMenuCommandOverride[]>([]);
+  const [commandForm, setCommandForm] = useState<CommandFormState | null>(null);
+  const [commandFormError, setCommandFormError] = useState<string | null>(null);
+  const [savingCommand, setSavingCommand] = useState(false);
+  const [commandListError, setCommandListError] = useState<string | null>(null);
+  const [pendingCommandRemoval, setPendingCommandRemoval] = useState<string | null>(null);
   const runtimeSections = useRuntimeSettingsSections({ enabled: sections === undefined, importer: runtimeImporter });
   const visibleSections = sections ?? runtimeSections;
 
@@ -47,6 +58,7 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
       setAgents(settings.agents);
       setAgentName(settings.agentName);
       setAgentSwitchDisabledReason(settings.agentSwitchDisabledReason);
+      setCommandOverrides(settings.commandOverrides ?? []);
     });
     return () => {
       cancelled = true;
@@ -63,6 +75,7 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
     setAgentName(result.agentName);
     setAgents(result.agents);
     setAgentSwitchDisabledReason(result.agentSwitchDisabledReason);
+    setCommandOverrides(result.commandOverrides ?? []);
   }
 
   async function confirmSwitch() {
@@ -110,6 +123,48 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
       applySettings(await window.babyMenu.settings.removeAgent(agent.name));
     } catch (error) {
       setAgentListError(error instanceof Error ? error.message : "Could not remove the agent.");
+    }
+  }
+
+  function openAddCommandForm() {
+    setCommandListError(null);
+    setCommandFormError(null);
+    setCommandForm({ mode: "add", command: "", executable: "" });
+  }
+
+  function openEditCommandForm(override: BabyMenuCommandOverride) {
+    setCommandListError(null);
+    setCommandFormError(null);
+    setCommandForm({ mode: "edit", ...override });
+  }
+
+  async function submitCommandForm() {
+    if (!window.babyMenu?.settings || !commandForm) return;
+    setSavingCommand(true);
+    setCommandFormError(null);
+    try {
+      applySettings(
+        await window.babyMenu.settings.setCommandOverride({
+          command: commandForm.command.trim(),
+          executable: commandForm.executable.trim(),
+        }),
+      );
+      setCommandForm(null);
+    } catch (error) {
+      setCommandFormError(error instanceof Error ? error.message : "Could not save the command helper.");
+    } finally {
+      setSavingCommand(false);
+    }
+  }
+
+  async function removeCommandOverride(command: string) {
+    if (!window.babyMenu?.settings) return;
+    setCommandListError(null);
+    try {
+      applySettings(await window.babyMenu.settings.removeCommandOverride(command));
+      setPendingCommandRemoval(null);
+    } catch (error) {
+      setCommandListError(error instanceof Error ? error.message : "Could not remove the command helper.");
     }
   }
 
@@ -185,6 +240,50 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
         </Button>
       </section>
 
+      <section className="flex flex-col gap-2">
+        <span className="text-xxs uppercase tracking-caps text-ink-label">command helpers</span>
+        <span className="text-xs leading-relaxed text-ink-soft">
+          Route an extension command to a trusted executable without changing your system path.
+        </span>
+        {commandOverrides.length === 0 ? (
+          <span className="text-xs text-ink-muted">No helpers configured. Commands use normal app lookup.</span>
+        ) : null}
+        {commandOverrides.map((override) => (
+          <div key={override.command} className="flex items-center gap-1.5">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-sm border border-line px-3 py-2">
+              <span className="truncate text-sm text-ink" title={override.command}>
+                {override.command}
+              </span>
+              <span className="truncate text-xs text-ink-soft" title={override.executable}>
+                {override.executable}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-7 px-0"
+              aria-label={`edit ${override.command} command helper`}
+              onClick={() => openEditCommandForm(override)}
+            >
+              <Pencil className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-7 px-0 hover:text-signal-danger"
+              aria-label={`remove ${override.command} command helper`}
+              onClick={() => setPendingCommandRemoval(override.command)}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        ))}
+        {commandListError ? <span className="text-xs text-signal-danger">{commandListError}</span> : null}
+        <Button variant="ghost" size="sm" className="mt-1 gap-1.5 self-start" onClick={openAddCommandForm}>
+          <Plus className="size-3.5" /> add command helper
+        </Button>
+      </section>
+
       <Dialog open={agentForm !== null} onOpenChange={(open) => !open && setAgentForm(null)}>
         <DialogContent className="max-w-sm">
           <DialogTitle>{agentForm?.mode === "edit" ? "edit agent" : "add agent"}</DialogTitle>
@@ -228,6 +327,68 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
         </DialogContent>
       </Dialog>
 
+      <Dialog open={commandForm !== null} onOpenChange={(open) => !open && setCommandForm(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogTitle>{commandForm?.mode === "edit" ? "edit command helper" : "add command helper"}</DialogTitle>
+          <DialogDescription>
+            When an extension requests this command, Baby Menu runs the selected executable directly with no shell.
+          </DialogDescription>
+          <DialogBody className="flex flex-col gap-3">
+            <Field label="command name" hint="The bare command used by the extension, for example gh.">
+              <Input
+                value={commandForm?.command ?? ""}
+                disabled={commandForm?.mode === "edit"}
+                placeholder="gh"
+                onChange={(event) =>
+                  setCommandForm((form) => (form ? { ...form, command: event.target.value } : form))
+                }
+              />
+            </Field>
+            <Field label="executable path" hint="Paste the absolute path supplied by your helper provider.">
+              <Input
+                value={commandForm?.executable ?? ""}
+                placeholder="/path/to/github-helper"
+                onChange={(event) =>
+                  setCommandForm((form) => (form ? { ...form, executable: event.target.value } : form))
+                }
+              />
+            </Field>
+            {commandFormError ? <span className="text-xs text-signal-danger">{commandFormError}</span> : null}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCommandForm(null)}>
+              cancel
+            </Button>
+            <Button variant="primary" disabled={savingCommand} onClick={() => void submitCommandForm()}>
+              save helper
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={pendingCommandRemoval !== null}
+        onOpenChange={(open) => !open && setPendingCommandRemoval(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogTitle>remove command helper?</DialogTitle>
+          <DialogDescription>
+            {pendingCommandRemoval} will return to normal app command lookup. Extensions using it may prompt again.
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPendingCommandRemoval(null)}>
+              cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => pendingCommandRemoval && void removeCommandOverride(pendingCommandRemoval)}
+            >
+              remove helper
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={pendingAgent !== null} onOpenChange={(open) => !open && setPendingAgent(null)}>
         <DialogContent className="max-w-sm">
           <DialogTitle>switch agent?</DialogTitle>
@@ -255,6 +416,10 @@ export function SettingsView({ sections, runtimeImporter }: SettingsViewProps = 
     </div>
   );
 }
+
+type CommandFormState = BabyMenuCommandOverride & {
+  mode: "add" | "edit";
+};
 
 type AgentFormState = {
   mode: "add" | "edit";

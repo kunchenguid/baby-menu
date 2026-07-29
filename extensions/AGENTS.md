@@ -389,11 +389,28 @@ When a product-native client owns credential refresh or selection, a local expir
 Carry structured failures through to accurate renderer copy, and preserve last-good data as visibly stale during refresh, launch, connectivity, rate-limit, service, and parser failures.
 
 Each action receives `(input, context)`.
-The `context` is `{ rootDir, db, notify }`:
+The `context` is `{ rootDir, db, commands, notify }`:
 
 - `rootDir` is Baby Menu's app-data root, used for host-owned runtime state such as caches and local storage.
 - `db` is the shared SQL store (see "Storage").
+- `commands.execFile(command, args, options)` runs a bare command through the executable selected in Baby Menu Settings, or normal app command lookup when no override exists.
 - `notify({ title, body })` shows a native system notification.
+
+Use `context.commands.execFile` instead of importing `node:child_process` when a command may need a trusted helper or another user-selected executable.
+Pass only a constant bare command name and a fixed argument array owned by the extension.
+Never derive the command, executable, flags, GraphQL document, URL, or other arguments from renderer input.
+The host never uses a shell, rejects shell syntax in command names and null bytes in arguments, defaults to a 15-second timeout and 1 MiB per output stream, and caps explicit requests at 30 seconds and 8 MiB.
+A configured helper path must be absolute, regular, and executable when saved.
+If a configured helper later disappears or a manually edited setting is malformed, execution fails closed instead of falling back to the bare command.
+Treat the helper as privileged infrastructure: select only a helper whose identity and authority the user or provider has independently reviewed, and return normalized non-secret results to the renderer.
+
+```ts
+const { stdout } = await context.commands.execFile(
+  "example-cli",
+  ["fixed", "read-only", "operation"],
+  { timeoutMs: 15_000, maxBufferBytes: 1024 * 1024 },
+);
+```
 
 ### Module-scope state in server.ts is not durable
 

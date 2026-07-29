@@ -81,7 +81,8 @@ The extension-facing slice of that contract is a generated public surface, treat
 - `shell-path.ts` - expands `PATH` for GUI launches so packaged apps can find agent CLIs.
 - `update-checker.ts` - checks the latest GitHub Release at most every 4 hours, compares it to the running app version, opens the release page externally, and simulates an available update in source/dev mode so the header indicator can be exercised.
 - `recipe-loader.ts` - discovers and parses `recipes/*.html` from the active extension workspace.
-- `server-action-registry.ts` - discovers extension server actions and background task declarations from the active extension workspace, caches unchanged compiled server modules, and reloads them when the entry or local helper source changes.
+- `server-action-registry.ts` - discovers extension server actions and background task declarations from the active extension workspace, caches unchanged compiled server modules, reloads them when the entry or local helper source changes, and injects host-owned command routing into each server context.
+- `host-command-runner.ts` - backs `context.commands.execFile`: validates bare command names, argv, timeout, and output bounds, resolves Settings-owned executable overrides through preferences, and invokes the result directly without a shell.
 - `background-task-scheduler.ts` - runs discovered extension background tasks on host-owned timers, hot-reloads changed tasks, and enforces the 60-second minimum interval.
 - `extension-database.ts` - owns the shared local SQLite database exposed to extension server actions, background tasks, and widgets through the bridge.
 - `notifier.ts` - backs `context.notify` for server actions and background tasks with native notifications.
@@ -165,6 +166,7 @@ Do not write generated extension files, the local extension database, compiled m
 - Widgets conform to `BabyMenuWidget` / `RefreshableBabyMenuWidget`. The `WidgetHost` owns visible-widget refresh timing via `useViewRefresh`, using the main-process popover visibility signal - widgets should not start their own polling.
 - Settings sections conform to `BabyMenuSettingsSection`, are exported from `widget.tsx`, and own only the section body; `SettingsView` owns the frame and rediscovers sections when settings refresh or the popover reopens.
 - New widgets and capabilities should be built as self-contained extensions behind the stable `window.babyMenu` bridge.
+- Extension server actions that may need a trusted user-selected executable should use `context.commands.execFile` with a constant bare command and fixed extension-owned argv; configured helper paths live in app preferences, survive upgrades, and fail closed when malformed or missing.
 - Extension server actions and background tasks are discovered dynamically from the active extension workspace, so new or changed capabilities can be picked up without changing preload.
 - Server action modules keep one module instance while `server.ts` and its local imports are unchanged, so module-scope state can survive repeated `invoke` calls and background ticks.
 - That state is reset on code edits and app restarts; durable extension state belongs in the shared SQLite store, not module scope.

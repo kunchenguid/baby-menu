@@ -4,6 +4,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import type { BabyMenuBackgroundTask, BabyMenuCapabilityDescriptor, BabyMenuServerContext } from "../shared/contracts";
 import { createExtensionDatabase, type ExtensionDatabase } from "./extension-database";
 import { compileExtensionModule, rewriteExtensionModuleImports, type CompiledExtensionModule } from "./extension-module-compiler";
+import { createHostCommandRunner } from "./host-command-runner";
 
 export type ServerActionContext = BabyMenuServerContext & {
   db: ExtensionDatabase;
@@ -44,6 +45,7 @@ type CreateServerActionRegistryOptions = {
   actionRoots?: string[];
   cacheDir?: string;
   db?: ExtensionDatabase;
+  commands?: ServerActionContext["commands"];
   notify?: ServerActionContext["notify"];
 };
 
@@ -64,6 +66,7 @@ export function createServerActionRegistry(options: CreateServerActionRegistryOp
   // can be exercised in isolation (e.g. tests) without a backing file.
   let database = options.db ?? null;
   const getDatabase = (): ExtensionDatabase => (database ??= createExtensionDatabase(":memory:"));
+  const commands = options.commands ?? createHostCommandRunner();
 
   const loadActions = async (): Promise<LoadedServerAction[]> => {
     const files = (
@@ -88,6 +91,7 @@ export function createServerActionRegistry(options: CreateServerActionRegistryOp
       return capability.handler(input, {
         rootDir: options.rootDir,
         db: getDatabase(),
+        commands,
         notify: options.notify ?? (() => undefined),
       });
     },

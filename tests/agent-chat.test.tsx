@@ -57,6 +57,8 @@ function installBabyMenuAgentMock({
       addAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
       updateAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
       removeAgent: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
+      setCommandOverride: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
+      removeCommandOverride: vi.fn(async () => ({ openAtLogin: false, agentName: "claude", agents: [] })),
     },
     app: {
       quit: vi.fn(async () => ({ ok: true })),
