@@ -469,6 +469,37 @@ describe("linux packaging configuration", () => {
     expect([...new Set(documented)].sort()).toEqual([...new Set(emitted)].sort());
   });
 
+  it("declares pacman dependencies Arch actually ships", async () => {
+    // app-builder-lib@26.8.2's FpmTarget.js getDefaultDepends("pacman") still lists
+    // http-parser, which Arch dropped from its repos - a generated .pacman carrying it
+    // fails `pacman -U` on a stock Arch install with "could not find http-parser".
+    // Electron no longer links it, so the fix is to restate the default list without it.
+    // Both sides are derived: if electron-builder revises its defaults, this fails rather
+    // than silently leaving our override stale.
+    const requireHere = createRequire(import.meta.url);
+    const fpmTarget = await readFile(
+      requireHere.resolve("app-builder-lib/out/targets/FpmTarget.js", {
+        paths: [requireHere.resolve("electron-builder")],
+      }),
+      "utf8",
+    );
+    const defaults = fpmTarget
+      .match(/case "pacman":\n\s*return \[(?<list>[^\]]+)\]/)
+      ?.groups?.list.match(/"([^"]+)"/g)
+      ?.map((entry) => entry.slice(1, -1));
+    expect(defaults).toContain("http-parser");
+
+    const config = await readFile(resolve(import.meta.dirname, "../electron-builder.yml"), "utf8");
+    // depends is a LinuxTargetSpecificOptions key, so it belongs under pacman: - the
+    // top-level linux: block sets additionalProperties: false and would reject the config.
+    const declared = config
+      .match(/^pacman:\n {2}depends:\n(?<list>(?: {4}- .+\n)+)/m)
+      ?.groups?.list.match(/(?<= {4}- ).+/g);
+
+    expect(declared).toEqual(defaults?.filter((entry) => entry !== "http-parser"));
+    expect(declared).not.toContain("http-parser");
+  });
+
   it("packages local/dev Linux builds under a distinct dev-only executable name so autostart never installed one", async () => {
     const devConfig = await readFile(resolve(import.meta.dirname, "../electron-builder.dev.yml"), "utf8");
 

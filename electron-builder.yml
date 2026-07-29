@@ -69,5 +69,26 @@ linux:
     entry:
       StartupWMClass: baby-menu
 
+# app-builder-lib@26.8.2's FpmTarget.js getDefaultDepends("pacman") still lists
+# http-parser, which Arch dropped from its repos, so the generated .pacman fails
+# `pacman -U` on a stock Arch install. Electron no longer links it. This restates
+# that default list without it; depends is a per-target option, and the top-level
+# linux: block sets additionalProperties: false, so it cannot live there.
+pacman:
+  depends:
+    - c-ares
+    - ffmpeg
+    - gtk3
+    - libevent
+    - libvpx
+    - libxslt
+    - libxss
+    - minizip
+    - nss
+    - re2
+    - snappy
+    - libnotify
+    - libappindicator-gtk3
+
 dmg:
   artifactName: Baby-Menu-${version}-universal.dmg
