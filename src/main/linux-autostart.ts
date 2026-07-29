@@ -23,10 +23,18 @@ export function linuxAutostartExecPath(env: LinuxAutostartEnv, exePath: string):
 }
 
 // The session manager splits Exec on whitespace into argv, and the deb, rpm and
-// pacman targets install to /opt/Baby Menu/baby-menu. Quote exactly the way
-// app-builder-lib's LinuxTargetHelper does for the desktop entry it generates.
+// pacman targets install to /opt/Baby Menu/baby-menu, so anything outside the
+// unreserved set app-builder-lib's LinuxTargetHelper uses has to be quoted.
+// $APPIMAGE is user-chosen, so the path can also carry characters the spec
+// requires escaping inside a quoted argument: ", $, ` and \. The string-value
+// escape rule is applied before the quoting rule, so each of those backslashes
+// is itself doubled, which is why a literal backslash becomes four.
 export function linuxAutostartExecValue(execPath: string): string {
-  return /^[/0-9A-Za-z._-]+$/.test(execPath) ? execPath : `"${execPath}"`;
+  if (/^[/0-9A-Za-z._-]+$/.test(execPath)) {
+    return execPath;
+  }
+  const quoted = execPath.replace(/\\/g, "\\\\\\\\").replace(/["$`]/g, "\\\\$&");
+  return `"${quoted}"`;
 }
 
 export function linuxAutostartEntry(execPath: string): string {

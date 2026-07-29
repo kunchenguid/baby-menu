@@ -71,6 +71,20 @@ describe("linux autostart", () => {
     expect(linuxAutostartExecValue("/usr/bin/baby-menu")).toBe("/usr/bin/baby-menu");
   });
 
+  it("escapes the characters the spec reserves inside a quoted exec argument", () => {
+    // $APPIMAGE is user-chosen, so the path can carry ", $, ` or \. A key-file
+    // reader rejects a lone \$ as an invalid escape sequence and drops Exec
+    // entirely, so the quoting backslash is itself escaped.
+    expect(linuxAutostartExecValue("/home/me/$apps/Baby Menu.AppImage")).toBe(
+      '"/home/me/\\\\$apps/Baby Menu.AppImage"',
+    );
+    expect(linuxAutostartExecValue('/home/me/a"b/Baby Menu.AppImage')).toBe('"/home/me/a\\\\"b/Baby Menu.AppImage"');
+    expect(linuxAutostartExecValue("/home/me/a`b/Baby Menu.AppImage")).toBe('"/home/me/a\\\\`b/Baby Menu.AppImage"');
+    expect(linuxAutostartExecValue("/home/me/a\\b/Baby Menu.AppImage")).toBe(
+      '"/home/me/a\\\\\\\\b/Baby Menu.AppImage"',
+    );
+  });
+
   it("creates the entry, including the autostart directory", async () => {
     const home = await tempHome();
     const filePath = linuxAutostartFilePath(home, {});

@@ -197,9 +197,10 @@ jobs:
   macos:
     # The macOS job ends by flipping the draft public and updating the Homebrew
     # cask, so it waits for the Linux job to finish and land its assets first.
-    # That ordering gate is advisory only: the deb, rpm, and pacman fpm targets
-    # have never been built end to end, so a first-release fpm failure must not
-    # strand the release as a permanent draft with no DMG published. The Linux
+    # That ordering gate is advisory only: the deb and rpm fpm targets have never
+    # been built end to end (only pacman has, locally on Arch), so a first-release
+    # fpm failure must not strand the release as a permanent draft with no DMG
+    # published. The Linux
     # job still runs and still reports its real status, so a failure is visible.
     # Tighten this to a hard `needs.linux.result == 'success'` check once a real
     # release has proven the fpm targets. always() is kept so the
