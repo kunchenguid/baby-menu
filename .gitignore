@@ -75,3 +75,4 @@ Thumbs.db
 # macOS signing and credentials
 *.p12
 *.mobileprovision
+.no-mistakes/evidence/
