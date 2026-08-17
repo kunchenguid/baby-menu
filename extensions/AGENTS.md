@@ -491,3 +491,10 @@ Concretely:
   If inspecting a source that can contain secrets, print only non-secret metadata or explicitly redacted placeholders; never echo raw tokens, credential blobs, cookies, auth headers, or secret-bearing payloads to stdout, the agent transcript, logs, or the widget UI.
   Never guess or pattern-complete a field name, path, or response shape from memory, docs, or a similar existing field.
 - Before reporting the work done, verify the finished result against that same live data yourself: run the server action (or an equivalent one-off shell/node check) against the real source and confirm the exact value you expect is what actually renders. Reasoning about the return shape on paper is not verification, and it is not the user's job to discover a widget doesn't render - do that check yourself first.
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.
