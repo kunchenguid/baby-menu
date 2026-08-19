@@ -1,0 +1,8 @@
+VISION.md acceptance-contract validation: PASS
+- Changed files are documentation only: AGENTS.md and VISION.md
+- VISION.md has exactly 70 lines
+- No em dash character appears
+- Six principle sections precede the explicit Scope section
+- Every prose line ends as a complete sentence
+- The final two lines are the required aligns/resisted decision tests
+- git diff --check reports no whitespace errors
