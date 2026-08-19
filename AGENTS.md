@@ -2,6 +2,7 @@
 
 This file provides guidance for developing baby-menu itself.
 Embedded agents launched from baby-menu should work from the active extension workspace and follow the copied `AGENTS.md` there for extension authoring.
+`VISION.md` at the repo root is the project's acceptance policy; use its aligns/resisted tests when judging whether a change belongs here.
 
 ## Commands
 
