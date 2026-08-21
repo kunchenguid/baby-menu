@@ -9,13 +9,14 @@ We require this to reduce the maintainer's burden of reviewing and merging contr
 `no-mistakes` puts a local git proxy in front of your real remote.
 Pushing through it runs an AI-driven review, test, lint, and CI pipeline in an isolated worktree, forwards the push upstream only after every check passes, and opens a clean PR automatically.
 
-A GitHub Actions check named `Require no-mistakes` runs on PRs targeting `main` and fails if the body is missing the deterministic signature that no-mistakes writes.
+A GitHub Actions check named `Require no-mistakes` runs on PRs targeting `main` and fails if the body is missing the deterministic signature that no-mistakes writes, or if the structured pipeline attestation does not show `review`, `test`, and `document` as completed.
 Known automation accounts are exempt so dependency and release automation can keep working.
-Regular contributor PRs without the signature will not be reviewed or merged.
+Regular contributor PRs without the signature and attestation will not be reviewed or merged.
 
 ## Workflow
 
 Fork routing requires `no-mistakes` v1.30.1 or newer.
+This repository's required check also needs `no-mistakes` >= 1.46.0 so the PR body includes structured pipeline step attestation.
 
 1. Fork the repo, then clone the parent repo or set your local `origin` back to the parent repo (`git@github.com:kunchenguid/baby-menu.git`).
 2. Create a branch and make your changes.

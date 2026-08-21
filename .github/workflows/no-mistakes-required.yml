@@ -43,19 +43,101 @@ jobs:
         run: |
           set -eu
           marker='Updates from [git push no-mistakes](https://github.com/kunchenguid/no-mistakes)'
-          if printf '%s' "${PR_BODY:-}" | grep -qF -- "$marker"; then
-            echo "Found no-mistakes signature in PR #${PR_NUMBER} body."
+          if ! printf '%s' "${PR_BODY:-}" | grep -qF -- "$marker"; then
+            {
+              echo "::error::This PR was not raised through no-mistakes."
+              echo
+              echo "Contributions to this repository must be submitted via 'git push no-mistakes'."
+              echo "That pipeline runs the required review, test, lint, and CI steps and writes a"
+              echo "deterministic '## Pipeline' section into the PR body containing:"
+              echo
+              echo "    $marker"
+              echo
+              echo "See CONTRIBUTING.md for setup and the full workflow."
+              echo
+              echo "PR author: ${PR_AUTHOR}"
+            } >&2
+            exit 1
+          fi
+          echo "Found no-mistakes signature in PR #${PR_NUMBER} body."
+
+          set +e
+          step_report="$(python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          body = os.environ.get("PR_BODY") or ""
+          prefix = "<!-- no-mistakes-pipeline-attestation:v1 "
+          suffix = " -->"
+          start = body.find(prefix)
+          if start < 0:
+              sys.exit(2)
+          start += len(prefix)
+          end = body.find(suffix, start)
+          if end < 0:
+              sys.exit(2)
+          try:
+              data = json.loads(body[start:end])
+          except json.JSONDecodeError:
+              sys.exit(3)
+          if not isinstance(data, dict):
+              sys.exit(3)
+          head_sha = data.get("head_sha")
+          steps = data.get("steps")
+          if not isinstance(head_sha, str) or not head_sha.strip() or not isinstance(steps, list):
+              sys.exit(3)
+          by_name = {}
+          for item in steps:
+              if not isinstance(item, dict):
+                  continue
+              name = item.get("step")
+              if not isinstance(name, str) or not name or name in by_name:
+                  continue
+              status = item.get("status")
+              by_name[name] = status if isinstance(status, str) else ""
+          missing = []
+          for name in ("review", "test", "document"):
+              status = by_name.get(name)
+              if status != "completed":
+                  missing.append(f"{name}={status if status else 'missing'}")
+          if missing:
+              print(", ".join(missing))
+              sys.exit(4)
+          PY
+          )"
+          code=$?
+          set -e
+
+          if [ "$code" -eq 0 ]; then
+            echo "Pipeline attestation completed review, test, and document for PR #${PR_NUMBER}."
             exit 0
           fi
+
+          if [ "$code" -eq 4 ]; then
+            {
+              echo "::error::no-mistakes pipeline attestation is missing completed required steps: ${step_report}."
+              echo
+              echo "This repository requires review, test, and document to each have status=completed."
+              echo "Skipped, failed, pending, running, or missing required steps are not compliant,"
+              echo "including quota skips and agent skips."
+              echo
+              echo "Raise the PR with 'git push no-mistakes' so those steps complete."
+              echo "See CONTRIBUTING.md for setup and the full workflow."
+              echo
+              echo "PR author: ${PR_AUTHOR}"
+            } >&2
+            exit 1
+          fi
+
           {
-            echo "::error::This PR was not raised through no-mistakes."
+            echo "::error::This repository requires no-mistakes >= 1.46.0 (https://github.com/kunchenguid/no-mistakes/pull/670)."
             echo
-            echo "Contributions to this repository must be submitted via 'git push no-mistakes'."
-            echo "That pipeline runs the required review, test, lint, and CI steps and writes a"
-            echo "deterministic '## Pipeline' section into the PR body containing:"
+            echo "The PR body has the no-mistakes signature but is missing a parseable"
+            echo "<!-- no-mistakes-pipeline-attestation:v1 ... --> comment with JSON head_sha"
+            echo "and steps. An older no-mistakes that only writes the signature is not enough."
             echo
-            echo "    $marker"
-            echo
+            echo "Upgrade no-mistakes and raise the PR with 'git push no-mistakes'."
             echo "See CONTRIBUTING.md for setup and the full workflow."
             echo
             echo "PR author: ${PR_AUTHOR}"
