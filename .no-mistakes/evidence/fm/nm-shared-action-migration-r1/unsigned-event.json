@@ -1,0 +1,1 @@
+{"pull_request": {"number": 42, "body": "Please merge this change.\n", "head": {"sha": "0123456789abcdef0123456789abcdef01234567", "ref": "feature/shared-action"}, "user": {"login": "alice"}}}

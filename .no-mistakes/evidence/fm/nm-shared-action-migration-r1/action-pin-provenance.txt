@@ -1,0 +1,4 @@
+Pinned commit: 32d396ac0f29135daf7fcb9964aba9d5f4e796d6
+GitHub commit API status: 200
+Latest published release (including prereleases): v1.57.1
+Release tags pointing exactly at pinned commit: none
