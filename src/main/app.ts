@@ -189,7 +189,15 @@ export async function startBabyMenuApp(): Promise<void> {
   // adapters. Run them with the bundled Electron as Node (ELECTRON_RUN_AS_NODE)
   // so there is no dependency on a separately-installed `node` - the same class
   // of PATH fragility that made the agent look "unavailable" before.
-  const adapterLauncher = ["env", "ELECTRON_RUN_AS_NODE=1", process.execPath];
+  // ELECTRON_RUN_AS_NODE is set as a real process env var (acpx spawns agent
+  // commands with an environment built from process.env, see buildAgentEnvironment
+  // in acpx) rather than encoded as a POSIX "env VAR=value cmd" launch prefix:
+  // there is no env.exe on native Windows PATH by default. Electron does not
+  // forward this var to the renderer/GPU/utility processes it spawns for itself,
+  // so setting it here does not affect the app's own windows - see
+  // https://www.electronjs.org/docs/latest/api/environment-variables#electron_run_as_node.
+  process.env.ELECTRON_RUN_AS_NODE = "1";
+  const adapterLauncher = [process.execPath];
   // The catalog is a live runtime service: it owns agents.json and pushes
   // rebuilt registry overrides into the runtime so UI-added custom agents apply
   // immediately. agentRuntime is referenced through closures (assigned just below)

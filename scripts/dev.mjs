@@ -43,7 +43,14 @@ export function runDev({
   cpSync: cpSyncFn = cpSync,
 } = {}) {
   if (env[ACTIVE_ENV] === "1") {
-    return commandStatus(spawnSyncFn("pnpm", ["exec", "electron-vite", "dev"], { cwd, env, stdio: "inherit" }));
+    return commandStatus(
+      spawnSyncFn("pnpm", ["exec", "electron-vite", "dev"], {
+        cwd,
+        env,
+        stdio: "inherit",
+        shell: process.platform === "win32",
+      }),
+    );
   }
 
   const rootDir = gitRoot(cwd, execFileSyncFn);
@@ -62,6 +69,9 @@ export function runDev({
         [EXTENSIONS_DIR_ENV]: devExtensionsDir,
       },
       stdio: "inherit",
+      // pnpm resolves to a .cmd/.ps1 shim on Windows; spawnSync cannot launch a
+      // shim directly without a shell there (spawnSync pnpm ENOENT otherwise).
+      shell: process.platform === "win32",
     }),
   );
 }

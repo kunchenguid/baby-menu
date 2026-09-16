@@ -138,10 +138,10 @@ export function resolveAgentCatalog(options: ResolveAgentCatalogOptions = {}): A
  * `resolveAdapterPath("claude")` returns the absolute path to the adapter's
  * bundled entry; the host resolves it differently in dev vs packaged mode.
  * `launcher` is the command + leading args that run the adapter as a Node
- * program (e.g. `["node"]`, or `["env", "ELECTRON_RUN_AS_NODE=1", electronPath]`
- * to run the bundled Electron as Node without depending on a separate install).
- * Agents that already carry an explicit `launchCommand` (custom agents) are left
- * untouched.
+ * program (e.g. `["node"]`, or `[electronPath]` to run the bundled Electron as
+ * Node, with ELECTRON_RUN_AS_NODE set on the host process's own environment
+ * rather than encoded into this command). Agents that already carry an
+ * explicit `launchCommand` (custom agents) are left untouched.
  */
 export function withAdapterLaunchCommands(
   catalog: readonly AgentDefinition[],
@@ -155,9 +155,20 @@ export function withAdapterLaunchCommands(
   });
 }
 
-/** Joins command tokens into a single string, quoting tokens with whitespace. */
+/**
+ * Joins command tokens into a single string, quoting tokens with whitespace.
+ * acpx re-parses this string itself with POSIX shell-style backslash
+ * escaping, which silently eats the `\` path separators in a Windows
+ * absolute path (electron.exe's own path, or the resolved adapter path)
+ * before spawning it. Forward slashes are accepted by Windows path APIs and
+ * sidestep that parsing entirely; normalizing every token is a no-op on
+ * POSIX, where generated paths never contain backslashes.
+ */
 function shellJoin(tokens: string[]): string {
-  return tokens.map((token) => (/\s/.test(token) ? `"${token}"` : token)).join(" ");
+  return tokens
+    .map((token) => token.split("\\").join("/"))
+    .map((token) => (/\s/.test(token) ? `"${token}"` : token))
+    .join(" ");
 }
 
 export function toAgentOptions(

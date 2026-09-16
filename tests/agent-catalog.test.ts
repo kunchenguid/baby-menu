@@ -62,11 +62,28 @@ describe("agent-catalog", () => {
     const wired = withAdapterLaunchCommands(
       DEFAULT_AGENTS,
       (adapter) => `/Apps/Baby Menu.app/out/adapters/${adapter}/index.js`,
-      ["env", "ELECTRON_RUN_AS_NODE=1", "/Apps/Baby Menu.app/Contents/MacOS/Baby Menu"],
+      ["/Apps/Baby Menu.app/Contents/MacOS/Baby Menu"],
     );
     expect(wired.find((a) => a.name === "claude")?.launchCommand).toBe(
-      'env ELECTRON_RUN_AS_NODE=1 "/Apps/Baby Menu.app/Contents/MacOS/Baby Menu" "/Apps/Baby Menu.app/out/adapters/claude/index.js"',
+      '"/Apps/Baby Menu.app/Contents/MacOS/Baby Menu" "/Apps/Baby Menu.app/out/adapters/claude/index.js"',
     );
+  });
+
+  it("normalizes Windows backslash paths to forward slashes in the launch command", () => {
+    // acpx re-parses launchCommand with POSIX shell-style backslash escaping, which
+    // silently eats \ path separators before spawning - e.g. a raw
+    // "C:\Users\x\out\adapters\claude\index.mjs" resolves to a mangled relative path
+    // and the adapter fails with MODULE_NOT_FOUND. Forward slashes sidestep that.
+    const wired = withAdapterLaunchCommands(
+      DEFAULT_AGENTS,
+      (adapter) => `C:\\Users\\x\\out\\adapters\\${adapter}\\index.mjs`,
+      ["C:\\Program Files\\baby-menu\\electron.exe"],
+    );
+    const launchCommand = wired.find((a) => a.name === "claude")?.launchCommand;
+    expect(launchCommand).toBe(
+      '"C:/Program Files/baby-menu/electron.exe" C:/Users/x/out/adapters/claude/index.mjs',
+    );
+    expect(launchCommand).not.toContain("\\");
   });
 
   it("does not override an explicit custom launchCommand", () => {

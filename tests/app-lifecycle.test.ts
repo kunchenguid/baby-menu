@@ -144,6 +144,7 @@ describe("startBabyMenuApp", () => {
     trayInstance.getBounds.mockReturnValue({ x: 100, y: 10, width: 24, height: 24 });
     delete process.env.BABY_MENU_OPEN_POPOVER_ON_START;
     delete process.env.BABY_MENU_REMOTE_DEBUGGING_PORT;
+    delete process.env.ELECTRON_RUN_AS_NODE;
     Object.defineProperty(process, "platform", {
       configurable: true,
       value: originalPlatform,
@@ -153,6 +154,7 @@ describe("startBabyMenuApp", () => {
   afterEach(() => {
     delete process.env.BABY_MENU_OPEN_POPOVER_ON_START;
     delete process.env.BABY_MENU_REMOTE_DEBUGGING_PORT;
+    delete process.env.ELECTRON_RUN_AS_NODE;
     Object.defineProperty(process, "platform", {
       configurable: true,
       value: originalPlatform,
@@ -195,6 +197,20 @@ describe("startBabyMenuApp", () => {
     await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalled());
     expect(trayInstance.getBounds).toHaveBeenCalled();
     expect(browserWindowInstance.setBounds).toHaveBeenCalledWith({ x: 8, y: 42, width: 504, height: 620 });
+  });
+
+  it("sets ELECTRON_RUN_AS_NODE as a real env var instead of a POSIX 'env VAR=value cmd' launch prefix", async () => {
+    // Built-in claude/codex adapters run the bundled Electron as Node. acpx spawns
+    // an agent's launchCommand string directly (no shell), so a POSIX "env
+    // ELECTRON_RUN_AS_NODE=1 <path>" prefix fails with ENOENT on Windows, which has
+    // no env.exe on PATH by default. Setting it as a real env var here works
+    // identically on every platform and acpx inherits process.env for the child.
+    expect(process.env.ELECTRON_RUN_AS_NODE).toBeUndefined();
+
+    const appModule = await import("../src/main/app");
+    await appModule.startBabyMenuApp();
+
+    expect(process.env.ELECTRON_RUN_AS_NODE).toBe("1");
   });
 
   it("retains the tray object for the app lifetime", async () => {

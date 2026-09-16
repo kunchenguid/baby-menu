@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import packageJson from "../package.json";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 async function loadLauncher() {
   return import(new URL("../scripts/dev.mjs", import.meta.url).href) as Promise<{
@@ -130,6 +130,56 @@ describe("dev launcher", () => {
     expect(harness.spawnCalls[0]?.env).toEqual(expect.objectContaining({
       [EXTENSIONS_DIR_ENV]: "/tmp/baby-menu-dev-extensions",
     }));
+  });
+
+  describe("shell option across platforms", () => {
+    const originalPlatform = process.platform;
+
+    afterEach(() => {
+      Object.defineProperty(process, "platform", { configurable: true, value: originalPlatform });
+    });
+
+    function spawnSyncCapturingShell() {
+      const calls: Array<{ shell?: boolean }> = [];
+      const spawnSync = vi.fn((_command: string, _args: string[], options?: { shell?: boolean }) => {
+        calls.push({ shell: options?.shell });
+        return { status: 0 };
+      });
+      return { calls, spawnSync };
+    }
+
+    it("passes shell:true to spawnSync on win32 so pnpm's .cmd/.ps1 shim can launch", async () => {
+      Object.defineProperty(process, "platform", { configurable: true, value: "win32" });
+      const { ACTIVE_ENV, runDev } = await loadLauncher();
+      const harness = createHarness();
+      const { calls, spawnSync } = spawnSyncCapturingShell();
+
+      runDev({ cwd: "/repo", env: { [ACTIVE_ENV]: "1" }, ...harness, spawnSync });
+
+      expect(calls).toEqual([{ shell: true }]);
+    });
+
+    it("passes shell:true on win32 for the outer electron-vite dev spawn too", async () => {
+      Object.defineProperty(process, "platform", { configurable: true, value: "win32" });
+      const { runDev } = await loadLauncher();
+      const harness = createHarness();
+      const { calls, spawnSync } = spawnSyncCapturingShell();
+
+      runDev({ cwd: "/repo", env: {}, ...harness, spawnSync });
+
+      expect(calls).toEqual([{ shell: true }]);
+    });
+
+    it("does not force a shell on non-Windows platforms", async () => {
+      Object.defineProperty(process, "platform", { configurable: true, value: "linux" });
+      const { ACTIVE_ENV, runDev } = await loadLauncher();
+      const harness = createHarness();
+      const { calls, spawnSync } = spawnSyncCapturingShell();
+
+      runDev({ cwd: "/repo", env: { [ACTIVE_ENV]: "1" }, ...harness, spawnSync });
+
+      expect(calls).toEqual([{ shell: false }]);
+    });
   });
 
   it("removes extensions-dev before running dev on reset", async () => {
