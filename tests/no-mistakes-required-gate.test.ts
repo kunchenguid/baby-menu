@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
-const ACTION_SHA = "32d396ac0f29135daf7fcb9964aba9d5f4e796d6";
+const ACTION_SHA = "f6441c96c352a18b9cadcaef6b6c7017e9ac3970";
 const ACTION =
   `kunchenguid/no-mistakes/.github/actions/require-no-mistakes@${ACTION_SHA}`;
 
@@ -17,7 +17,7 @@ interface Workflow {
   name: string;
   "run-name": string;
   on: { pull_request: PullRequestTrigger };
-  permissions: { contents: string };
+  permissions: { contents: string; "pull-requests": string };
   concurrency: { group: string; "cancel-in-progress": boolean };
   jobs: Record<
     string,
@@ -47,7 +47,7 @@ describe("no-mistakes-required workflow contract", () => {
       "PR #${{ github.event.pull_request.number }} body compliance - ${{ github.event.action }} - event ${{ github.run_number }} (run ${{ github.run_id }})",
     );
     expect(config.on.pull_request).toEqual({
-      types: ["opened", "edited", "reopened"],
+      types: ["opened", "edited", "synchronize", "reopened"],
       branches: ["main"],
       "paths-ignore": [
         ".release-please-manifest.json",
@@ -55,7 +55,10 @@ describe("no-mistakes-required workflow contract", () => {
         "package.json",
       ],
     });
-    expect(config.permissions).toEqual({ contents: "read" });
+    expect(config.permissions).toEqual({
+      contents: "read",
+      "pull-requests": "read",
+    });
     expect(config.concurrency).toEqual({
       group:
         "no-mistakes-required-${{ github.event.pull_request.number }}-${{ (github.event.action == 'opened' || github.event.action == 'edited') && github.run_id || 'head-change' }}",
