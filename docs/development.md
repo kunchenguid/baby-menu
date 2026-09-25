@@ -26,11 +26,14 @@ Requires Node `>=22.12` and `pnpm@11.1.1` (declared in `packageManager`).
 | `pnpm dist:mac` | Build the local `Baby Menu Dev.app` and create a universal DMG in `release/` |
 | `pnpm test` | Run all Vitest tests |
 | `pnpm test:e2e` | Only e2e tests (including `acpx/runtime` plus bundled adapter coverage) |
+| `pnpm test:e2e:grok-popover` | Unattended macOS Grok production-wiring check; see [grok-quota-e2e.md](grok-quota-e2e.md) |
 | `pnpm test:e2e:packaged-mac` | Check that a packaged macOS app starts its renderer and preload bridge |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm lint` | `tsc --noEmit` (same as typecheck) |
 
 Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pattern>"`.
+E2E tests run real `acpx/runtime` against `acp-mock` (selected via `registryOverrides` as `acpx-mock`) plus bundled adapters against fake local CLIs.
+The renderer dev server is pinned to port 5273 (`strictPort: true`).
 
 ## Dev workflow
 
@@ -39,6 +42,25 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 - `pnpm generate:contracts` after changing extension-facing types in `src/shared/contracts.ts` or the public name list in `src/shared/extension-contract-names.ts`; CI fails if the committed `extensions/babymenu-env.d.ts` is stale.
 - Source mode and packaged `Baby Menu Dev` / test bundles never touch macOS login items. Only the packaged production product named `Baby Menu` may call Electron's `setLoginItemSettings` API.
 
+### Dev-only flags
+
+These complement the user-facing flags in [configuration.md](configuration.md#environment-flags).
+
+| Var | Effect |
+| --- | --- |
+| `BABY_MENU_OPEN_POPOVER_ON_START=1` | Opens the real popover through the tray bounds path for an explicit unattended check |
+| `BABY_MENU_REMOTE_DEBUGGING_PORT=<port>` | Enables Electron's loopback Chrome DevTools endpoint for an explicit unattended check; invalid ports are ignored |
+| `BABY_MENU_PACKAGED_TEST_HOME=<path>` | Isolates packaged-app state for the packaged runtime E2E; not for normal launches |
+
+## Build wiring
+
+- `electron.vite.config.ts` has three roots: `src/main/app.ts` -> `out/main/index.js` (`package.json#main`), `src/preload/index.ts` -> `out/preload/index.js`, and `src/renderer/` -> `out/renderer/`. In dev, main loads `ELECTRON_RENDERER_URL`; in production it loads `out/renderer/index.html`.
+- The renderer build adds `@tailwindcss/vite` and aliases `@babymenu/ui` to `src/ui/index.ts` so dev-mode widgets resolve the design system directly.
+- Dev/source Tailwind utility generation scans only `extensions/` and `extensions-dev/` unless `src/ui/styles.css` or `src/ui/styles.dev.css` gets an extra `@source` path.
+- `scripts/build-adapters.mjs` bundles `src/adapters/{claude,codex}/index.ts` to `out/adapters/<name>/index.mjs` after `electron-vite build`; `pnpm dev` runs it too because dev resolves adapters from `out/adapters/`.
+- Packaged builds keep `out/adapters/**` in `app.asar.unpacked` because adapters are spawned as standalone Node programs.
+- `typescript` is externalized from the main bundle and must stay a runtime dependency because `extension-module-compiler.ts` imports it at runtime. `tailwindcss`, `@tailwindcss/postcss`, and `postcss` are externalized for the same reason (`widget-tailwind-css.ts`); keep the single pinned `postcss` in `pnpm-workspace.yaml` `overrides` so the plugin and processor share one version.
+
 ## Packaging
 
 - `pnpm package:mac` tests the actual packaged app from `release/mac-universal/Baby Menu Dev.app`.
@@ -46,6 +68,7 @@ Single test: `pnpm vitest run tests/<name>.test.ts` or `pnpm vitest run -t "<pat
 - See [CONTRIBUTING.md](../CONTRIBUTING.md#release-notes) for the production release and downloaded-artifact verification procedure.
 - The universal package must run on both Intel and Apple Silicon Macs, so packaged runtime native prebuilt dependencies must stay installed for `x64` and `arm64` and stay covered by `electron-builder.yml` `x64ArchFiles` when new native packages are added.
 - `esbuild` is build-time-only and must stay excluded from `electron-builder.yml`. It enters the production dependency graph only through `acpx -> tsx -> esbuild`, but Baby Menu imports the separately published `acpx/runtime` entry, which does not reference `tsx` or acpx's CLI chunk. The adapters are pre-bundled before packaging, while runtime extension compilation uses the shipped `typescript` dependency. `tests/acpx-runtime-dependencies.test.ts` locks the acpx entry-point boundary, and the packaged runtime E2E verifies a real ACP turn with neither `esbuild` nor `@esbuild` present in the app.
+- Automation and throwaway checkouts must not leave packaged bundles behind: a leftover `release/mac-universal/*.app` gets registered by LaunchServices and can hijack `open -a "Baby Menu"`, login items, and bundle-id launches. Delete the whole `release/` directory before finishing, never set a local bundle as a login item, and never install one into `/Applications` (the released app ships only through the Homebrew cask).
 - Keep `electron-builder` at `26.8.2` or newer so pnpm-deduped dependencies are included correctly in packaged builds.
 
 ## Hero video
