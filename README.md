@@ -115,6 +115,7 @@ For the full design notes and repository layout, see [docs/architecture.md](docs
 - [docs/configuration.md](docs/configuration.md) - agent selection, custom ACP agents, telemetry, environment flags
 - [docs/architecture.md](docs/architecture.md) - runtime design notes and repository layout
 - [docs/development.md](docs/development.md) - building, testing, and packaging Baby Menu itself
+- [docs/recipes.md](docs/recipes.md) - conventions for authoring bundled recipes
 
 ## License
 
