@@ -56,7 +56,7 @@ These complement the user-facing flags in [configuration.md](configuration.md#en
 
 - `electron.vite.config.ts` has three roots: `src/main/app.ts` -> `out/main/index.js` (`package.json#main`), `src/preload/index.ts` -> `out/preload/index.js`, and `src/renderer/` -> `out/renderer/`. In dev, main loads `ELECTRON_RENDERER_URL`; in production it loads `out/renderer/index.html`.
 - The renderer build adds `@tailwindcss/vite` and aliases `@babymenu/ui` to `src/ui/index.ts` so dev-mode widgets resolve the design system directly.
-- Dev/source Tailwind utility generation scans only `extensions/` and `extensions-dev/` unless `src/ui/styles.css` or `src/ui/styles.dev.css` gets an extra `@source` path.
+- For custom extension workspaces outside the default Tailwind scan paths, see [Environment flags](configuration.md#environment-flags).
 - `scripts/build-adapters.mjs` bundles `src/adapters/{claude,codex}/index.ts` to `out/adapters/<name>/index.mjs` after `electron-vite build`; `pnpm dev` runs it too because dev resolves adapters from `out/adapters/`.
 - Packaged builds keep `out/adapters/**` in `app.asar.unpacked` because adapters are spawned as standalone Node programs.
 - `typescript` is externalized from the main bundle and must stay a runtime dependency because `extension-module-compiler.ts` imports it at runtime. `tailwindcss`, `@tailwindcss/postcss`, and `postcss` are externalized for the same reason (`widget-tailwind-css.ts`); keep the single pinned `postcss` in `pnpm-workspace.yaml` `overrides` so the plugin and processor share one version.

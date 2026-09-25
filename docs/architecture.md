@@ -23,9 +23,7 @@ For the at-a-glance picture, see the "How It Works" diagram in the [README](../R
 | Local storage | A shared SQLite store: `context.db` server-side, `window.babyMenu.db` in the renderer. Use it for anything that must survive reloads. |
 | Stable contracts | Extensions import host types with type-only `import ... from "@babymenu/contracts"`, shipped into each workspace. |
 
-Recipes for live or system data are also verification contracts.
-They tell the agent to inspect the actual named source before writing parser or renderer code, avoid guessed field names and response shapes, and verify the finished server action or widget against that same live source before reporting done.
-The bundled quota recipe set covers Claude Code, Codex, Cursor, GitHub Copilot, and Grok.
+For recipe authoring and live-source verification conventions, see [Recipe Authoring](recipes.md).
 Provider-specific acquisition and refresh contracts live in the matching recipe.
 
 **Background vs view refresh.**
@@ -49,8 +47,6 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
 - **Terminal failure semantics.**
   CLI, authentication, rate-limit, and provider failures reject through ACP with typed, bounded messages; raw provider payloads are never streamed or logged as user-facing errors.
   Baby Menu also treats a completed ACP refusal as a failed editing turn, records failed diagnostics and telemetry, and strips nested transport error wrappers before displaying the safe message.
-- **Stale session recovery.**
-  If a restart leaves a persisted ACP session an adapter cannot resume, Baby Menu records the failed attempt, deletes the stale record, and retries once with a fresh session.
 - **Live custom agent catalog.**
   Settings-owned custom ACP agents persist to `agents.json` and register as `acpx` overrides immediately, kept separate from read-only built-ins.
 
@@ -58,13 +54,12 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
   `BabyMenuAgentRuntime` (`src/main/agent-runtime.ts`) wraps `acpx/runtime` and accepts one `send()` at a time; an overlapping send gets an "already running" reply before any change session begins.
   Every accepted send runs inside a change session (see below).
 - **Agent selection.**
-  The active agent is the persisted Settings choice, then `BABY_MENU_AGENT`, then catalog auto-detection (Claude Code, then Codex).
-  Built-in availability probes the wrapped local CLI (`claude` or `codex`).
+  Agent choice and availability are described in [Configuration](configuration.md#choosing-an-agent).
   Switching agents is blocked while a turn runs or while a change session can still be saved or rolled back; a successful switch closes the persistent session with `discardPersistentState` so the next turn starts a fresh conversation.
 - **Persistent session.**
   The ACP runtime is built lazily with `createFileSessionStore({ stateDir })` under `.cache/baby-menu/acp-sessions` (source) or `~/.baby-menu/cache/acp-sessions` (packaged), `permissionMode: "approve-all"`, and the fixed `sessionKey: "baby-menu-agent-chat"`.
   On `SESSION_RESUME_REQUIRED` it closes the runtime, removes `<stateDir>/sessions/baby-menu-agent-chat.json`, and retries once.
-  Failed attempts are written to `.cache/baby-menu/agent-turns` with `message`, `code`, and `detailCode`; if the retry fails, the renderer shows the real thrown message.
+  Failed attempts are written under the app data root's `.cache/baby-menu/agent-turns` with `message`, `code`, and `detailCode`; if the retry fails, the renderer shows the real thrown message.
 
 ## Change tracking
 
@@ -109,7 +104,7 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
 
 ## Public extension surfaces
 
-Three surfaces are treated like the preload bridge: changing them is deliberate and tested.
+Public extension surfaces are deliberate, tested contracts:
 
 - **`@babymenu/contracts`.**
   Extensions cannot see `src/shared/contracts.ts` (it lives inside the app bundle), so the host ships the extension-facing types into each workspace as a virtual module declared in `extensions/babymenu-env.d.ts`.
