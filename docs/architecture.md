@@ -117,7 +117,7 @@ Public extension surfaces are deliberate, tested contracts:
   `src/ui/theme.css` is the single `@theme` source of truth: it wipes Tailwind's default palette and is consumed by both the renderer build (`src/ui/styles.css`) and the per-widget/layout compiler (imported `?raw` into the main bundle).
   `main.tsx` installs the kit on `window.__BABY_MENU_WIDGET_HOST__.ui`, `widget-protocol.ts` serves `baby-menu-host://ui/index.mjs` as a re-export, and the compiler rewrites the bare specifier to that URL, so Radix, cva, and lucide stay in the host bundle.
   `src/shared/ui-exports.ts` is the public surface contract, kept in lockstep with the barrel and host shim by `tests/ui-export-contract.test.ts`.
-  Extension widgets, root layouts, and settings sections may import only `react` and `@babymenu/ui`, authoring token-scoped Tailwind utilities whose stylesheet is compiled and injected automatically.
+  Extension renderer modules may import `react` and `@babymenu/ui` externally (server modules also Node builtins), plus type-only `@babymenu/contracts`; relative imports of local helpers within the extension workspace are allowed. Widgets author token-scoped Tailwind utilities whose stylesheet is compiled and injected automatically.
 - **`window.babyMenu`.**
   Exposed by `src/preload/index.ts`; new capabilities go through extension server actions and `capabilities.invoke`, not new preload methods.
 
