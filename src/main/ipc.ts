@@ -89,7 +89,12 @@ export function registerIpcHandlers(
 
   ipcMain.handle("baby-menu:agent:send", async (event, prompt: string): Promise<AgentChatResult> => {
     return agentRuntime.send(prompt, {
-      onStatus: (status) => event.sender.send("baby-menu:agent:status", status),
+      // The popover renderer can die or close mid-turn; the turn must keep running,
+      // and the replacement renderer catches up through getActiveTurn.
+      onStatus: (status) => {
+        if (event.sender.isDestroyed() || event.sender.isCrashed()) return;
+        event.sender.send("baby-menu:agent:status", status);
+      },
     });
   });
 
