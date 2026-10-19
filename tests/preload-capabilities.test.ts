@@ -99,6 +99,36 @@ describe("preload capabilities bridge", () => {
     expect(removeListener).toHaveBeenCalledWith("baby-menu:popover:visibility", handler);
   });
 
+  it("keeps one callback subscribed twice as two independent subscriptions", async () => {
+    await import("../src/preload/index");
+    const api = exposeInMainWorld.mock.calls[0]?.[1];
+    const listener = vi.fn();
+
+    const unsubscribeFirst = api.popover.onVisibility(listener);
+    const unsubscribeSecond = api.popover.onVisibility(listener);
+    const visibilityCalls = on.mock.calls.filter(([channel]) => channel === "baby-menu:popover:visibility");
+    expect(visibilityCalls).toHaveLength(1);
+
+    const handler = visibilityCalls[0]?.[1];
+    handler({}, { visible: true });
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    unsubscribeFirst();
+    unsubscribeFirst();
+    listener.mockClear();
+    handler({}, { visible: false });
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith({ visible: false });
+    expect(removeListener).not.toHaveBeenCalled();
+
+    unsubscribeSecond();
+    expect(removeListener).toHaveBeenCalledTimes(1);
+    expect(removeListener).toHaveBeenCalledWith("baby-menu:popover:visibility", handler);
+    listener.mockClear();
+    handler({}, { visible: true });
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   it("exposes agent status events from the main process", async () => {
     await import("../src/preload/index");
     const api = exposeInMainWorld.mock.calls[0]?.[1];
