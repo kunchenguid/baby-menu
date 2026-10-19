@@ -137,7 +137,8 @@ function setPopoverKeyWindowActive(active: boolean): void {
 }
 
 function sendToPopover(channel: string, payload: unknown): void {
-  if (!popoverWindow || popoverWindow.isDestroyed()) return;
+  // A dead renderer cannot receive anything; its replacement reads current state on load.
+  if (!popoverWindow || popoverWindow.isDestroyed() || popoverWindow.webContents.isCrashed()) return;
   popoverWindow.webContents.send(channel, payload);
 }
 

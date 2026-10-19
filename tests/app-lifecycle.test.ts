@@ -319,6 +319,29 @@ describe("startBabyMenuApp", () => {
     });
   });
 
+  it("does not message a dead popover renderer", async () => {
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+    const schedulerOptions = (
+      (await import("../src/main/background-task-scheduler")).createBackgroundTaskScheduler as ReturnType<typeof vi.fn>
+    ).mock.calls.at(-1)?.[0];
+    const onShow = browserWindowInstance.on.mock.calls.find(([event]) => event === "show")?.[1];
+    const onHide = browserWindowInstance.on.mock.calls.find(([event]) => event === "hide")?.[1];
+
+    // Sending to a dead renderer makes Electron log "Render frame was disposed".
+    browserWindowInstance.webContents.send.mockClear();
+    browserWindowInstance.webContents.isCrashed.mockReturnValue(true);
+    browserWindowInstance.isVisible.mockReturnValue(true);
+    onShow?.();
+    onHide?.();
+    schedulerOptions.onTaskRun("cpu-usage");
+
+    expect(browserWindowInstance.webContents.send).not.toHaveBeenCalled();
+  });
+
   it("records popover opens as both a pageview and a named event", async () => {
     const appModule = await import("../src/main/app");
 
