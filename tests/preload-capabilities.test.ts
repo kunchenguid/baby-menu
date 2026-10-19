@@ -74,6 +74,31 @@ describe("preload capabilities bridge", () => {
     expect(removeListener).toHaveBeenCalledWith("baby-menu:popover:visibility", handler);
   });
 
+  it("fans many visibility subscribers out from a single ipc listener", async () => {
+    await import("../src/preload/index");
+    const api = exposeInMainWorld.mock.calls[0]?.[1];
+    const listeners = Array.from({ length: 12 }, () => vi.fn());
+
+    const unsubscribers = listeners.map((listener) => api.popover.onVisibility(listener));
+    const visibilityCalls = on.mock.calls.filter(([channel]) => channel === "baby-menu:popover:visibility");
+    expect(visibilityCalls).toHaveLength(1);
+
+    const handler = visibilityCalls[0]?.[1];
+    handler({}, { visible: true });
+    for (const listener of listeners) expect(listener).toHaveBeenCalledWith({ visible: true });
+
+    unsubscribers[0]();
+    unsubscribers[0]();
+    handler({}, { visible: false });
+    expect(listeners[0]).toHaveBeenCalledTimes(1);
+    expect(listeners[1]).toHaveBeenCalledTimes(2);
+    expect(removeListener).not.toHaveBeenCalled();
+
+    for (const unsubscribe of unsubscribers) unsubscribe();
+    expect(removeListener).toHaveBeenCalledTimes(1);
+    expect(removeListener).toHaveBeenCalledWith("baby-menu:popover:visibility", handler);
+  });
+
   it("exposes agent status events from the main process", async () => {
     await import("../src/preload/index");
     const api = exposeInMainWorld.mock.calls[0]?.[1];

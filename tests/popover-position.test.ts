@@ -4,8 +4,11 @@ import {
   MAX_POPOVER_HEIGHT,
   MIN_POPOVER_HEIGHT,
   MIN_POPOVER_WIDTH,
+  RENDERER_RELOAD_LIMIT,
+  RENDERER_RELOAD_WINDOW_MS,
   calculatePopoverBounds,
   createPopoverOptions,
+  createRendererReloadBudget,
   loadPopoverRenderer,
   responsivePopoverSize,
 } from "../src/main/popover";
@@ -109,5 +112,23 @@ describe("calculatePopoverBounds", () => {
 
     expect(window.loadURL).not.toHaveBeenCalled();
     expect(window.loadFile).toHaveBeenCalledWith("/app/out/renderer/index.html");
+  });
+});
+
+describe("createRendererReloadBudget", () => {
+  it("allows a bounded number of reloads per window, then refills as old reloads age out", () => {
+    let now = 1_000;
+    const budget = createRendererReloadBudget(() => now);
+
+    for (let index = 0; index < RENDERER_RELOAD_LIMIT; index += 1) {
+      expect(budget.tryConsume()).toBe(true);
+    }
+    expect(budget.tryConsume()).toBe(false);
+
+    now += RENDERER_RELOAD_WINDOW_MS - 1;
+    expect(budget.tryConsume()).toBe(false);
+
+    now += 1;
+    expect(budget.tryConsume()).toBe(true);
   });
 });

@@ -12,6 +12,7 @@ import {
   DEFAULT_POPOVER_SIZE,
   calculatePopoverBounds,
   createPopoverOptions,
+  createRendererReloadBudget,
   loadPopoverRenderer,
   responsivePopoverSize,
   type Size,
@@ -72,6 +73,20 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
     setPopoverKeyWindowActive(false);
     sendPopoverVisibility(false);
   });
+  // Nothing respawns a dead renderer on its own: without this the popover stays a
+  // blank white window until the app is quit. A clean exit only happens on shutdown.
+  // The reload is deferred because reloading from inside this event trips a
+  // Chromium CHECK and crashes the main process.
+  const rendererReloads = createRendererReloadBudget();
+  popoverWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.error("[baby-menu] popover renderer process gone", details);
+    if (details.reason === "clean-exit") return;
+    if (!rendererReloads.tryConsume()) return;
+    setImmediate(() => {
+      if (!popoverWindow || popoverWindow.isDestroyed()) return;
+      popoverWindow.webContents.reload();
+    });
+  });
 
   await loadPopoverRenderer(
     popoverWindow,
@@ -86,7 +101,11 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
 async function togglePopover(trayBounds: Rectangle): Promise<void> {
   latestTrayBounds = trayBounds;
   const window = await createPopoverWindow();
-  if (window.isVisible()) {
+  // Recovers a renderer the automatic reload gave up on; a click on a blank
+  // popover should bring it back, not hide it.
+  const rendererGone = window.webContents.isCrashed();
+  if (rendererGone) window.webContents.reload();
+  if (window.isVisible() && !rendererGone) {
     window.hide();
     return;
   }
