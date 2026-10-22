@@ -109,7 +109,7 @@ describe("capabilities IPC", () => {
 
   it("forwards agent runtime status events to the requesting renderer", async () => {
     const { registerIpcHandlers } = await import("../src/main/ipc");
-    const sender = { send: vi.fn() };
+    const sender = { send: vi.fn(), isDestroyed: vi.fn(() => false), isCrashed: vi.fn(() => false) };
     const agentRuntime = {
       send: vi.fn(async (_prompt: string, options?: BabyMenuAgentRuntimeSendOptions) => {
         await options?.onStatus?.({ text: "I built the widget", eventType: "text_delta" });
@@ -130,6 +130,31 @@ describe("capabilities IPC", () => {
       text: "I built the widget",
       eventType: "text_delta",
     });
+  });
+
+  it.each([
+    ["crashed", { isDestroyed: () => false, isCrashed: () => true }],
+    ["destroyed", { isDestroyed: () => true, isCrashed: () => false }],
+  ])("keeps an agent turn running when the requesting renderer is %s", async (_state, senderState) => {
+    const { registerIpcHandlers } = await import("../src/main/ipc");
+    const sender = { send: vi.fn(), ...senderState };
+    const agentRuntime = {
+      send: vi.fn(async (_prompt: string, options?: BabyMenuAgentRuntimeSendOptions) => {
+        await options?.onStatus?.({ text: "still working", eventType: "text_delta" });
+        return { assistantText: "done" };
+      }),
+      save: vi.fn(),
+      rollback: vi.fn(),
+      currentSessionSnapshot: vi.fn(),
+      currentTurn: vi.fn(),
+    };
+
+    registerIpcHandlers("/repo", agentRuntime);
+
+    await expect(handlers.get("baby-menu:agent:send")?.({ sender }, "build a widget")).resolves.toEqual({
+      assistantText: "done",
+    });
+    expect(sender.send).not.toHaveBeenCalled();
   });
 
   it("registers SQL database channels backed by a shared store", async () => {

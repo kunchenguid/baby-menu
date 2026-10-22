@@ -33,6 +33,7 @@ Provider-specific acquisition and refresh contracts live in the matching recipe.
 **Extension contracts.**
 Widgets conform to `BabyMenuWidget` / `RefreshableBabyMenuWidget`; `WidgetHost` owns visible-widget refresh timing via `useViewRefresh` and the main-process popover visibility signal, so widgets never start their own polling.
 A root `layout.tsx` default-exports a `BabyMenuLayout`, receives active widget metadata plus `renderWidget(id)`, and owns the canvas arrangement; the popover adapts to the canvas width plus chrome and the rendered height.
+If the popover renderer process dies, `app.ts` reloads it on `render-process-gone` (deferred out of the event, capped by `createRendererReloadBudget` in `src/main/popover.ts`), and the next tray click reloads a renderer the cap gave up on, so the popover never stays a blank window.
 Settings sections own only their body; `SettingsView` owns the frame and rediscovers sections when settings refresh or the popover reopens.
 Server actions and background tasks are discovered dynamically, so new capabilities need no preload change.
 

@@ -35,7 +35,7 @@ const browserWindowInstance = {
   on: vi.fn(),
   loadFile: vi.fn(async () => undefined),
   loadURL: vi.fn(async () => undefined),
-  webContents: { send: vi.fn() },
+  webContents: { send: vi.fn(), on: vi.fn(), reload: vi.fn(), isCrashed: vi.fn(() => false) },
 };
 const BrowserWindow = vi.fn(function BrowserWindowMock() {
   return browserWindowInstance;
@@ -141,6 +141,7 @@ describe("startBabyMenuApp", () => {
     });
     browserWindowInstance.isDestroyed.mockReturnValue(false);
     browserWindowInstance.isVisible.mockReturnValue(false);
+    browserWindowInstance.webContents.isCrashed.mockReturnValue(false);
     trayInstance.getBounds.mockReturnValue({ x: 100, y: 10, width: 24, height: 24 });
     delete process.env.BABY_MENU_OPEN_POPOVER_ON_START;
     delete process.env.BABY_MENU_REMOTE_DEBUGGING_PORT;
@@ -318,6 +319,29 @@ describe("startBabyMenuApp", () => {
     });
   });
 
+  it("does not message a dead popover renderer", async () => {
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+    const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+    await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+    const schedulerOptions = (
+      (await import("../src/main/background-task-scheduler")).createBackgroundTaskScheduler as ReturnType<typeof vi.fn>
+    ).mock.calls.at(-1)?.[0];
+    const onShow = browserWindowInstance.on.mock.calls.find(([event]) => event === "show")?.[1];
+    const onHide = browserWindowInstance.on.mock.calls.find(([event]) => event === "hide")?.[1];
+
+    // Sending to a dead renderer makes Electron log "Render frame was disposed".
+    browserWindowInstance.webContents.send.mockClear();
+    browserWindowInstance.webContents.isCrashed.mockReturnValue(true);
+    browserWindowInstance.isVisible.mockReturnValue(true);
+    onShow?.();
+    onHide?.();
+    schedulerOptions.onTaskRun("cpu-usage");
+
+    expect(browserWindowInstance.webContents.send).not.toHaveBeenCalled();
+  });
+
   it("records popover opens as both a pageview and a named event", async () => {
     const appModule = await import("../src/main/app");
 
@@ -400,5 +424,55 @@ describe("startBabyMenuApp", () => {
     expect((electronApp as { setActivationPolicy: ReturnType<typeof vi.fn> }).setActivationPolicy).toHaveBeenLastCalledWith(
       "accessory",
     );
+  });
+  describe("popover renderer recovery", () => {
+    async function openPopoverAndGetGoneHandler() {
+      const appModule = await import("../src/main/app");
+      await appModule.startBabyMenuApp();
+      const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
+      await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+      await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalled());
+      const onGone = browserWindowInstance.webContents.on.mock.calls.find(
+        ([event]) => event === "render-process-gone",
+      )?.[1];
+      expect(onGone).toBeTypeOf("function");
+      return { onTrayClick, onGone: onGone as (event: unknown, details: { reason: string; exitCode: number }) => void };
+    }
+
+    it("reloads the popover renderer when its process dies so the window never stays blank", async () => {
+      const { onGone } = await openPopoverAndGetGoneHandler();
+
+      onGone({}, { reason: "killed", exitCode: 9 });
+
+      // Deferred: reloading inside the event itself crashes Electron's main process.
+      expect(browserWindowInstance.webContents.reload).not.toHaveBeenCalled();
+      await vi.waitFor(() => expect(browserWindowInstance.webContents.reload).toHaveBeenCalledTimes(1));
+    });
+
+    it("does not reload after a clean renderer exit such as app shutdown", async () => {
+      const { onGone } = await openPopoverAndGetGoneHandler();
+
+      onGone({}, { reason: "clean-exit", exitCode: 0 });
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(browserWindowInstance.webContents.reload).not.toHaveBeenCalled();
+    });
+
+    it("caps automatic reloads and recovers a dead renderer on the next tray click", async () => {
+      const { onGone, onTrayClick } = await openPopoverAndGetGoneHandler();
+
+      for (let index = 0; index < 5; index += 1) onGone({}, { reason: "crashed", exitCode: 1 });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(browserWindowInstance.webContents.reload).toHaveBeenCalledTimes(3);
+
+      browserWindowInstance.webContents.isCrashed.mockReturnValue(true);
+      browserWindowInstance.isVisible.mockReturnValue(true);
+      browserWindowInstance.show.mockClear();
+      await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
+
+      expect(browserWindowInstance.webContents.reload).toHaveBeenCalledTimes(4);
+      expect(browserWindowInstance.hide).not.toHaveBeenCalled();
+      expect(browserWindowInstance.show).toHaveBeenCalled();
+    });
   });
 });

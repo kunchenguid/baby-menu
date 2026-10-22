@@ -8,6 +8,25 @@ import type {
   SqlParams,
 } from "../shared/contracts";
 
+// One ipcRenderer listener per channel, fanned out to every subscriber, so a
+// layout with many widgets never trips Node's MaxListenersExceededWarning.
+function createEventChannel<T>(channel: string) {
+  const listeners = new Set<(payload: T) => void>();
+  const handler = (_event: unknown, payload: T) => {
+    for (const listener of [...listeners]) listener(payload);
+  };
+  return (listener: (payload: T) => void) => {
+    // A fresh wrapper keeps a function subscribed twice as two independent subscriptions.
+    const subscription = (payload: T) => listener(payload);
+    if (listeners.size === 0) ipcRenderer.on(channel, handler);
+    listeners.add(subscription);
+    return () => {
+      if (!listeners.delete(subscription)) return;
+      if (listeners.size === 0) ipcRenderer.removeListener(channel, handler);
+    };
+  };
+}
+
 const api: BabyMenuApi = {
   recipes: {
     list: () => ipcRenderer.invoke("baby-menu:recipes:list"),
@@ -19,11 +38,7 @@ const api: BabyMenuApi = {
   },
   agent: {
     send: (prompt: string) => ipcRenderer.invoke("baby-menu:agent:send", prompt),
-    onStatus: (listener: (status: AgentRuntimeStatus) => void) => {
-      const handler = (_event: unknown, status: AgentRuntimeStatus) => listener(status);
-      ipcRenderer.on("baby-menu:agent:status", handler);
-      return () => ipcRenderer.removeListener("baby-menu:agent:status", handler);
-    },
+    onStatus: createEventChannel<AgentRuntimeStatus>("baby-menu:agent:status"),
     getActiveTurn: () => ipcRenderer.invoke("baby-menu:agent:active-turn"),
   },
   capabilities: {
@@ -44,22 +59,14 @@ const api: BabyMenuApi = {
     get: () => ipcRenderer.invoke("baby-menu:layout:get"),
   },
   background: {
-    onUpdate: (listener: (event: BackgroundTaskUpdate) => void) => {
-      const handler = (_event: unknown, update: BackgroundTaskUpdate) => listener(update);
-      ipcRenderer.on("baby-menu:background:update", handler);
-      return () => ipcRenderer.removeListener("baby-menu:background:update", handler);
-    },
+    onUpdate: createEventChannel<BackgroundTaskUpdate>("baby-menu:background:update"),
   },
   popover: {
     setContentHeight: (height: number) => ipcRenderer.invoke("baby-menu:popover:set-content-height", height),
     setContentSize: (size: { width: number; height: number }) =>
       ipcRenderer.invoke("baby-menu:popover:set-content-size", size),
     getVisibility: () => ipcRenderer.invoke("baby-menu:popover:get-visibility"),
-    onVisibility: (listener: (state: PopoverVisibilityState) => void) => {
-      const handler = (_event: unknown, state: PopoverVisibilityState) => listener(state);
-      ipcRenderer.on("baby-menu:popover:visibility", handler);
-      return () => ipcRenderer.removeListener("baby-menu:popover:visibility", handler);
-    },
+    onVisibility: createEventChannel<PopoverVisibilityState>("baby-menu:popover:visibility"),
   },
   settings: {
     get: () => ipcRenderer.invoke("baby-menu:settings:get"),

@@ -22,6 +22,29 @@ export const MIN_POPOVER_WIDTH = 320;
 
 const EDGE_PADDING = 8;
 
+// Automatic reloads allowed per rolling window after the popover renderer dies.
+// The cap keeps a renderer that dies on every load from spinning; past it,
+// recovery waits for the next popover open.
+export const RENDERER_RELOAD_LIMIT = 3;
+export const RENDERER_RELOAD_WINDOW_MS = 60_000;
+
+export type RendererReloadBudget = {
+  tryConsume: () => boolean;
+};
+
+export function createRendererReloadBudget(now: () => number = Date.now): RendererReloadBudget {
+  let reloadTimes: number[] = [];
+  return {
+    tryConsume() {
+      const current = now();
+      reloadTimes = reloadTimes.filter((time) => current - time < RENDERER_RELOAD_WINDOW_MS);
+      if (reloadTimes.length >= RENDERER_RELOAD_LIMIT) return false;
+      reloadTimes.push(current);
+      return true;
+    },
+  };
+}
+
 function clamp(value: number, min: number, max: number): number {
   if (max < min) return min;
   return Math.min(Math.max(value, min), max);
