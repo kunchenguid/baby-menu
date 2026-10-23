@@ -39,7 +39,7 @@ describe("renderer layout styles", () => {
 
     expect(css).toMatch(/html,\s*\nbody,\s*\n#root\s*\{[^}]*background:\s*var\(--bg-stage\)/s);
     expect(css).toMatch(/\.app-shell\s*\{[^}]*height:\s*auto/s);
-    expect(css).toMatch(/\.app-shell\s*\{[^}]*max-height:\s*720px/s);
+    expect(css).toMatch(/\.app-shell\s*\{[^}]*max-height:\s*1000px/s);
     // 100vh equals the auto-sized window height, which ratchets the popover.
     expect(css).not.toMatch(/\.app-shell\s*\{[^}]*100vh/s);
   });

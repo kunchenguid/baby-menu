@@ -28,13 +28,14 @@ describe("calculatePopoverBounds", () => {
 
   it("clamps content-driven popover width and height to a usable range", () => {
     expect(MIN_POPOVER_HEIGHT).toBe(220);
-    expect(MAX_POPOVER_HEIGHT).toBe(720);
+    expect(MAX_POPOVER_HEIGHT).toBe(1000);
     expect(MIN_POPOVER_WIDTH).toBe(320);
     // Height clamps as before; width passes through above the floor so the
     // popover adapts to whatever canvas the layout reports.
     expect(responsivePopoverSize({ width: 504, height: 140 })).toEqual({ width: 504, height: 220 });
     expect(responsivePopoverSize({ width: 840, height: 420.2 })).toEqual({ width: 840, height: 421 });
-    expect(responsivePopoverSize({ width: 504, height: 960 })).toEqual({ width: 504, height: 720 });
+    expect(responsivePopoverSize({ width: 504, height: 960 })).toEqual({ width: 504, height: 960 });
+    expect(responsivePopoverSize({ width: 504, height: 1400 })).toEqual({ width: 504, height: 1000 });
     // A layout narrower than the floor is pulled back up to the minimum width.
     expect(responsivePopoverSize({ width: 120, height: 300 })).toEqual({ width: 320, height: 300 });
   });

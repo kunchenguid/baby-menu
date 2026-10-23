@@ -17,7 +17,7 @@ export const DEFAULT_POPOVER_SIZE: Size = {
 };
 
 export const MIN_POPOVER_HEIGHT = 220;
-export const MAX_POPOVER_HEIGHT = 720;
+export const MAX_POPOVER_HEIGHT = 1000;
 export const MIN_POPOVER_WIDTH = 320;
 
 const EDGE_PADDING = 8;

@@ -60,7 +60,7 @@ button:disabled,
   /* A fixed cap, not a viewport-relative one: the viewport height equals the
      auto-sized window, so capping to it would ratchet the popover - it could
      shrink but never grow back. The main process clamps the reported height. */
-  max-height: 720px;
+  max-height: 1000px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -119,7 +119,7 @@ button:disabled,
 }
 
 /* The scroll region. The window auto-extends to fit content (app-shell grows to
-   its 720px max), so this only scrolls once the window is actually maxed out -
+   its 1000px max), so this only scrolls once the window is actually maxed out -
    the header and composer stay pinned via flex: 0 0 auto. */
 .pop-body {
   flex: 1 1 auto;
