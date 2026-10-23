@@ -1,4 +1,4 @@
-import { Component, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { BabyMenuLayout, BabyMenuLayoutWidget, RefreshableBabyMenuWidget } from "../../shared/contracts";
 import { helloWorldWidget } from "../../../extensions/hello-world/widget";
 import {
@@ -7,7 +7,7 @@ import {
   loadExtensionModules,
   type RuntimeModuleImporter,
 } from "../extension-modules";
-import { useViewRefresh } from "./useViewRefresh";
+import { useViewRefresh, usePopoverVisible } from "./useViewRefresh";
 
 export type RuntimeWidgetImporter = RuntimeModuleImporter;
 
@@ -125,6 +125,11 @@ function useRuntimeWidgets({
   refreshIntervalMs?: number;
 }) {
   const [widgets, setWidgets] = useState<RefreshableBabyMenuWidget[]>([]);
+  // Discovery polling idles while the popover is hidden (see usePopoverVisible):
+  // the effect re-runs on show, so the refresh below picks up hidden edits.
+  // The first mount always refreshes once (bridge state is still resolving).
+  const visible = usePopoverVisible();
+  const refreshedOnce = useRef(false);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -135,8 +140,11 @@ function useRuntimeWidgets({
       if (!cancelled) setWidgets(loadedWidgets);
     }
 
-    void refresh();
-    if (!refreshIntervalMs || refreshIntervalMs <= 0) {
+    if (visible || !refreshedOnce.current) {
+      refreshedOnce.current = true;
+      void refresh();
+    }
+    if (!visible || !refreshIntervalMs || refreshIntervalMs <= 0) {
       return () => {
         cancelled = true;
       };
@@ -147,7 +155,7 @@ function useRuntimeWidgets({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [enabled, importer, refreshIntervalMs]);
+  }, [enabled, importer, refreshIntervalMs, visible]);
 
   return widgets;
 }
@@ -165,6 +173,9 @@ function useRuntimeLayout({
   refreshIntervalMs?: number;
 }) {
   const [layout, setLayout] = useState<BabyMenuLayout | null>(null);
+  // Same idle-while-hidden gating as widget discovery above.
+  const visible = usePopoverVisible();
+  const refreshedOnce = useRef(false);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -176,8 +187,11 @@ function useRuntimeLayout({
       if (!cancelled) setLayout(() => loaded);
     }
 
-    void refresh();
-    if (!refreshIntervalMs || refreshIntervalMs <= 0) {
+    if (visible || !refreshedOnce.current) {
+      refreshedOnce.current = true;
+      void refresh();
+    }
+    if (!visible || !refreshIntervalMs || refreshIntervalMs <= 0) {
       return () => {
         cancelled = true;
       };
@@ -188,7 +202,7 @@ function useRuntimeLayout({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [enabled, importer, refreshIntervalMs]);
+  }, [enabled, importer, refreshIntervalMs, visible]);
 
   return layout;
 }

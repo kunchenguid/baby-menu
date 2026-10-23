@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WidgetHost } from "../src/renderer/menu/WidgetHost";
 import type { BabyMenuApi, RefreshableBabyMenuWidget } from "../src/shared/contracts";
@@ -83,5 +83,36 @@ describe("WidgetHost", () => {
     render(<WidgetHost runtimeImporter={async () => ({})} runtimeRefreshIntervalMs={0} />);
 
     expect(await screen.findByText("hello world")).toBeTruthy();
+  });
+
+  it("idles discovery polling while the popover is hidden and resumes on show", async () => {
+    const list = vi.fn(async () => [] as { id: string; extensionId: string; moduleUrl: string }[]);
+    installBabyMenuApi({ list });
+    // Override the default visible bridge with a hidden popover and a
+    // capturable visibility listener.
+    const listeners = new Set<(state: { visible: boolean }) => void>();
+    const popover = window.babyMenu?.popover;
+    if (!popover) throw new Error("test bridge missing");
+    popover.getVisibility = vi.fn(async () => ({ visible: false }));
+    popover.onVisibility = vi.fn((listener: (state: { visible: boolean }) => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    });
+
+    render(<WidgetHost runtimeImporter={async () => ({})} />);
+
+    expect(await screen.findByText("hello world")).toBeTruthy();
+    await vi.waitFor(() => expect(list).toHaveBeenCalled());
+    const callsWhileHidden = list.mock.calls.length;
+    // Longer than the 1s discovery cadence: without gating this would poll.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(list.mock.calls.length).toBe(callsWhileHidden);
+
+    act(() => {
+      listeners.forEach((listener) => listener({ visible: true }));
+    });
+    await vi.waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(callsWhileHidden));
   });
 });

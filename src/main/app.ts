@@ -37,6 +37,14 @@ if (process.platform === "darwin") {
   app.commandLine.appendSwitch("use-mock-keychain");
 }
 
+// The popover is visible seconds at a time; a resident GPU helper (~60 MB) just
+// to composite it is pure overhead. Software rendering is plenty for this UI
+// and removes the process entirely. Must run before app.ready; the mock app in
+// tests has no such method, hence the guard.
+if (typeof app.disableHardwareAcceleration === "function") {
+  app.disableHardwareAcceleration();
+}
+
 const remoteDebuggingPort = Number(process.env.BABY_MENU_REMOTE_DEBUGGING_PORT);
 if (Number.isInteger(remoteDebuggingPort) && remoteDebuggingPort >= 1 && remoteDebuggingPort <= 65_535) {
   app.commandLine.appendSwitch("remote-debugging-port", String(remoteDebuggingPort));
@@ -199,6 +207,14 @@ function setPopoverContentHeight(height: number) {
 
 export async function startBabyMenuApp(): Promise<void> {
   expandProcessPathForGuiLaunch();
+  // A second bundle launch (double-click, login-item race) must focus the
+  // running tray instead of starting a duplicate main + renderer + GPU set
+  // that also shares the sqlite database. The mock app in tests has no lock
+  // API, so a missing function means "already single" there.
+  if (typeof app.requestSingleInstanceLock === "function" && !app.requestSingleInstanceLock()) {
+    app.quit();
+    return;
+  }
   await app.whenReady();
 
   // Anonymous, best-effort usage telemetry. No-op unless a build-time Umami
@@ -356,6 +372,12 @@ export async function startBabyMenuApp(): Promise<void> {
     },
     { iconPath: paths.trayIconPath },
   );
+  // A relaunch attempt focuses the existing popover instead of doing nothing:
+  // the tray icon gives no feedback that the app is already running.
+  app.on("second-instance", () => {
+    if (!activeTray) return;
+    void togglePopover(activeTray.getBounds());
+  });
 
   if (process.env.BABY_MENU_OPEN_POPOVER_ON_START === "1") {
     await togglePopover(activeTray.getBounds());
@@ -383,6 +405,10 @@ export async function startBabyMenuApp(): Promise<void> {
   app.on("before-quit", () => {
     backgroundTasks.stop();
     database.close();
+    // Best-effort: agent adapter children (claude/codex via ELECTRON_RUN_AS_NODE)
+    // are reparented, not killed, when the parent exits, so close the runtime
+    // first instead of leaking them past quit.
+    void agentRuntime.close().catch(() => undefined);
     void telemetry.close(1_000);
   });
 }

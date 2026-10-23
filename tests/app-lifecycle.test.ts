@@ -19,6 +19,9 @@ const electronApp = {
   setLoginItemSettings: vi.fn(),
   setActivationPolicy: vi.fn(),
   focus: vi.fn(),
+  quit: vi.fn(),
+  requestSingleInstanceLock: vi.fn(() => true),
+  disableHardwareAcceleration: vi.fn(),
   isPackaged: false,
   on: vi.fn(),
   whenReady: vi.fn(async () => undefined),
@@ -424,6 +427,58 @@ describe("startBabyMenuApp", () => {
     expect((electronApp as { setActivationPolicy: ReturnType<typeof vi.fn> }).setActivationPolicy).toHaveBeenLastCalledWith(
       "accessory",
     );
+  });
+
+  it("renders without a GPU process: disables hardware acceleration at startup", async () => {
+    await (await import("../src/main/app")).startBabyMenuApp();
+
+    expect(electronApp.disableHardwareAcceleration).toHaveBeenCalled();
+  });
+
+  it("quits instead of starting a duplicate app when the single-instance lock is taken", async () => {
+    (electronApp.requestSingleInstanceLock as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+
+    expect(electronApp.quit).toHaveBeenCalled();
+    expect(createBabyMenuTray).not.toHaveBeenCalled();
+  });
+
+  it("focuses the popover when a second bundle launch is attempted", async () => {
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+    const onSecondInstance = electronApp.on.mock.calls.find(([event]) => event === "second-instance")?.[1];
+    expect(onSecondInstance).toBeTypeOf("function");
+
+    browserWindowInstance.show.mockClear();
+    onSecondInstance?.();
+
+    await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalled());
+  });
+
+  it("closes the agent runtime on quit so adapter children do not leak", async () => {
+    const { BabyMenuAgentRuntime } = await import("../src/main/agent-runtime");
+    const close = vi.fn(async () => undefined);
+    (BabyMenuAgentRuntime as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      class MockAgentRuntime {
+        close = close;
+        currentAgent = "test-agent";
+        agentSwitchDisabledReason = undefined;
+        setAgent = vi.fn(async () => undefined);
+        setRegistryOverrides = vi.fn();
+      } as never,
+    );
+    const appModule = await import("../src/main/app");
+
+    await appModule.startBabyMenuApp();
+    const onBeforeQuit = electronApp.on.mock.calls.find(([event]) => event === "before-quit")?.[1];
+    expect(onBeforeQuit).toBeTypeOf("function");
+
+    onBeforeQuit?.();
+
+    expect(close).toHaveBeenCalled();
   });
   describe("popover renderer recovery", () => {
     async function openPopoverAndGetGoneHandler() {
