@@ -96,14 +96,58 @@ export function createPopoverOptions(preloadPath: string): BrowserWindowConstruc
     frame: false,
     show: false,
     resizable: false,
+    movable: false,
+    fullscreenable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
+    acceptFirstMouse: true,
+    hasShadow: true,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
     },
   };
+}
+
+// macOS Spaces fix (issue #117): a menu-bar popover must live on every Space.
+// Without this the window stays pinned to the Space where it was first shown:
+// clicking the tray from another desktop forces a Space switch back, the
+// switch steals focus, `blur` fires and the popover instantly hides again.
+// `setVisibleOnAllWorkspaces` keeps the popover on the current desktop so
+// show/hide never triggers a Space jump. Safe to call with test doubles: it
+// no-ops when the methods do not exist.
+export type SpaceAwareWindow = {
+  setVisibleOnAllWorkspaces?: (visible: boolean, options?: { visibleOnFullScreen?: boolean }) => void;
+  setFullScreenable?: (fullscreenable: boolean) => void;
+};
+
+export function applyPopoverSpaceBehavior(window: SpaceAwareWindow): void {
+  try {
+    window.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: true });
+  } catch {
+    // Older Electron or mocked windows: Spaces pinning is best-effort.
+  }
+  try {
+    window.setFullScreenable?.(false);
+  } catch {
+    // ignore
+  }
+}
+
+// How long after an explicit show a `blur` event is ignored. Showing the
+// popover (especially while macOS animates a Space/display change) briefly
+// steals and loses focus; hiding on that transient blur is what made the menu
+// "flash and close" right after clicking the tray icon.
+export const POPOVER_BLUR_GRACE_MS = 300;
+// Deferred hide: on macOS a tray click fires `blur` just before the tray
+// `click` handler runs. Hiding synchronously in `blur` wins the race and the
+// popover can never be toggled back open. Deferring lets the toggle refocus
+// first; the hide only proceeds if the window is still blurred then.
+export const POPOVER_BLUR_HIDE_DELAY_MS = 120;
+
+export function shouldSuppressPopoverBlur(suppressUntil: number, now: number = Date.now()): boolean {
+  return now < suppressUntil;
 }
 
 function isLocalRendererUrl(rendererUrl: string): boolean {

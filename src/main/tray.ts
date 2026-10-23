@@ -16,6 +16,9 @@ export function createBabyMenuTray(onClick: (bounds: Rectangle) => void, options
   const tray = new Tray(icon);
   tray.setToolTip("baby-menu");
   tray.on("click", (_event, bounds) => onClick(bounds));
+  // macOS: ctrl-click / right-click emits `right-click` instead of `click`.
+  // Toggle the same popover so the menu opens regardless of click style.
+  tray.on("right-click", (_event, bounds) => onClick(bounds));
 
   return {
     tray,

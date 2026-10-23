@@ -10,11 +10,15 @@ import { seedExtensionWorkspace } from "./extension-seeder";
 import { registerIpcHandlers } from "./ipc";
 import {
   DEFAULT_POPOVER_SIZE,
+  POPOVER_BLUR_GRACE_MS,
+  POPOVER_BLUR_HIDE_DELAY_MS,
+  applyPopoverSpaceBehavior,
   calculatePopoverBounds,
   createPopoverOptions,
   createRendererReloadBudget,
   loadPopoverRenderer,
   responsivePopoverSize,
+  shouldSuppressPopoverBlur,
   type Size,
 } from "./popover";
 import { createBackgroundTaskScheduler } from "./background-task-scheduler";
@@ -44,6 +48,10 @@ let popoverWindow: BrowserWindow | null = null;
 let activeTray: BabyMenuTray | null = null;
 let latestTrayBounds: Rectangle | null = null;
 let latestPopoverSize: Size = DEFAULT_POPOVER_SIZE;
+// Timestamp (Date.now) until which `blur` must not hide the popover. Set on
+// every explicit show so the transient blur from a Spaces/display switch or
+// from the tray click itself cannot instantly hide the window again (#117).
+let suppressPopoverBlurUntil = 0;
 
 export function getActiveBabyMenuTray(): BabyMenuTray | null {
   return activeTray;
@@ -58,8 +66,31 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
 
   const dirname = currentDirname();
   popoverWindow = new BrowserWindow(createPopoverOptions(join(dirname, "../preload/index.cjs")));
+  // Pin to every Space so opening from another desktop never triggers a Space
+  // jump (which used to steal focus -> blur -> instant hide, issue #117).
+  applyPopoverSpaceBehavior(popoverWindow);
   popoverWindow.on("blur", () => {
     if (process.env.BABY_MENU_KEEP_POPOVER_OPEN === "1") return;
+    const window = popoverWindow;
+    if (!window || window.isDestroyed()) return;
+    if (shouldSuppressPopoverBlur(suppressPopoverBlurUntil)) return;
+    // macOS fires blur just before the tray click handler; defer so a toggle
+    // that refocuses within the delay wins and the popover stays open.
+    setTimeout(() => {
+      if (!window || window.isDestroyed()) return;
+      if (shouldSuppressPopoverBlur(suppressPopoverBlurUntil)) return;
+      if (window.isFocused()) return;
+      if (!window.isVisible()) return;
+      window.hide();
+    }, POPOVER_BLUR_HIDE_DELAY_MS);
+  });
+  // Cmd+W / window close must hide (preserving renderer state) instead of
+  // destroying the window. Destroying forced a costly recreate on next open
+  // and was the only reason Cmd+W "worked" across Spaces while click-outside
+  // did not; with Spaces pinning both paths now behave the same.
+  popoverWindow.on("close", (event) => {
+    if (process.env.BABY_MENU_KEEP_POPOVER_OPEN === "1") return;
+    event.preventDefault();
     popoverWindow?.hide();
   });
   // Tell the renderer when the popover is shown or hidden so view refresh can pause
@@ -113,6 +144,9 @@ async function togglePopover(trayBounds: Rectangle): Promise<void> {
   const display = screen.getDisplayNearestPoint({ x: trayBounds.x, y: trayBounds.y });
   window.setBounds(calculatePopoverBounds(trayBounds, display.workArea, latestPopoverSize));
   setPopoverKeyWindowActive(true);
+  // Guard the transient blur that fires while the window appears (Spaces
+  // animation / focus steal). Without this the popover flashes then hides.
+  suppressPopoverBlurUntil = Date.now() + POPOVER_BLUR_GRACE_MS;
   window.show();
   window.focus();
   // The popover is baby-menu's single screen, so opening it is the app's page
