@@ -85,7 +85,7 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
   Rollback runs `git reset --hard <recorded HEAD>` plus `git clean -fd`; those destructive commands are acceptable only because of these guards.
 - **Diff-derived Keep / Undo.**
   The bar reflects the actual git or snapshot diff, not agent wording - it names created, updated, or removed extensions, reports `layout.tsx` edits as layout changes, and clears itself when nothing changed on disk.
-  Successful clean turns still report that no changes were made; failed clean sessions close without that no-op message, while partial changes from failed turns remain available for Keep or Undo alongside the failure guidance.
+  Successful clean turns show the agent's reply text (for example a question or a blocker) so the user can answer it, or report that no changes were made when the agent said nothing; failed clean sessions close without that no-op message, while partial changes from failed turns remain available for Keep or Undo alongside the failure guidance.
 
 ## Updates and telemetry
 

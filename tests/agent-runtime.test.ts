@@ -841,4 +841,15 @@ describe("agent runtime session resume recovery", () => {
     expect(existsSync(sessionFile)).toBe(true);
     expect(telemetry).toContainEqual({ name: "agent_turn", fields: { agent: "codex", status: "error" } });
   });
+
+  it("returns the agent reply trimmed, and empty when the agent said nothing", async () => {
+    const { runtime } = await buildRecoveryRuntime([
+      async () => "\nWhich models should the widget show?\n",
+      async () => "  \n ",
+    ]);
+
+    expect((await runtime.send("add a widget")).assistantText).toBe("Which models should the widget show?");
+    // An empty reply stays empty so the popover can say plainly that nothing changed.
+    expect((await runtime.send("add a widget")).assistantText).toBe("");
+  });
 });

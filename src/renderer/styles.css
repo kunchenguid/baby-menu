@@ -328,7 +328,8 @@ button:disabled,
   color: var(--signal-live);
 }
 
-.sessionbar.blocked {
+.sessionbar.blocked,
+.sessionbar.reply {
   color: var(--signal-pending);
 }
 
@@ -371,6 +372,27 @@ button:disabled,
 .sessionbar.error .sb-msg {
   overflow-wrap: anywhere;
   white-space: normal;
+}
+
+.sessionbar.reply {
+  align-items: start;
+}
+
+.sessionbar.reply .sb-msg {
+  gap: 4px;
+  white-space: normal;
+}
+
+.sessionbar .sb-reply {
+  max-height: 240px;
+  overflow-y: auto;
+  color: var(--ink-200);
+  font-size: 12px;
+  font-weight: var(--weight-reg);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  user-select: text;
+  white-space: pre-wrap;
 }
 
 .sessionbar .sb-hint {

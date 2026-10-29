@@ -534,7 +534,7 @@ export class BabyMenuAgentRuntime {
 
       this.telemetry?.track("agent_turn", { agent: telemetryAgent, status: "success" });
       return {
-        assistantText: output.trim() || "Agent finished without a text response.",
+        assistantText: output.trim(),
         session: await this.enrichActiveSessionSnapshot(
           changeSession,
           "Review the generated repo changes, then Save or Rollback.",

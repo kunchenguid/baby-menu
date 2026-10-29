@@ -26,6 +26,14 @@ export type AgentSessionNotice =
       kind: "blocked" | "saved" | "error";
       summary: string;
       hint?: string;
+    }
+  | {
+      // The agent answered (a question, an explanation, a blocker) without
+      // editing any file. `text` is the full reply so the user can read it and
+      // answer in the composer.
+      kind: "reply";
+      summary: string;
+      text: string;
     };
 
 export function useAgentRuntime() {
@@ -112,7 +120,7 @@ export function useAgentRuntime() {
     try {
       if (!window.babyMenu) throw new Error(unavailableText);
       const result = await window.babyMenu.agent.send(trimmed);
-      const nextChange = sessionNoticeForResult(result.session);
+      const nextChange = sessionNoticeForResult(result.session, result.assistantText);
       setPendingChange(nextChange.kind === "pending" ? nextChange : null);
       setNotice(nextChange.kind === "pending" ? null : nextChange);
     } catch (error) {
@@ -173,10 +181,13 @@ export function useAgentRuntime() {
   };
 }
 
-function sessionNoticeForResult(snapshot: GitSessionSnapshot | undefined): AgentSessionNotice {
-  // The agent reported back without touching any file. Say so plainly instead of
+function sessionNoticeForResult(snapshot: GitSessionSnapshot | undefined, assistantText: string): AgentSessionNotice {
+  // The agent reported back without touching any file. Show what it said (often a
+  // question or a blocker), or say plainly that nothing changed, instead of
   // claiming a change and offering a Keep button with nothing behind it.
   if (snapshot && snapshot.dirty === false) {
+    const reply = assistantText.trim();
+    if (reply) return { kind: "reply", summary: "The agent replied", text: reply };
     return { kind: "blocked", summary: "No changes were made", hint: "the agent did not edit anything" };
   }
 

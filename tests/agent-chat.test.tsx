@@ -212,6 +212,7 @@ describe("AgentChat", () => {
 
     expect(await screen.findByText("Updated the battery extension")).toBeTruthy();
     expect(screen.queryByText(/Added/)).toBeNull();
+    expect(screen.queryByTestId("agent-reply")).toBeNull();
   });
 
   it("labels a layout-only change as Updated the layout", async () => {
@@ -236,10 +237,10 @@ describe("AgentChat", () => {
     expect(await screen.findByText("Updated the layout")).toBeTruthy();
   });
 
-  it("says no changes were made when the agent edited nothing", async () => {
+  it("says no changes were made when the agent edited nothing and said nothing", async () => {
     installBabyMenuAgentMock();
     window.babyMenu!.agent.send = vi.fn(async (): Promise<AgentChatResult> => ({
-      assistantText: "All set!",
+      assistantText: "  \n ",
       session: { startedClean: true, canSave: true, canRollback: true, head: null, dirty: false, changes: [] },
     }));
     render(<AgentChat />);
@@ -249,7 +250,63 @@ describe("AgentChat", () => {
     fireEvent.submit(composer.closest("form")!);
 
     expect(await screen.findByText("No changes were made")).toBeTruthy();
+    expect(screen.getByText("the agent did not edit anything")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+  });
+
+  it("shows the agent's full question when it replied without editing, and keeps the composer usable", async () => {
+    installBabyMenuAgentMock();
+    const question = [
+      "Before I build the Cursor quota widget I need two answers:",
+      "1. Should the widget show per-model usage, or one combined total for all models?",
+      "2. Does \"grok bot\" mean a per-model split from Cursor, or the separate Grok credits recipe?",
+    ].join("\n");
+    const send = vi.fn(async (): Promise<AgentChatResult> => ({
+      assistantText: `\n${question}\n`,
+      session: { startedClean: true, canSave: true, canRollback: true, head: null, dirty: false, changes: [] },
+    }));
+    window.babyMenu!.agent.send = send;
+    render(<AgentChat />);
+
+    const composer = screen.getByPlaceholderText("talk to the baby");
+    fireEvent.change(composer, { target: { value: "add a cursor usage widget" } });
+    fireEvent.submit(composer.closest("form")!);
+
+    const reply = await screen.findByTestId("agent-reply");
+    expect(reply.textContent).toBe(question);
+    expect(screen.getByText("The agent replied")).toBeTruthy();
+    expect(screen.queryByText("No changes were made")).toBeNull();
+    expect(screen.queryByText("the agent did not edit anything")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+
+    // The user can answer in the same conversation right away.
+    const followUp = screen.getByPlaceholderText("talk to the baby");
+    fireEvent.change(followUp, { target: { value: "per-model, and drop grok" } });
+    fireEvent.submit(followUp.closest("form")!);
+    expect(send).toHaveBeenLastCalledWith("per-model, and drop grok");
+  });
+
+  it("shows a blocker explanation instead of hiding it behind the no-changes notice", async () => {
+    installBabyMenuAgentMock();
+    const blocker =
+      "I can't build the widget yet. Cursor's usage API rejected the saved login (401 unauthenticated, ERROR_NOT_LOGGED_IN), " +
+      "and the recipe forbids mock data. Sign in to Cursor again, then ask me to retry.";
+    window.babyMenu!.agent.send = vi.fn(async (): Promise<AgentChatResult> => ({
+      assistantText: blocker,
+      session: { startedClean: true, canSave: true, canRollback: true, head: null, dirty: false, changes: [] },
+    }));
+    render(<AgentChat />);
+
+    const composer = screen.getByPlaceholderText("talk to the baby");
+    fireEvent.change(composer, { target: { value: "show the cursor usage" } });
+    fireEvent.submit(composer.closest("form")!);
+
+    expect((await screen.findByTestId("agent-reply")).textContent).toBe(blocker);
+    expect(screen.queryByText("No changes were made")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByTestId("agent-reply")).toBeNull();
+    expect(screen.getByPlaceholderText("talk to the baby")).toBeTruthy();
   });
 
   it("clears the session bar after Keep without a kept confirmation", async () => {

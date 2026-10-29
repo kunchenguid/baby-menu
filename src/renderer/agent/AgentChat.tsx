@@ -140,7 +140,13 @@ function SessionBar({
       <span className="sb-dot" />
       <div className="sb-msg">
         {session.summary}
-        {session.hint ? <span className="sb-hint">{session.hint}</span> : null}
+        {session.kind === "reply" ? (
+          <div className="sb-reply" data-testid="agent-reply">
+            {session.text}
+          </div>
+        ) : session.hint ? (
+          <span className="sb-hint">{session.hint}</span>
+        ) : null}
       </div>
       <Button variant="ghost" size="sm" onClick={onDismiss}>
         Dismiss
