@@ -304,7 +304,12 @@ describe("distribution config", () => {
     expect(workflow).toContain("HOMEBREW_TAP_TOKEN");
     expect(workflow).toContain("Casks/baby-menu.rb");
     expect(workflow).toContain("git diff --cached --quiet");
-    expect(workflow).toContain("xattr");
+    const caskTemplate = workflow.match(/cat > .*? << CASK_EOF\n(?<template>[\s\S]*?)\n          CASK_EOF/)?.groups?.template;
+    expect(caskTemplate).toBeDefined();
+    expect(caskTemplate).toContain("postflight_steps do");
+    expect(caskTemplate).toContain('run "/usr/bin/xattr",');
+    expect(caskTemplate).toContain('args: ["-cr", "{{appdir}}/Baby Menu.app"],');
+    expect(caskTemplate).toContain("must_succeed: false");
     expect(workflow).toContain('"~/.baby-menu"');
     expect(workflow).toContain('uninstall quit: "com.kunchenguid.baby-menu"');
     expect(workflow).toContain("uninstall_preflight do");
