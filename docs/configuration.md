@@ -71,7 +71,7 @@ brew upgrade --cask baby-menu
 ```
 
 When a newer GitHub Release exists, Baby Menu shows an indicator in the popover header that opens a dialog with the same command and a link to the release notes.
-If Baby Menu is running during a Cask upgrade, the cask quits the old app and relaunches the new one after replacement.
+If Baby Menu is running during a Cask upgrade, the cask quits the old app and Homebrew reopens the new one after replacement.
 Fresh installs and upgrades while Baby Menu is closed do not launch the app automatically.
 
 ## Telemetry

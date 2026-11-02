@@ -304,23 +304,18 @@ describe("distribution config", () => {
     expect(workflow).toContain("HOMEBREW_TAP_TOKEN");
     expect(workflow).toContain("Casks/baby-menu.rb");
     expect(workflow).toContain("git diff --cached --quiet");
-    expect(workflow).toContain("xattr");
     expect(workflow).toContain('"~/.baby-menu"');
     expect(workflow).toContain('uninstall quit: "com.kunchenguid.baby-menu"');
-    expect(workflow).toContain("uninstall_preflight do");
-    expect(workflow).toContain('system("/usr/bin/pgrep", "-x", "Baby Menu"');
-    expect(workflow).toContain('nohup", args: ["/bin/sh", "-c"');
-    expect(workflow).toContain('while [ -e "#{appdir}/Baby Menu.app" ]; do');
-    expect(workflow).toContain('/usr/bin/open -a "#{appdir}/Baby Menu.app"');
-    expect(workflow).not.toContain("baby-menu.relaunch");
-    expect(workflow).not.toContain("/tmp/com.kunchenguid.baby-menu");
+    // Homebrew reopens apps closed by `uninstall quit:` during `brew upgrade`, and the notarized app
+    // needs no quarantine stripping, so the cask must not use deprecated Ruby flight blocks.
+    expect(workflow).not.toMatch(/^\s*(uninstall_)?(pre|post)flight\b/m);
     expect(workflow).not.toContain("tags:");
     await expect(stat(resolve(import.meta.dirname, "../.github/workflows/release.yml"))).rejects.toMatchObject({
       code: "ENOENT",
     });
   });
 
-  it("generates a syntactically valid Homebrew relaunch shell script", async () => {
+  it("generates a Homebrew cask without flight blocks", async () => {
     const workflow = await readFile(resolve(import.meta.dirname, "../.github/workflows/release-please.yml"), "utf8");
     const caskTemplateMatch = workflow.match(/cat > "\$RUNNER_TEMP\/homebrew-tap\/Casks\/baby-menu\.rb" << CASK_EOF\n(?<template>[\s\S]*?)\n\s+CASK_EOF/);
 
@@ -338,15 +333,12 @@ describe("distribution config", () => {
         VERSION: "1.2.3",
       },
     });
-    const scriptMatch = generatedCask.match(/<<~RELAUNCH_SCRIPT\], must_succeed: false\n(?<script>[\s\S]*?)\n\s*RELAUNCH_SCRIPT/);
 
-    expect(scriptMatch?.groups?.script).toBeDefined();
-
-    const script = (scriptMatch?.groups?.script ?? "")
-      .replace(/^\s{14}/gm, "")
-      .replaceAll("#{appdir}", "/Applications");
-
-    await expect(execFileAsync("/bin/sh", ["-n", "-c", script])).resolves.toBeDefined();
+    expect(generatedCask).toContain('version "1.2.3"');
+    expect(generatedCask).toContain('url "https://github.com/kunchenguid/baby-menu/releases/download/baby-menu-v#{version}/Baby-Menu-#{version}-universal.dmg"');
+    expect(generatedCask).toContain('app "Baby Menu.app"');
+    expect(generatedCask).toContain('uninstall quit: "com.kunchenguid.baby-menu"');
+    expect(generatedCask).not.toMatch(/^\s*(uninstall_)?(pre|post)flight(_steps)?\b/m);
   });
 
   it("declares release-please manifest mode for the Baby Menu package", async () => {
