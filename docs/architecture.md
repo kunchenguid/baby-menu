@@ -91,7 +91,7 @@ An unchanged `server.ts` module instance stays alive across invokes and backgrou
 
 - **Release indicator.**
   The main process checks the latest GitHub Release at most every four hours, stays silent on failure, and shows the upgrade command only when a newer release exists.
-  The Homebrew Cask relaunches Baby Menu after an upgrade only when it was already running.
+  Homebrew reopens Baby Menu after a Cask upgrade only when it was already running.
 - **Anonymous telemetry.**
   Packaged builds fire best-effort Umami events for app start, popover open (also a `/popover` page view), agent turn status, and agent switches.
   Built-in agents report as `claude` or `codex`; custom agents report only as `custom`.
