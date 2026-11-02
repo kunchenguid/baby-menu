@@ -306,9 +306,6 @@ describe("distribution config", () => {
     expect(workflow).toContain("git diff --cached --quiet");
     expect(workflow).toContain('"~/.baby-menu"');
     expect(workflow).toContain('uninstall quit: "com.kunchenguid.baby-menu"');
-    // Homebrew reopens apps closed by `uninstall quit:` during `brew upgrade`, and the notarized app
-    // needs no quarantine stripping, so the cask must not use deprecated Ruby flight blocks.
-    expect(workflow).not.toMatch(/^\s*(uninstall_)?(pre|post)flight\b/m);
     expect(workflow).not.toContain("tags:");
     await expect(stat(resolve(import.meta.dirname, "../.github/workflows/release.yml"))).rejects.toMatchObject({
       code: "ENOENT",
@@ -338,6 +335,8 @@ describe("distribution config", () => {
     expect(generatedCask).toContain('url "https://github.com/kunchenguid/baby-menu/releases/download/baby-menu-v#{version}/Baby-Menu-#{version}-universal.dmg"');
     expect(generatedCask).toContain('app "Baby Menu.app"');
     expect(generatedCask).toContain('uninstall quit: "com.kunchenguid.baby-menu"');
+    // Homebrew reopens apps closed by `uninstall quit:` after `brew upgrade`, and the notarized app
+    // needs no quarantine stripping, so the cask needs no (deprecated or sandboxed) flight blocks.
     expect(generatedCask).not.toMatch(/^\s*(uninstall_)?(pre|post)flight(_steps)?\b/m);
   });
 
