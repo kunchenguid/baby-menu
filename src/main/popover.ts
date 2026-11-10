@@ -89,10 +89,20 @@ export function responsivePopoverSize(content: Size, workArea?: Rectangle): Size
   };
 }
 
+// On macOS the popover is a non-activating panel. A panel joins every Space,
+// including another app's full-screen Space, and becomes the key window without
+// activating the app. That lets baby-menu stay an accessory (dock-less) app while
+// the popover opens over whatever the user is looking at, and the key window keeps
+// Chromium's cursor tracking working. Activating the app instead (or switching it
+// to the regular activation policy) makes macOS leave a full-screen Space for the
+// desktop. A popover is never full screen itself, which also keeps the panel's
+// full-screen-auxiliary behavior from conflicting with full-screen-primary.
 export function createPopoverOptions(preloadPath: string): BrowserWindowConstructorOptions {
   return {
     width: DEFAULT_POPOVER_SIZE.width,
     height: DEFAULT_POPOVER_SIZE.height,
+    type: "panel",
+    fullscreenable: false,
     frame: false,
     show: false,
     resizable: false,
