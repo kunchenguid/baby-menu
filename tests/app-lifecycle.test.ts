@@ -400,7 +400,7 @@ describe("startBabyMenuApp", () => {
     expect(electronApp.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: true });
   });
 
-  it("temporarily uses regular activation policy while the macOS popover is visible", async () => {
+  it("opens the macOS popover as a non-activating panel so full-screen Spaces stay put", async () => {
     Object.defineProperty(process, "platform", {
       configurable: true,
       value: "darwin",
@@ -411,20 +411,21 @@ describe("startBabyMenuApp", () => {
     const onTrayClick = createBabyMenuTray.mock.calls.at(-1)?.[0];
     await onTrayClick?.({ x: 100, y: 10, width: 24, height: 24 });
 
-    await vi.waitFor(() =>
-      expect((electronApp as { setActivationPolicy: ReturnType<typeof vi.fn> }).setActivationPolicy).toHaveBeenCalledWith(
-        "regular",
-      ),
-    );
-    expect((electronApp as { focus: ReturnType<typeof vi.fn> }).focus).toHaveBeenCalledWith({ steal: true });
+    await vi.waitFor(() => expect(browserWindowInstance.show).toHaveBeenCalled());
+    expect(BrowserWindow).toHaveBeenCalledWith(expect.objectContaining({ type: "panel", fullscreenable: false }));
+    expect(browserWindowInstance.focus).toHaveBeenCalled();
+    // Switching to the regular activation policy or stealing app focus makes macOS
+    // leave a full-screen Space for the desktop, so the app stays an accessory app.
+    expect(electronApp.setActivationPolicy).not.toHaveBeenCalled();
+    expect(electronApp.focus).not.toHaveBeenCalled();
 
     const onHide = browserWindowInstance.on.mock.calls.find(([event]) => event === "hide")?.[1];
     onHide?.();
 
-    expect((electronApp as { setActivationPolicy: ReturnType<typeof vi.fn> }).setActivationPolicy).toHaveBeenLastCalledWith(
-      "accessory",
-    );
+    expect(electronApp.setActivationPolicy).not.toHaveBeenCalled();
+    expect(electronApp.dock.hide).toHaveBeenCalledTimes(1);
   });
+
   describe("popover renderer recovery", () => {
     async function openPopoverAndGetGoneHandler() {
       const appModule = await import("../src/main/app");

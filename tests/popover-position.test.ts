@@ -115,6 +115,41 @@ describe("calculatePopoverBounds", () => {
   });
 });
 
+describe("createPopoverOptions", () => {
+  it("creates a hidden, frameless, non-activating panel that can float over full-screen apps", () => {
+    const options = createPopoverOptions("/app/preload.cjs");
+
+    // The macOS panel type joins every Space (including full-screen ones) and becomes
+    // the key window without activating the app, so opening the popover never makes
+    // macOS switch Spaces and cursor tracking still has a key window.
+    expect(options).toMatchObject({
+      type: "panel",
+      fullscreenable: false,
+      frame: false,
+      show: false,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+    });
+  });
+
+  it("re-joins the current Space every time the panel is shown", () => {
+    // macOS prunes a hidden panel's Space membership when a full-screen Space is torn
+    // down, and showing a plain join-all-Spaces panel does not restore it, so the tray
+    // click later "opens" the popover on no visible Space. A transient window (hidden
+    // in Mission Control) is placed on the active Space each time it is ordered in.
+    expect(createPopoverOptions("/app/preload.cjs").hiddenInMissionControl).toBe(true);
+  });
+
+  it("keeps the renderer isolated behind the preload bridge", () => {
+    expect(createPopoverOptions("/app/preload.cjs").webPreferences).toEqual({
+      preload: "/app/preload.cjs",
+      contextIsolation: true,
+      nodeIntegration: false,
+    });
+  });
+});
+
 describe("createRendererReloadBudget", () => {
   it("allows a bounded number of reloads per window, then refills as old reloads age out", () => {
     let now = 1_000;

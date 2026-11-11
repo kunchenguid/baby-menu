@@ -67,12 +67,7 @@ async function createPopoverWindow(): Promise<BrowserWindow> {
   // API is unreliable here (the popover is created show:false, and the gating would
   // silently break if backgroundThrottling were ever disabled).
   popoverWindow.on("show", () => sendPopoverVisibility(true));
-  // Once the popover is hidden, drop back to accessory mode so the dock icon disappears again.
-  // See setPopoverKeyWindowActive for why the popover becomes a regular-policy app while visible.
-  popoverWindow.on("hide", () => {
-    setPopoverKeyWindowActive(false);
-    sendPopoverVisibility(false);
-  });
+  popoverWindow.on("hide", () => sendPopoverVisibility(false));
   // Nothing respawns a dead renderer on its own: without this the popover stays a
   // blank white window until the app is quit. A clean exit only happens on shutdown.
   // The reload is deferred because reloading from inside this event trips a
@@ -112,7 +107,9 @@ async function togglePopover(trayBounds: Rectangle): Promise<void> {
 
   const display = screen.getDisplayNearestPoint({ x: trayBounds.x, y: trayBounds.y });
   window.setBounds(calculatePopoverBounds(trayBounds, display.workArea, latestPopoverSize));
-  setPopoverKeyWindowActive(true);
+  // The popover is a non-activating panel (see createPopoverOptions): show and focus
+  // make it the key window without activating the app, so macOS never switches away
+  // from the current Space, including another app's full-screen Space.
   window.show();
   window.focus();
   // The popover is baby-menu's single screen, so opening it is the app's page
@@ -121,19 +118,6 @@ async function togglePopover(trayBounds: Rectangle): Promise<void> {
   const telemetry = getDefaultTelemetry();
   telemetry.pageview("/popover");
   telemetry.track("popover_open");
-}
-
-// baby-menu runs as a macOS accessory app (dock hidden) so it has no permanent dock icon. But an
-// accessory app's windows never become the macOS "key window", and macOS only does CSS cursor-rect
-// tracking for the key window - so as an accessory app the popover's cursor never updates correctly
-// (it stays the default arrow, or updates unstably and flickers). Switching to the "regular"
-// activation policy while the popover is visible lets it become the key window so the cursor tracks
-// correctly; switching back to "accessory" on hide keeps the dock icon from lingering. Net effect:
-// the dock icon is only present for the brief moment the popover is open.
-function setPopoverKeyWindowActive(active: boolean): void {
-  if (process.platform !== "darwin") return;
-  app.setActivationPolicy(active ? "regular" : "accessory");
-  if (active) app.focus({ steal: true });
 }
 
 function sendToPopover(channel: string, payload: unknown): void {

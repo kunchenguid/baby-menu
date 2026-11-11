@@ -34,6 +34,9 @@ Provider-specific acquisition and refresh contracts live in the matching recipe.
 Widgets conform to `BabyMenuWidget` / `RefreshableBabyMenuWidget`; `WidgetHost` owns visible-widget refresh timing via `useViewRefresh` and the main-process popover visibility signal, so widgets never start their own polling.
 A root `layout.tsx` default-exports a `BabyMenuLayout`, receives active widget metadata plus `renderWidget(id)`, and owns the canvas arrangement; the popover adapts to the canvas width plus chrome and the rendered height.
 If the popover renderer process dies, `app.ts` reloads it on `render-process-gone` (deferred out of the event, capped by `createRendererReloadBudget` in `src/main/popover.ts`), and the next tray click reloads a renderer the cap gave up on, so the popover never stays a blank window.
+On macOS the popover is a non-activating `panel` window (`createPopoverOptions`), so it opens on the current Space, including another app's full-screen Space, and becomes the key window (which Chromium needs for cursor tracking) while the app stays a dock-less accessory app.
+Showing it must never switch the activation policy or activate the app, because macOS then leaves a full-screen Space for the desktop.
+The panel is also hidden in Mission Control (a transient window), because macOS drops a hidden panel from its Spaces when a full-screen Space closes, and only a transient window is put back on the active Space when it is shown again.
 Settings sections own only their body; `SettingsView` owns the frame and rediscovers sections when settings refresh or the popover reopens.
 Server actions and background tasks are discovered dynamically, so new capabilities need no preload change.
 
